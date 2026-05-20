@@ -1,0 +1,226 @@
+/* ============================================================
+   css/emotion.css
+   情绪与关系演化系统 UI 样式
+   追加到现有 CSS 之后加载
+   ============================================================ */
+
+/* ── 情绪面板 ─────────────────────────────────────── */
+.emotion-panel {
+  padding: 6px 0;
+}
+
+/* ── 关系阶段 ─────────────────────────────────────── */
+.emotion-stage {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  background: var(--card2);
+  border: 1px solid var(--bdr2);
+}
+.emotion-stage-icon {
+  font-size: 1.1rem;
+}
+.emotion-stage-name {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: .88rem;
+  color: var(--acc2);
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+.emotion-stage-desc {
+  font-size: .66rem;
+  color: var(--muted);
+  margin-left: auto;
+}
+
+/* ── 情绪条 ───────────────────────────────────────── */
+.emotion-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 0;
+  font-size: .75rem;
+}
+.emotion-icon {
+  width: 18px;
+  text-align: center;
+  font-size: .8rem;
+}
+.emotion-label {
+  width: 32px;
+  color: var(--muted);
+  font-size: .68rem;
+  flex-shrink: 0;
+}
+.emotion-bar-bg {
+  flex: 1;
+  height: 5px;
+  background: var(--card);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.emotion-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .5s ease, opacity .5s ease;
+}
+.emotion-val {
+  width: 22px;
+  text-align: right;
+  color: var(--txt2);
+  font-size: .66rem;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── 情绪标签（训练界面用）──────────────────────── */
+.emotion-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.emotion-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 1px 7px;
+  border-radius: 8px;
+  font-size: .62rem;
+  border: 1px solid var(--bdr);
+  background: var(--card2);
+  color: var(--txt2);
+  transition: all .2s;
+}
+.emotion-tag.high {
+  border-color: var(--acc);
+  color: var(--acc2);
+  background: var(--acc-s);
+}
+
+/* ── 关系阶段变化通知 ────────────────────────────── */
+.stage-change-banner {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 750;
+  max-width: 400px;
+  width: 90%;
+  padding: 16px 20px;
+  background: var(--bg2);
+  border: 1px solid var(--gold-border, var(--bdr));
+  border-radius: 0 0 16px 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), 0 0 40px var(--glow-purple, rgba(120,80,200,.2));
+  text-align: center;
+  animation: stageSlideDown .5s cubic-bezier(.22, 1.2, .36, 1) both,
+             stageSlideUp .4s ease 3.5s forwards;
+  pointer-events: none;
+}
+.stage-change-banner .stage-icon {
+  font-size: 1.6rem;
+  display: block;
+  margin-bottom: 4px;
+}
+.stage-change-banner .stage-title {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: 1rem;
+  color: var(--acc2);
+  letter-spacing: 2px;
+}
+.stage-change-banner .stage-desc {
+  font-size: .72rem;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+@keyframes stageSlideDown {
+  from { opacity: 0; transform: translateX(-50%) translateY(-100%); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+@keyframes stageSlideUp {
+  from { opacity: 1; transform: translateX(-50%) translateY(0); }
+  to   { opacity: 0; transform: translateX(-50%) translateY(-100%); }
+}
+
+/* ── 事件链通知（右上角小标）─────────────────────── */
+.chain-badge {
+  position: fixed;
+  top: 56px;
+  right: 12px;
+  z-index: 100;
+  padding: 5px 12px;
+  background: var(--acc-s);
+  border: 1px solid var(--acc);
+  border-radius: 10px;
+  font-size: .7rem;
+  color: var(--acc2);
+  font-weight: 600;
+  animation: chainPulse 2s ease infinite;
+  cursor: pointer;
+}
+@keyframes chainPulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--acc-g); }
+  50%      { box-shadow: 0 0 12px 4px var(--acc-g); }
+}
+
+/* ── 情绪浮字（补充enhance.css）──────────────────── */
+.float-num.emo {
+  font-size: .95rem;
+  color: var(--acc3);
+  text-shadow: 0 0 6px var(--glow-purple, rgba(120,80,200,.3)), 0 1px 3px rgba(0,0,0,.4);
+}
+
+/* ── 关系阶段进度条（详情弹窗用）─────────────────── */
+.relation-progress {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 8px;
+}
+.relation-dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bdr);
+  transition: background .3s;
+}
+.relation-dot.reached {
+  background: var(--acc);
+}
+.relation-dot.current {
+  background: var(--acc);
+  box-shadow: 0 0 6px var(--acc-g);
+  animation: dotGlow 2s ease infinite;
+}
+@keyframes dotGlow {
+  0%, 100% { box-shadow: 0 0 4px var(--acc-g); }
+  50%      { box-shadow: 0 0 10px var(--acc-g); }
+}
+.relation-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 3px;
+  font-size: .56rem;
+  color: var(--muted);
+}
+.relation-labels span.current-stage {
+  color: var(--acc2);
+  font-weight: 600;
+}
+
+/* ── 响应式 ───────────────────────────────────────── */
+@media (max-width: 380px) {
+  .emotion-stage { padding: 5px 8px; gap: 4px; }
+  .emotion-stage-name { font-size: .8rem; }
+  .emotion-stage-desc { display: none; }
+  .emotion-label { width: 28px; font-size: .62rem; }
+  .stage-change-banner { width: 96%; padding: 12px 14px; }
+}
+
+/* ── 减弱动画 ─────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .stage-change-banner { animation: none; opacity: 1; transform: translateX(-50%); }
+  .chain-badge { animation: none; }
+}

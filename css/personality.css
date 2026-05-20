@@ -1,0 +1,162 @@
+/* ============================================================
+   personality.css
+   人格系统 UI 样式补丁
+   追加到现有 style.css 末尾即可
+   ============================================================ */
+
+/* ── 人格面板整体 ─────────────────────────────────── */
+.persona-panel {
+  padding: 8px 0;
+}
+.persona-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  font-size: .78rem;
+}
+.persona-icon {
+  width: 20px;
+  text-align: center;
+  font-size: .85rem;
+}
+.persona-label {
+  width: 36px;
+  color: var(--muted);
+  font-size: .72rem;
+  flex-shrink: 0;
+}
+.persona-bar-bg {
+  flex: 1;
+  height: 6px;
+  background: var(--card);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.persona-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width .4s ease;
+}
+.persona-val {
+  width: 26px;
+  text-align: right;
+  color: var(--fg);
+  font-size: .72rem;
+  font-family: 'Courier New', monospace;
+}
+
+/* ── 人格标签 ─────────────────────────────────────── */
+.persona-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.persona-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: .68rem;
+  color: var(--fg);
+}
+
+/* ── 路线指示 ─────────────────────────────────────── */
+.persona-route {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--acc2), transparent);
+  border: 1px solid var(--acc);
+  font-size: .76rem;
+}
+.persona-route-icon {
+  font-size: 1rem;
+}
+.persona-route-name {
+  color: var(--acc);
+  font-weight: 600;
+}
+.persona-route-stage {
+  color: var(--muted);
+  font-size: .7rem;
+}
+
+/* ── 人格变化浮动提示 (在训练界面log区域) ─────────── */
+.persona-change-toast {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 5px 10px;
+  margin: 4px 0;
+  border-radius: 6px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  font-size: .68rem;
+  color: var(--muted);
+  animation: personaFadeIn .3s ease;
+}
+.persona-change-toast .pc-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+.persona-change-toast .pc-pos { color: var(--sg); }
+.persona-change-toast .pc-neg { color: var(--sr); }
+
+@keyframes personaFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 路线进度条 (角色详情弹窗内) ──────────────────── */
+.route-progress {
+  margin-top: 10px;
+}
+.route-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-size: .75rem;
+}
+.route-row-icon { font-size: .9rem; }
+.route-row-name {
+  width: 60px;
+  color: var(--fg);
+  font-size: .72rem;
+}
+.route-dots {
+  display: flex;
+  gap: 3px;
+  flex: 1;
+}
+.route-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background .3s;
+}
+.route-dot.on {
+  background: var(--acc);
+}
+.route-dot.active {
+  background: var(--acc);
+  box-shadow: 0 0 4px var(--acc);
+}
+.route-row-stage {
+  color: var(--muted);
+  font-size: .66rem;
+  width: 56px;
+  text-align: right;
+}

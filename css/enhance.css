@@ -1,0 +1,820 @@
+/* ============================================================
+   css/enhance.css
+   eraQueenA+ 低风险UI现代化增强层
+   
+   美术风格：暗黑哥特庄园 · 黑紫色 · 金色描边 · 烛光感 · Galgame
+   
+   ★ 本文件纯增量追加，不覆盖 style.css 的任何核心属性
+   ★ 所有动画使用 transform/opacity（GPU加速）
+   ★ 重 motion 的动画带 prefers-reduced-motion 回退
+   ★ 加载本文件后：在 themes.css 之后、style.css 之后
+   ============================================================ */
+
+/* ─────────────────────────────────────────────────────────────
+   §0  增强用CSS变量（追加到现有变量系统）
+   ───────────────────────────────────────────────────────────── */
+:root, [data-theme="dark-rose"] {
+  --glow-acc: rgba(199, 57, 90, .35);
+  --glow-purple: rgba(139, 78, 200, .3);
+  --glow-gold: rgba(212, 175, 55, .25);
+  --gold: #d4af37;
+  --gold-dim: rgba(212, 175, 55, .12);
+  --gold-border: rgba(212, 175, 55, .25);
+  --candle: rgba(255, 180, 60, .06);
+  --candle-strong: rgba(255, 180, 60, .12);
+  --vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.4) 100%);
+}
+[data-theme="warm-wood"],
+[data-theme="summer-snow"],
+[data-theme="autumn-gold"],
+[data-theme="sakura"] {
+  --glow-acc: var(--acc-g);
+  --glow-purple: rgba(120, 80, 180, .12);
+  --glow-gold: rgba(180, 140, 40, .1);
+  --gold: #a08030;
+  --gold-dim: rgba(160, 128, 48, .08);
+  --gold-border: rgba(160, 128, 48, .15);
+  --candle: rgba(255, 200, 80, .03);
+  --candle-strong: rgba(255, 200, 80, .06);
+  --vignette: none;
+}
+[data-theme="night-blue"] {
+  --glow-acc: rgba(74, 128, 240, .3);
+  --glow-purple: rgba(100, 100, 220, .25);
+  --glow-gold: rgba(240, 192, 64, .2);
+  --gold: #f0c040;
+  --gold-dim: rgba(240, 192, 64, .1);
+  --gold-border: rgba(240, 192, 64, .2);
+  --candle: rgba(240, 192, 64, .04);
+  --candle-strong: rgba(240, 192, 64, .08);
+  --vignette: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,.35) 100%);
+}
+
+/* ─────────────────────────────────────────────────────────────
+   §1  按钮动态效果
+   hover发光 · 点击缩放 · 呼吸动画 · 平滑过渡
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 指令按钮增强 ─────────────────────────────── */
+.act-btn {
+  position: relative;
+  overflow: hidden;
+  transition: all .2s cubic-bezier(.4, 0, .2, 1),
+              box-shadow .25s ease,
+              border-color .2s ease;
+}
+.act-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%),
+              var(--glow-purple) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity .3s ease;
+  pointer-events: none;
+}
+.act-btn:hover:not(:disabled)::before {
+  opacity: 1;
+}
+.act-btn:hover:not(:disabled) {
+  box-shadow: 0 0 12px var(--glow-acc),
+              0 2px 8px rgba(0,0,0,.3);
+  border-color: var(--acc);
+  text-shadow: 0 0 8px var(--glow-acc);
+}
+.act-btn:active:not(:disabled) {
+  transform: scale(.92);
+  transition-duration: .08s;
+}
+
+/* ── 主按钮(btn-p)呼吸发光 ──────────────────── */
+.btn-p {
+  position: relative;
+  overflow: hidden;
+  animation: btnBreathe 3s ease-in-out infinite;
+}
+@keyframes btnBreathe {
+  0%, 100% { box-shadow: 0 2px 12px var(--acc-g); }
+  50%      { box-shadow: 0 2px 20px var(--glow-acc), 0 0 30px var(--glow-purple); }
+}
+.btn-p::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 40%;
+  height: 200%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+  transform: skewX(-20deg);
+  transition: left .5s ease;
+  pointer-events: none;
+}
+.btn-p:hover::after {
+  left: 120%;
+}
+.btn-p:active {
+  transform: scale(.94);
+  animation: none;
+}
+
+/* ── 通用按钮hover增强 ──────────────────────── */
+.btn:not(.btn-p):not(.btn-ghost) {
+  transition: all .2s ease,
+              box-shadow .25s ease;
+}
+.btn:not(.btn-p):not(.btn-ghost):hover {
+  box-shadow: 0 0 10px var(--glow-acc);
+}
+.btn:active {
+  transition-duration: .06s;
+}
+
+/* ── 卡片hover金边增强 ──────────────────────── */
+.card-tap:hover {
+  box-shadow: var(--shd-a), 0 0 0 1px var(--gold-border);
+}
+.cc:hover {
+  box-shadow: 0 3px 16px var(--glow-acc), 0 0 0 1px var(--gold-border);
+}
+
+/* ── 底部导航项增强 ──────────────────────────── */
+.ni {
+  transition: transform .2s ease;
+}
+.ni:active {
+  transform: scale(.92);
+}
+.ni.on .ni-icon {
+  filter: drop-shadow(0 0 6px var(--glow-acc));
+}
+
+/* ── Chip/Tab增强 ─────────────────────────────── */
+.chip.on, .cat-chip.on, .outing-cat-chip.on {
+  box-shadow: 0 0 10px var(--glow-acc);
+}
+.chip:active {
+  transform: scale(.94);
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §2  弹窗演出增强
+   淡入 · scale出现 · 背景模糊 · 遮罩层 · 平滑关闭
+   ───────────────────────────────────────────────────────────── */
+
+/* 遮罩层：加强暗角 + 更深的模糊 */
+.ov {
+  transition: opacity .28s cubic-bezier(.4, 0, .2, 1);
+  -webkit-backdrop-filter: blur(14px) saturate(.8);
+  backdrop-filter: blur(14px) saturate(.8);
+}
+
+/* Sheet弹窗：弹性出现动画 */
+.ov .sheet {
+  transition: transform .32s cubic-bezier(.22, 1.2, .36, 1),
+              opacity .25s ease;
+  transform-origin: center center;
+}
+.ov:not(.on) .sheet {
+  transform: scale(.85) translateY(16px);
+  opacity: 0;
+}
+
+/* 弹窗内容区域暗角效果 */
+.sheet {
+  position: relative;
+}
+.sheet::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--vignette);
+  pointer-events: none;
+  z-index: -1;
+  opacity: .3;
+}
+
+/* 剧情弹窗特殊增强 */
+#ov-story .sheet {
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 8px 40px rgba(0,0,0,.5),
+              0 0 60px var(--glow-purple),
+              inset 0 1px 0 var(--gold-dim);
+}
+#ov-story .story-banner {
+  box-shadow: 0 4px 20px rgba(0,0,0,.3);
+}
+
+/* 角色详情弹窗金边 */
+#ov-det .sheet {
+  border: 1px solid var(--gold-border);
+  box-shadow: 0 8px 32px rgba(0,0,0,.4),
+              0 0 40px var(--glow-purple);
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §3  数值反馈浮动动画
+   由 enhance.js 创建的 .float-num 元素
+   ───────────────────────────────────────────────────────────── */
+.float-num-container {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 800;
+  overflow: hidden;
+}
+
+.float-num {
+  position: absolute;
+  font-family: 'Ma Shan Zheng', serif;
+  font-size: 1.1rem;
+  font-weight: 700;
+  white-space: nowrap;
+  pointer-events: none;
+  text-shadow: 0 0 8px currentColor, 0 2px 4px rgba(0,0,0,.5);
+  animation: floatUp 1.4s cubic-bezier(.2, .8, .3, 1) forwards;
+  will-change: transform, opacity;
+}
+.float-num.pos { color: var(--sg); }
+.float-num.neg { color: var(--sr); }
+.float-num.special { color: var(--gold); font-size: 1.3rem; }
+
+@keyframes floatUp {
+  0%   { opacity: 0; transform: translateY(0) scale(.7); }
+  15%  { opacity: 1; transform: translateY(-10px) scale(1.1); }
+  30%  { transform: translateY(-18px) scale(1); }
+  100% { opacity: 0; transform: translateY(-60px) scale(.85); }
+}
+
+/* 连击效果：快速连续触发时偏移 */
+.float-num:nth-child(2n)   { animation-delay: .05s; }
+.float-num:nth-child(3n)   { animation-delay: .1s; }
+.float-num:nth-child(4n+1) { animation-delay: .15s; }
+
+
+/* ─────────────────────────────────────────────────────────────
+   §4  页面转场
+   淡入淡出 · 卡片滑动 · 面板过渡
+   ───────────────────────────────────────────────────────────── */
+
+/* 页面切换：更优雅的淡入滑入 */
+.scr {
+  transition: opacity .3s cubic-bezier(.4, 0, .2, 1),
+              transform .3s cubic-bezier(.4, 0, .2, 1);
+  transform: translateY(8px);
+}
+.scr.on {
+  transform: translateY(0);
+}
+
+/* 卡片入场动画（stagger效果）*/
+.scr.on .card,
+.scr.on .cc,
+.scr.on .sr,
+.scr.on .ach,
+.scr.on .func-btn,
+.scr.on .work-loc-card,
+.scr.on .date-loc-card,
+.scr.on .daily-ev-card {
+  animation: cardSlideIn .35s cubic-bezier(.4, 0, .2, 1) both;
+}
+.scr.on .cc:nth-child(1)  { animation-delay: .02s; }
+.scr.on .cc:nth-child(2)  { animation-delay: .04s; }
+.scr.on .cc:nth-child(3)  { animation-delay: .06s; }
+.scr.on .cc:nth-child(4)  { animation-delay: .08s; }
+.scr.on .cc:nth-child(5)  { animation-delay: .1s;  }
+.scr.on .cc:nth-child(6)  { animation-delay: .12s; }
+.scr.on .cc:nth-child(7)  { animation-delay: .14s; }
+.scr.on .cc:nth-child(8)  { animation-delay: .16s; }
+.scr.on .cc:nth-child(9)  { animation-delay: .18s; }
+.scr.on .cc:nth-child(10) { animation-delay: .2s;  }
+.scr.on .cc:nth-child(11) { animation-delay: .22s; }
+.scr.on .cc:nth-child(12) { animation-delay: .24s; }
+
+.scr.on .func-btn:nth-child(1) { animation-delay: .02s; }
+.scr.on .func-btn:nth-child(2) { animation-delay: .04s; }
+.scr.on .func-btn:nth-child(3) { animation-delay: .06s; }
+.scr.on .func-btn:nth-child(4) { animation-delay: .08s; }
+.scr.on .func-btn:nth-child(5) { animation-delay: .1s;  }
+.scr.on .func-btn:nth-child(6) { animation-delay: .12s; }
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(12px) scale(.97); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 日志条目入场 */
+.log-e {
+  animation: logFadeIn .25s ease both;
+}
+@keyframes logFadeIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 属性条变化时的脉冲效果 */
+.stat-f {
+  transition: width .5s cubic-bezier(.4, 0, .2, 1);
+}
+.stat-f.pulse {
+  animation: barPulse .4s ease;
+}
+@keyframes barPulse {
+  0%   { filter: brightness(1); }
+  50%  { filter: brightness(1.6); }
+  100% { filter: brightness(1); }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §5  暗黑哥特庄园氛围
+   烛光感 · 神秘感 · 金色装饰
+   ───────────────────────────────────────────────────────────── */
+
+/* 全局暗角氛围 */
+#app::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: var(--vignette);
+  pointer-events: none;
+  z-index: -1;
+  opacity: .5;
+}
+
+/* 烛光微光效果 (header) */
+#hdr {
+  background: linear-gradient(180deg, var(--candle-strong), var(--nav));
+}
+
+/* 分节标题金色装饰线 */
+.s-ttl::before {
+  background: linear-gradient(180deg, var(--gold), var(--acc));
+}
+
+/* 训练界面角色头部卡片 → 加微光 */
+.play-hdr {
+  box-shadow: 0 4px 24px rgba(0,0,0,.3),
+              0 0 40px var(--glow-purple);
+}
+.play-hdr::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 40%, var(--candle-strong) 100%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+/* 属性栏容器微光 */
+.stat-tr {
+  box-shadow: inset 0 1px 2px rgba(0,0,0,.3);
+}
+
+/* 成就卡解锁时的金色光晕 */
+.ach.on {
+  box-shadow: 0 0 12px var(--glow-gold), 0 0 0 1px var(--gold-border);
+}
+
+/* 日志区域氛围 */
+#log {
+  position: relative;
+}
+#log::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 30px;
+  background: linear-gradient(transparent, var(--bg));
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* 指令grid区域微光背景 */
+#act-grid {
+  position: relative;
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §6  手机端适配优化
+   小屏布局 · 防重叠 · 触控区域 · 字体缩放
+   ───────────────────────────────────────────────────────────── */
+
+/* ── 触控区域最小44px ─────────────────────────── */
+@media (pointer: coarse) {
+  .act-btn {
+    min-height: 44px;
+    padding: 10px 8px;
+  }
+  .chip, .cat-chip, .g-chip, .outing-cat-chip {
+    min-height: 36px;
+    padding: 7px 14px;
+  }
+  .hdr-btn {
+    width: 36px;
+    height: 36px;
+  }
+  .ni {
+    padding: 6px 0;
+  }
+  .s-x {
+    width: 32px;
+    height: 32px;
+    font-size: 15px;
+  }
+}
+
+/* ── 小屏幕(<380px)极限适配 ──────────────────── */
+@media (max-width: 380px) {
+  .hdr-row { padding: 8px 10px 6px; gap: 6px; }
+  .hdr-ttl h1 { font-size: .88rem; }
+  .hdr-ava { width: 30px; height: 30px; font-size: 15px; }
+  .hdr-btn { width: 28px; height: 28px; font-size: 13px; }
+  .hdr-acts { gap: 3px; }
+
+  .scr { padding: 10px; }
+
+  /* 指令按钮2列 */
+  #act-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 5px !important;
+  }
+  .act-btn { font-size: .72rem; padding: 9px 6px; }
+
+  /* 角色列表紧凑 */
+  .cc { padding: 10px 11px; }
+  .cc-name { font-size: .88rem; }
+  .cc-tags { gap: 2px; }
+  .tag { font-size: .58rem; padding: 1px 5px; }
+
+  /* 底部nav缩小 */
+  .ni-icon { font-size: 18px; }
+  .ni-lbl { font-size: .55rem; }
+
+  /* 弹窗适配 */
+  .sheet { width: calc(100% - 16px); border-radius: 14px; }
+  .s-body { padding: 0 14px 14px; }
+
+  /* 首页功能格子3列 */
+  .func-grid { grid-template-columns: repeat(3, 1fr) !important; }
+
+  /* 工作/约会格子2列 */
+  .work-loc-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  .date-loc-grid { grid-template-columns: 1fr !important; }
+}
+
+/* ── 中等屏幕(380-420px)微调 ─────────────────── */
+@media (min-width: 381px) and (max-width: 420px) {
+  #act-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 5px !important;
+  }
+  .act-btn { font-size: .74rem; padding: 9px 6px; }
+}
+
+/* ── 弹窗全屏化(小屏时) ──────────────────────── */
+@media (max-height: 600px) {
+  .sheet {
+    max-height: 92vh;
+    border-radius: 12px;
+  }
+}
+
+/* ── 防止键盘弹出时底部nav跳动 ────────────────── */
+@media (max-height: 500px) {
+  #nav { display: none; }
+  .tip-bar { display: none; }
+  #con { padding-bottom: 0; }
+}
+
+/* ── 横屏警告 ─────────────────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  #app::before {
+    content: '请使用竖屏模式获得最佳体验';
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    background: var(--acc);
+    color: #fff;
+    font-size: .72rem;
+    text-align: center;
+    padding: 3px;
+    z-index: 900;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §7  Galgame演出增强
+   打字机光标 · 角色名高亮 · 剧情文本排版
+   ───────────────────────────────────────────────────────────── */
+
+/* 打字机光标更醒目 */
+.tw-cur {
+  width: 2px;
+  height: 1.1em;
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--glow-gold);
+}
+
+/* 角色发言名字 */
+.log-spk {
+  
+}
+
+/* 角色台词斜体 + 左边框 */
+.log-e.act {
+  border-left-color: var(--acc3);
+  background: linear-gradient(90deg, var(--candle), var(--card2));
+}
+
+/* 互动记录：指令名+数值变化 */
+.log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.log-action-tag {
+  font-size: .68rem;
+  font-weight: 700;
+  color: var(--acc2);
+  background: rgba(var(--acc-rgb, 199,57,90), .12);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+.log-stat-pos {
+  font-size: .62rem;
+  color: #4caf50;
+  background: rgba(76,175,80,.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.log-stat-neg {
+  font-size: .62rem;
+  color: #ef5350;
+  background: rgba(239,83,80,.1);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+/* 剧情弹窗引用文本 */
+.story-quote {
+  border-left-color: var(--gold);
+  
+}
+
+/* 剧情完成效果条发光 */
+.eff-item {
+  
+}
+
+/* 属性变化的数字脉冲效果 */
+.stat-v {
+  transition: color .3s, text-shadow .3s;
+}
+.stat-v.changed {
+  
+  animation: numPop .4s ease;
+}
+@keyframes numPop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §8  性能安全
+   reduced-motion · will-change · 合成层优化
+   ───────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .btn-p { animation: none; }
+  .float-num { animation: none; opacity: 0; }
+}
+
+/* 仅在需要时提升合成层 */
+.act-btn:hover,
+.btn-p,
+.float-num,
+.ov .sheet {
+  will-change: transform;
+}
+
+/* 滚动性能 */
+#log, .scr {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   §9  首页标题装饰
+   ───────────────────────────────────────────────────────────── */
+.hdr-ttl h1 {
+  background: linear-gradient(135deg, var(--txt), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+/* 非首页时恢复纯色 */
+.hdr-ttl h1.plain-title {
+  background: none;
+  -webkit-text-fill-color: var(--txt);
+}
+
+
+/* ─────────────────────────────────────────────────────────────
+   §8  训练页面新布局
+   ───────────────────────────────────────────────────────────── */
+
+/* Layer 1: 已移除，日期在页头显示 */
+
+/* Layer 2: 角色档案栏 */
+.play-profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  min-height: 70px;
+  background: var(--grad);
+  border-radius: 14px;
+  margin-bottom: 10px;
+  position: relative;
+  overflow: visible;
+  color: #fff;
+}
+.play-profile::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  bottom: -18px;
+  width: 60px;
+  height: 60px;
+  background: var(--glow-acc);
+  border-radius: 50%;
+  filter: blur(24px);
+  opacity: .4;
+}
+.play-profile-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.play-profile-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+.play-profile-name .p-nm {
+  font-family: 'ZCOOL XiaoWei', serif;
+  font-size: 1.05rem;
+  color: #fff;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+}
+/* 性别图标：纯彩色文字，无胶囊背景 */
+.p-gender-icon {
+  font-size: .78rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0;
+}
+.p-gender-icon.male   { color: #a0c8ff; }
+.p-gender-icon.female { color: #ffaac8; }
+.p-gender-icon.both   { color: #c8a0ff; }
+/* 性格标签：无背景，字体颜色按性格动态设置（由JS inline style控制） */
+#p-sub {
+  display: inline-block;
+  font-size: .68rem;
+  color: var(--txt2);
+  white-space: nowrap;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.play-profile-acts {
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+  z-index: 1;
+}
+
+/* 属性条内联布局 (名字 + 进度条 + 数值 同一行) */
+.stat-inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+.stat-inline:last-child { margin-bottom: 0; }
+.stat-inline .stat-nm {
+  font-size: .74rem;
+  color: var(--txt2);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 36px;
+}
+/* 进度条容器 - 内含数值 */
+.stat-inline .stat-tr {
+  flex: 1;
+  height: 18px;
+  background: var(--bdr);
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+}
+.stat-inline .stat-f {
+  height: 100%;
+  border-radius: 9px;
+  transition: width .4s;
+}
+/* 数值显示在进度条内部（绝对定位）*/
+.stat-inline .stat-v {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .66rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  white-space: nowrap;
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* 指令面板无卡片底色 */
+#play-cmd-col {
+  margin-top: 4px;
+}
+
+/* 手机端: 也分左右两栏 */
+#s-play { display: flex; flex-direction: column; gap: 10px; }
+#play-left-col, #play-right-col { display: flex; flex-direction: column; gap: 0; }
+
+/* 左右分栏容器 - 始终两列 */
+.play-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: stretch;
+}
+.play-cols > div > .card { height: 100%; box-sizing: border-box; max-height: 240px; overflow-y: auto; }
+
+/* 全屏铺满 */
+#app { max-width: 100% !important; }
+@media (min-width: 768px) {
+  #app { padding: 0 24px; }
+  #con { max-width: 100% !important; }
+  .scr { padding: 0 12px; }
+}
+
+/* ── 指令解说悬浮提示 ── */
+.cmd-tooltip {
+  position: fixed;
+  z-index: 9999;
+  max-width: 250px;
+  padding: 10px 14px;
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  font-size: .76rem;
+  color: var(--txt2);
+  line-height: 1.7;
+  pointer-events: none;
+  animation: tipIn .15s ease;
+}
+.cmd-tooltip strong { color: var(--acc2); font-size: .82rem; }
+@keyframes tipIn { from { opacity:0; transform:translateY(-90%); } to { opacity:1; transform:translateY(-100%); } }
+
+/* 互动记录：数值变化显示在台词下方 */
+.log-stats {
+  font-size: .68rem;
+  color: var(--muted);
+  margin-top: 4px;
+  padding: 3px 8px;
+  background: rgba(var(--acc-rgb, 199,57,90), .06);
+  border-radius: 6px;
+  line-height: 1.6;
+  white-space: pre-line;
+}

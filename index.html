@@ -1,0 +1,2007 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark-rose">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#0e0b14">
+<title>eraQueenA+ 调教版</title>
+<link rel="stylesheet" href="css/themes.css">
+<link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/personality.css">
+<link rel="stylesheet" href="css/enhance.css">
+<link rel="stylesheet" href="css/emotion.css">
+<style>
+/* ── 桌面端适配 ────────────────────────── */
+@media (min-width: 768px) {
+  body { background: #0a0810; display: flex; justify-content: center; align-items: stretch; min-height: 100vh; }
+  #app { max-width: 960px; width: 100%; margin: 0 auto; box-shadow: 0 0 60px rgba(0,0,0,.6); position: relative; }
+  #nav { max-width: 960px; }
+  .ov .sheet { max-width: 640px !important; }
+  /* 首页功能菜单：桌面端4列 */
+  .func-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  /* 首页故事记录：桌面端3列 */
+  .story-log-btns { display: grid !important; grid-template-columns: repeat(3, 1fr) !important; gap: 10px !important; }
+  /* 训练界面指令按钮：桌面端8列 */
+  #act-grid { grid-template-columns: repeat(8, 1fr) !important; }
+  /* 角色列表：桌面端4列 */
+  #char-grid { grid-template-columns: repeat(4, 1fr) !important; }
+  /* 庄园列表：桌面端2列 */
+  #manor-slave-list { grid-template-columns: repeat(2, 1fr) !important; }
+  /* 训练界面整体布局 - flexbox流式 */
+  #s-play { display: flex; flex-direction: column; gap: 12px; }
+  .play-cols { grid-template-columns: 1fr 1fr; }
+  /* 玩家信息卡：桌面端更宽松 */
+  .player-card { padding: 16px 20px; }
+  .pc-info { font-size: .95rem; }
+  /* 外出面板：桌面端优化 */
+  .work-loc-grid { grid-template-columns: repeat(3, 1fr) !important; }
+  /* 桌面端背景装饰 */
+  body::before {
+    content: ''; position: fixed; inset: 0;
+    background: radial-gradient(ellipse at 20% 50%, rgba(120,40,120,.15) 0%, transparent 60%),
+                radial-gradient(ellipse at 80% 20%, rgba(40,80,160,.1) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+}
+/* 超宽屏幕适配 */
+@media (min-width: 1200px) {
+  #app { max-width: 1100px; }
+  #nav { max-width: 1100px; }
+  .func-grid { grid-template-columns: repeat(5, 1fr) !important; }
+  #char-grid { grid-template-columns: repeat(5, 1fr) !important; }
+  .work-loc-grid { grid-template-columns: repeat(4, 1fr) !important; }
+}
+/* ── 字体大小系统 ────────────────────────── */
+html[data-fontsize="sm"]  { font-size: 13px; }
+html[data-fontsize="md"]  { font-size: 15px; }
+html[data-fontsize="lg"]  { font-size: 17px; }
+html[data-fontsize="xl"]  { font-size: 19px; }
+/* ── 字体样式系统 ────────────────────────── */
+body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
+  font-family: var(--user-font, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif);
+}
+/* ── 作弊面板 ────────────────────────── */
+#ov-cheat .sheet { border: 2px solid #f06 !important; }
+#ov-cheat { z-index: 600; }
+#ov-cheat-pwd { z-index: 600; }
+#ov-custom-confirm { z-index: 600; }
+.cheat-section-title { font-size:.82rem;font-weight:700;color:var(--txt2);margin-bottom:8px;padding-left:3px;border-left:3px solid var(--acc);padding-left:8px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ══ HEADER ══════════════════════════════════════════ -->
+  <header id="hdr">
+    <div class="hdr-row">
+      <button class="hdr-back" id="hdr-back">‹</button>
+      <div class="hdr-ava" id="hdr-ava">👑</div>
+      <div class="hdr-ttl">
+        <h1 id="hdr-h1">eraQueenA+</h1>
+        <p id="hdr-sub">调教养成游戏</p>
+      </div>
+      <div class="hdr-acts">
+        <span id="ai-badge-hdr" class="ai-badge off" style="font-size:.7rem"><span class="ai-dot"></span> AI离线</span>
+        <button class="hdr-btn" id="btn-save-hdr" onclick="openSaveMenu()" title="存档">💾</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ══ SCREENS ══════════════════════════════════════════ -->
+  <main id="con">
+
+    <!-- ── 首页 ── -->
+    <div class="scr" id="s-home">
+
+      <!-- 玩家信息卡 -->
+      <div class="player-card" id="player-card">
+        <div class="pc-top">
+          <div class="pc-ava" id="pc-ava" onclick="openAvaModal()" title="点击更换头像">👑</div>
+          <div class="pc-info">
+            <div class="pc-name">
+              <span id="pc-name-display" ondblclick="openPrettyRename()" title="双击改名">主人</span>
+            </div>
+            <div class="pc-gender" id="pc-gender">性别：未设定</div>
+            <div class="pc-stats-row" style="margin-top:6px">
+              <span class="pc-stat" onclick="openStaminaDetail()" style="cursor:pointer" title="查看体力消耗详情">⚡ 体力 <span id="pc-stamina">75</span>/<span id="pc-stamina-max">2000</span></span>
+              <span class="pc-stat" onclick="openExpDetail()" title="查看详情" style="cursor:pointer;color:#fff">📊 经验详情</span>
+            </div>
+          </div>
+        </div>
+        <div class="pc-bottom">
+          <div class="pc-day" onclick="if(typeof openCalendar==='function')openCalendar()" style="cursor:pointer" title="点击打开日历">📅 <span id="pc-day">第 1 天</span> <span id="pc-date-actual" style="font-size:.6rem;color:var(--muted);margin-left:2px"></span></div>
+          <div class="pc-money" onclick="openMoneyLogPopup()" style="cursor:pointer" title="点击查看金币记录">💰 <span id="pc-money-home">$10,000</span> <span style="font-size:.65rem;color:var(--muted)">›</span></div>
+        </div>
+      </div>
+
+      <!-- 功能菜单 -->
+      <div class="s-ttl">功能菜单</div>
+      <div class="func-grid" style="margin-bottom:14px">
+        <div class="func-btn" onclick="openSlaveProcurement()">
+          <div class="fb-icon">⛓️</div><div class="fb-name">奴隶采购</div>
+        </div>
+        <div class="func-btn" onclick="openStatusPanel()">
+          <div class="fb-icon">📊</div><div class="fb-name">个人状态</div>
+        </div>
+        <div class="func-btn" onclick="openShop()">
+          <div class="fb-icon">🛒</div><div class="fb-name">购买道具</div>
+        </div>
+        <div class="func-btn" onclick="openBag()">
+          <div class="fb-icon">🎒</div><div class="fb-name">道具背包</div>
+        </div>
+        <div class="func-btn" onclick="doRestFromHome()">
+          <div class="fb-icon">🌙</div><div class="fb-name">休息</div>
+        </div>
+        <div class="func-btn" onclick="openDailyEventList()">
+          <div class="fb-icon">📖</div><div class="fb-name">日常事件</div>
+        </div>
+        <div class="func-btn" onclick="openMatchmaking()">
+          <div class="fb-icon">🌹</div><div class="fb-name">月老红线</div>
+        </div>
+        <div class="func-btn" onclick="openAchModal()">
+          <div class="fb-icon">🏆</div><div class="fb-name">成就称号</div>
+        </div>
+        <div class="func-btn" onclick="openHypnosis()">
+          <div class="fb-icon">🔮</div><div class="fb-name">洗脑催眠</div>
+        </div>
+        <div class="func-btn" onclick="openPregnancyPanel()">
+          <div class="fb-icon">🤰</div><div class="fb-name">孕育系统</div>
+        </div>
+        <div class="func-btn" onclick="openRelationshipPanel()">
+          <div class="fb-icon">💕</div><div class="fb-name">人际关系</div>
+        </div>
+        <div class="func-btn" onclick="openAuctionPanel()">
+          <div class="fb-icon">🔨</div><div class="fb-name">拍卖奴隶</div>
+        </div>
+        <div class="func-btn" onclick="openCheatCode()">
+          <div class="fb-icon">🔑</div><div class="fb-name">作弊码</div>
+        </div>
+      </div>
+
+      <!-- 继续游戏 -->
+      <div class="s-ttl">继续游戏</div>
+      <div id="home-recent" style="margin-bottom:14px"></div>
+
+      <!-- 剧情存档 -->
+      <div class="s-ttl">剧情记录</div>
+      <div class="story-log-btns" style="margin-bottom:14px">
+        <div class="slb" onclick="openStoryLogModal('work')">
+          <div class="slb-icon">💼</div>
+          <div class="slb-name">打工剧情</div>
+          <div class="slb-count" id="work-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('wander')">
+          <div class="slb-icon">🚶</div>
+          <div class="slb-name">闲逛剧情</div>
+          <div class="slb-count" id="wander-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('daily')">
+          <div class="slb-icon">📖</div>
+          <div class="slb-name">日常剧情</div>
+          <div class="slb-count" id="daily-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('rest')">
+          <div class="slb-icon">🌙</div>
+          <div class="slb-name">休息剧情</div>
+          <div class="slb-count" id="rest-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('self')">
+          <div class="slb-icon">🎁</div>
+          <div class="slb-name">自用记录</div>
+          <div class="slb-count" id="self-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('date')">
+          <div class="slb-icon">🌹</div>
+          <div class="slb-name">约会剧情</div>
+          <div class="slb-count" id="date-log-count">0 条记录</div>
+        </div>
+        <div class="slb" onclick="openStoryLogModal('corvee')">
+          <div class="slb-icon">⛓️</div>
+          <div class="slb-name">劳役剧情</div>
+          <div class="slb-count" id="corvee-log-count">0 条记录</div>
+        </div>
+      </div>
+
+      <!-- 爱心贴士 -->
+      <div style="background:var(--card2);border-radius:10px;padding:8px 13px;
+                  font-size:.72rem;color:var(--muted);line-height:1.5">
+        💡 <span id="tip-text">加载中…</span>
+      </div>
+    </div>
+
+    <!-- ── 庄园（已购奴隶列表）── -->
+    <div class="scr" id="s-manor">
+      <div class="s-ttl" style="margin-bottom:8px">🏰 我的庄园</div>
+      <div style="font-size:.76rem;color:var(--muted);margin-bottom:12px;line-height:1.6">
+        已入住奴隶一览。点击进入训练或查看房间。
+      </div>
+      <div id="manor-slave-list" style="display:grid;gap:10px"></div>
+      <div id="manor-empty" style="display:none;text-align:center;padding:40px 0;color:var(--muted)">
+        <div style="font-size:2.5rem;margin-bottom:8px">🏚️</div>
+        <div style="font-size:.85rem">庄园空空如也。<br>前往「奴隶采购」引入第一位奴隶吧。</div>
+        <button class="btn btn-p" style="margin-top:14px" onclick="openSlaveProcurement()">⛓️ 前往采购</button>
+      </div>
+    </div>
+
+    <!-- ── 角色列表（隐藏，供内部跳转）── -->
+    <div class="scr" id="s-chars" style="display:none">
+      <div class="srch">
+        <span class="srch-ico">🔍</span>
+        <input id="srch-inp" type="text" placeholder="搜索姓名、性格、职业、种族……">
+      </div>
+      <div class="chips">
+        <button class="chip g-chip on" onclick="filterGender(\'\',this)">全部</button>
+        <button class="chip g-chip"    onclick="filterGender(\'男\',this)">男性</button>
+        <button class="chip g-chip"    onclick="filterGender(\'女\',this)">女性</button>
+        <button class="chip g-chip"    onclick="filterGender(\'双性\',this)">双性</button>
+        <button class="chip g-chip"    onclick="filterGender(\'无性别\',this)">无性别</button>
+        <button class="chip g-chip"    onclick="filterGenderSpecial(this)">✨特殊</button>
+      </div>
+      <div id="char-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:11px"></div>
+      <div class="pagi">
+        <button class="btn btn-sm" id="ch-prev" onclick="changePage(-1)">‹ 上页</button>
+        <span class="pi" id="ch-info">1 / 1</span>
+        <button class="btn btn-sm" id="ch-next" onclick="changePage(1)">下页 ›</button>
+      </div>
+    </div>
+
+    <!-- ── 训练界面 ── -->
+    <div class="scr" id="s-play">
+      <!-- Layer 1: 角色档案栏 -->
+      <div class="play-profile">
+        <div class="p-ava" id="p-ava-icon" style="font-size:1.8rem;cursor:pointer" onclick="openSlaveAvaModal(State.currentChar&&State.currentChar.id)" title="更换头像">✨</div>
+        <div class="play-profile-info" style="flex:1;min-width:0">
+          <div class="play-profile-name">
+            <span class="p-nm" id="p-name">—</span>
+            <span class="p-gender-icon" id="p-gender-icon">♂</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:2px;flex-wrap:wrap">
+            <span id="p-sub" style="font-size:.68rem;color:var(--txt2)"></span>
+            <span id="p-relation-stage" style="font-size:.65rem;color:var(--muted)"></span>
+            <span id="p-depend-tag" style="font-size:.65rem;color:var(--muted)"></span>
+          </div>
+        </div>
+        <div class="play-profile-acts" style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
+          <button class="pa-btn" onclick="openSlaveExpBars()" title="奴隶经验" style="font-size:.68rem;padding:4px 8px">📊角色经验</button>
+          <button class="pa-btn" onclick="openCharDetail()" title="攻略进度" style="font-size:.68rem;padding:4px 8px">🎯攻略进度</button>
+        </div>
+      </div>
+
+      <!-- Layer 2: 左右分栏 -->
+      <div class="play-cols">
+        <div id="play-left-col">
+          <div class="card card-b" style="margin-bottom:0">
+          <div class="s-ttl" style="margin-bottom:9px">角色状态</div>
+          <div class="stat-i stat-inline">
+            <span class="stat-nm"><span class="stat-dot" style="background:var(--sg)"></span>体力</span>
+            <div class="stat-tr"><div class="stat-f" id="sb-stamina" style="width:75%;background:var(--sg)"></div><span class="stat-v" id="sv-stamina">75</span></div>
+          </div>
+          <div class="stat-i stat-inline">
+            <span class="stat-nm"><span class="stat-dot" style="background:var(--sb)"></span>精力</span>
+            <div class="stat-tr"><div class="stat-f" id="sb-energy" style="width:75%;background:var(--sb)"></div><span class="stat-v" id="sv-energy">75</span></div>
+          </div>
+          <div class="stat-i stat-inline">
+            <span class="stat-nm"><span class="stat-dot" style="background:var(--sr)"></span>欲望</span>
+            <div class="stat-tr"><div class="stat-f" id="sb-lust" style="width:0%;background:var(--sr)"></div><span class="stat-v" id="sv-lust">0 Lv.1</span></div>
+          </div>
+          <div class="stat-i stat-inline">
+            <span class="stat-nm"><span class="stat-dot" style="background:var(--sp)"></span>服从</span>
+            <div class="stat-tr"><div class="stat-f" id="sb-obedience" style="width:30%;background:var(--sp)"></div><span class="stat-v" id="sv-obedience">30 Lv.1</span></div>
+          </div>
+          <div class="stat-i stat-inline">
+            <span class="stat-nm"><span class="stat-dot" style="background:var(--so)"></span>好感</span>
+            <div class="stat-tr"><div class="stat-f" id="sb-affection" style="width:20%;background:var(--so)"></div><span class="stat-v" id="sv-affection">20 Lv.1</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="play-right-col">
+        <div class="card card-b" style="margin-bottom:0">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:9px">
+            <div class="s-ttl" style="margin-bottom:0">互动记录</div>
+            <span id="ai-think" style="display:none;align-items:center;gap:4px;font-size:.7rem;color:var(--acc3)">
+              <span class="spin" style="width:11px;height:11px"></span> 生成中…
+            </span>
+          </div>
+          <div id="log" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column"></div>
+        </div>
+      </div>
+      </div>
+
+      <!-- Layer 3: 指令按钮 -->
+      <div id="play-cmd-col">
+        <div class="chips" style="margin-bottom:9px">
+          <button class="chip cat-chip on" data-cat="basic"    onclick="setCat('basic',this)">基础</button>
+          <button class="chip cat-chip"    data-cat="intimate" onclick="setCat('intimate',this)">亲密</button>
+          <button class="chip cat-chip"    data-cat="tool"     onclick="setCat('tool',this)">道具</button>
+          <button class="chip cat-chip"    data-cat="special"  onclick="setCat('special',this)">特殊</button>
+          <button class="chip cat-chip"    data-cat="event"    onclick="setCat('event',this)">事件</button>
+        </div>
+        <div id="act-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-bottom:12px"></div>
+      </div>
+    </div>
+
+    <!-- ── 外出 ── -->
+    <div class="scr" id="s-outing">
+      <div class="chips">
+        <button class="chip outing-cat-chip on" onclick="setOutingCat('work',this)">💼 打工</button>
+        <button class="chip outing-cat-chip"    onclick="setOutingCat('wander',this)">🚶 闲逛</button>
+        <button class="chip outing-cat-chip"    onclick="setOutingCat('date',this)">💌 约会</button>
+        <button class="chip outing-cat-chip"    onclick="setOutingCat('corvee',this)">⛓️ 劳役</button>
+      </div>
+
+      <!-- 打工面板 -->
+      <div id="work-panel">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          选择打工地点，触发随机剧情，获得金币和经验。
+        </div>
+        <div class="work-loc-grid" id="work-location-grid"></div>
+      </div>
+
+      <!-- 闲逛面板 -->
+      <div id="wander-panel" style="display:none">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:14px;line-height:1.6">
+          漫无目的地在城中游荡，也许会遇到意想不到的事。
+        </div>
+        <button class="btn btn-p btn-full" onclick="doWander()" style="margin-bottom:10px">
+          🚶 开始闲逛
+        </button>
+        <button class="btn btn-full btn-ghost" onclick="openWanderLog()">
+          📝 查看闲逛记录
+        </button>
+      </div>
+
+      <!-- 约会面板 -->
+      <div id="date-panel" style="display:none"></div>
+
+      <!-- 劳役面板 -->
+      <div id="corvee-panel" style="display:none">
+        <div style="font-size:.8rem;color:var(--muted);margin-bottom:12px;line-height:1.6">
+          指派名下奴隶从事各类劳役，获得金钱或其他收益。
+        </div>
+        <div class="corvee-grid" id="corvee-grid"></div>
+      </div>
+    </div>
+
+    <!-- ── 设置 ── -->
+    <div class="scr" id="s-set">
+      <div class="s-ttl">外观</div>
+      <div class="sr" onclick="openThemeModal()">
+        <div class="sr-ico">🎨</div>
+        <div style="flex:1"><div class="sr-ttl">界面主题</div><div class="sr-sub" id="theme-settings-sub">点击切换</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+      <div class="sr" onclick="openFontSizeModal()">
+        <div class="sr-ico">🔤</div>
+        <div style="flex:1"><div class="sr-ttl">字体大小</div><div class="sr-sub" id="fontsize-settings-sub">标准</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+      <div class="sr" onclick="openFontStyleModal()">
+        <div class="sr-ico">✒️</div>
+        <div style="flex:1"><div class="sr-ttl">字体样式</div><div class="sr-sub" id="fontstyle-settings-sub">默认</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+
+      <div class="s-ttl" style="margin-top:14px">事件概率</div>
+      <div class="sr" onclick="openEventProbModal()">
+        <div class="sr-ico">🎲</div>
+        <div style="flex:1"><div class="sr-ttl">调整事件概率</div><div class="sr-sub">嫉妒·逆推·偷情·庄园事件</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+
+      <div class="s-ttl" style="margin-top:14px">AI 对话</div>
+      <div class="sr" onclick="openApiModal()">
+        <div class="sr-ico">🤖</div>
+        <div style="flex:1"><div class="sr-ttl">API 设置</div><div class="sr-sub" id="api-settings-sub">未设置 · 本地对话模式</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+      <div style="margin:10px 0;padding:11px 13px;background:var(--card2);border-radius:11px;
+                  font-size:.75rem;color:var(--muted);line-height:1.7">
+        🔑 支持 Gemini / Claude / OpenAI / DeepSeek / 自定义接口。Key 仅存于本地。<br>
+        <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--acc2);text-decoration:none">→ 免费获取 Gemini Key</a>
+        &nbsp;·&nbsp;
+        <a href="https://console.anthropic.com/settings/keys" target="_blank" style="color:var(--acc2);text-decoration:none">Claude Key</a>
+        &nbsp;·&nbsp;
+        <a href="https://platform.deepseek.com/api_keys" target="_blank" style="color:var(--acc2);text-decoration:none">DeepSeek Key</a>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ══ BOTTOM NAV ════════════════════════════════════════ -->
+  <nav id="nav">
+    <button class="ni on" data-tab="home"><span class="ni-icon">🏠</span><span class="ni-lbl">首页</span></button>
+    <button class="ni" data-tab="manor"><span class="ni-icon">🏰</span><span class="ni-lbl">庄园</span></button>
+    <button class="ni" data-tab="play"><span class="ni-icon">⚔️</span><span class="ni-lbl">训练</span></button>
+    <button class="ni" data-tab="outing"><span class="ni-icon">🚶</span><span class="ni-lbl">外出</span></button>
+    <button class="ni" data-tab="settings"><span class="ni-icon">⚙️</span><span class="ni-lbl">设置</span></button>
+  </nav>
+</div>
+<div id="toast"></div>
+
+<!-- ══ MODALS ════════════════════════════════════════════ -->
+
+<!-- 剧情弹窗 -->
+<div class="ov" id="ov-story" style="z-index:500">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div style="padding:14px 18px 0">
+      <div class="story-banner">
+        <div class="story-tag-lbl" id="story-tag">指令事件</div>
+        <div class="story-title-txt" id="story-title">剧情</div>
+      </div>
+    </div>
+    <div class="s-body">
+      <div class="story-body" id="story-body"></div>
+      <div class="story-pages" id="story-dots"></div>
+      <div class="story-eff" id="story-eff" style="display:none"></div>
+      <div class="story-nav">
+        <button class="btn btn-full btn-ghost" id="story-prev" onclick="storyPrev()" style="display:none">← 上一页</button>
+        <button class="btn btn-full"           id="story-next" onclick="storyNext()">下一页 →</button>
+        <button class="btn btn-full btn-p"     id="story-fin"  onclick="finishStory()" style="display:none">✓ 完成</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 打工剧情弹窗 -->
+<div class="ov" id="ov-work-story" style="z-index:500">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div style="padding:14px 18px 0">
+      <div class="story-banner">
+        <div class="story-tag-lbl" id="work-story-tag">打工</div>
+        <div class="story-title-txt" id="work-story-title">剧情</div>
+      </div>
+    </div>
+    <div class="s-body">
+      <div class="story-body" id="work-story-body"></div>
+      <div class="story-pages" id="work-story-dots"></div>
+      <div id="work-story-choices"></div>
+      <div class="story-nav">
+        <button class="btn btn-full btn-ghost" id="ws-prev" onclick="workStoryPrev()" style="display:none">← 上页</button>
+        <button class="btn btn-full"           id="ws-next" onclick="workStoryNext()">下一页 →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 打工日志弹窗 -->
+<div class="ov" id="ov-work-log">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">💼 打工剧情记录</span><button class="s-x" onclick="closeOv('ov-work-log')">✕</button></div>
+    <div class="s-body" id="work-log-list"></div>
+  </div>
+</div>
+
+<!-- 闲逛日志弹窗 -->
+<div class="ov" id="ov-wander-log">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🚶 闲逛剧情记录</span><button class="s-x" onclick="closeOv('ov-wander-log')">✕</button></div>
+    <div class="s-body" id="wander-log-list"></div>
+  </div>
+</div>
+
+<!-- 成就弹窗 -->
+<div class="ov" id="ov-achieve">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🏆 成就 &amp; 称号</span><button class="s-x" onclick="closeOv('ov-achieve')">✕</button></div>
+    <div class="s-body">
+      <div class="chips" style="margin-bottom:12px">
+        <button class="ach-tab-btn chip on" onclick="switchAchTab('achievements',this)">✨ 成就</button>
+        <button class="ach-tab-btn chip"    onclick="switchAchTab('titles',this)">🏷️ 称号</button>
+        <button class="ach-tab-btn chip"    onclick="switchAchTab('endings',this)">📖 结局</button>
+      </div>
+      <div id="ach-modal-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 头像选择弹窗 -->
+<div class="ov" id="ov-ava">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🖼 选择头像</span><button class="s-x" onclick="closeOv('ov-ava')">✕</button></div>
+    <div class="s-body">
+      <div class="ava-grid" id="ava-grid"></div>
+      <button class="btn btn-ghost btn-full" onclick="closeOv('ov-ava')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 改名弹窗 -->
+<div class="ov" id="ov-name">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">✏️ 修改名字</span><button class="s-x" onclick="closeOv('ov-name')">✕</button></div>
+    <div class="s-body">
+      <label class="inp-lbl">名字</label>
+      <input class="inp" id="inp-name" type="text" placeholder="输入名字（最多8字）" maxlength="8" style="margin-bottom:14px">
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-full btn-ghost" onclick="closeOv('ov-name')">取消</button>
+        <button class="btn btn-full btn-p" onclick="saveName()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NPC 购买弹窗（已移至后方，避免重复 ID）-->
+
+<!-- 日常事件列表 -->
+<div class="ov" id="ov-daily">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">📖 日常事件</span><button class="s-x" onclick="closeOv('ov-daily')">✕</button></div>
+    <div class="s-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:12px">这些是你独自的日常剧情，与调教对象无关。</div>
+      <div id="daily-event-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 商店弹窗 -->
+<div class="ov" id="ov-shop">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🛒 购买道具</span><button class="s-x" onclick="closeOv('ov-shop')">✕</button></div>
+    <div class="s-body">
+      <div class="shop-npc-box" id="shop-npc-say">「欢迎光临……」</div>
+      <div class="shop-money-bar">
+        <span style="font-size:.78rem;color:var(--muted)">💰 持有金币</span>
+        <span class="shop-money-val" id="shop-money">$0</span>
+      </div>
+      <div class="shop-cat-row">
+        <button class="shop-cat-btn on" data-cat="standard"   onclick="shopSetCat('standard',this)">通常道具</button>
+        <button class="shop-cat-btn"    data-cat="consumable" onclick="shopSetCat('consumable',this)">消耗道具</button>
+        <button class="shop-cat-btn"    data-cat="special"    onclick="shopSetCat('special',this)">特殊道具</button>
+      </div>
+      <div id="shop-item-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 道具详情预览 -->
+<div class="ov" id="ov-item-preview" style="z-index:350">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="item-preview-title">道具详情</span><button class="s-x" onclick="closeOv('ov-item-preview')">✕</button></div>
+    <div class="s-body" id="item-preview-body"></div>
+  </div>
+</div>
+
+<!-- 金币流水弹窗 -->
+<div class="ov" id="ov-money-log" style="z-index:350">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr">
+      <span class="s-ttl-modal">💰 金币使用记录</span>
+      <button class="s-x" onclick="closeOv('ov-money-log')">✕</button>
+    </div>
+    <div class="s-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0 14px;border-bottom:1px solid var(--bdr2);margin-bottom:12px">
+        <div>
+          <div style="font-size:.7rem;color:var(--muted)">当前持有</div>
+          <div style="font-size:1.3rem;font-weight:900;color:#f0c050" id="money-log-cur">$0</div>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="clearMoneyLog()">清空记录</button>
+      </div>
+      <div id="money-log-body" style="max-height:380px;overflow-y:auto"></div>
+      <button class="btn btn-ghost btn-full" onclick="closeOv('ov-money-log')" style="margin-top:14px">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 奴隶头像编辑弹窗 -->
+<div class="ov" id="ov-slave-ava" style="z-index:450">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr">
+      <span class="s-ttl-modal">🎨 <span id="slave-ava-title">更换头像</span></span>
+      <button class="s-x" onclick="closeOv('ov-slave-ava')">✕</button>
+    </div>
+    <div class="s-body">
+      <div style="text-align:center;margin-bottom:14px">
+        <div id="slave-ava-preview" style="font-size:3.5rem;width:72px;height:72px;border-radius:50%;background:var(--card2);display:flex;align-items:center;justify-content:center;margin:0 auto 8px;overflow:hidden"></div>
+        <div style="font-size:.75rem;color:var(--muted)">当前头像</div>
+      </div>
+      <div style="font-size:.78rem;color:var(--txt2);margin-bottom:8px;font-weight:700">选择表情头像</div>
+      <div id="slave-ava-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:14px"></div>
+      <div style="font-size:.78rem;color:var(--txt2);margin-bottom:8px;font-weight:700">或上传图片</div>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+        <div id="slave-ava-preview" style="width:52px;height:52px;border-radius:50%;background:var(--card2);border:2px dashed var(--bdr2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:.65rem;color:var(--muted)">预览</div>
+        <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('slave-ava-upload').click()">📁 选择图片</button>
+      </div>
+      <input type="file" id="slave-ava-upload" accept="image/*" style="display:none" onchange="handleSlaveAvaUpload(this)">
+      <div id="slave-ava-crop-area" style="display:none;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <span style="font-size:.72rem;color:var(--muted)">拖动调整裁剪区域：</span>
+          <button class="btn btn-sm" id="ava-lock-btn" style="font-size:.62rem;padding:2px 8px" onclick="toggleAvaPageLock()">🔒 固定页面</button>
+        </div>
+        <canvas id="slave-ava-canvas" width="200" height="200" style="border-radius:50%;border:2px solid var(--acc);display:block;margin:0 auto;touch-action:none"></canvas>
+        <input type="range" id="slave-ava-zoom" min="50" max="300" value="100" style="width:100%;margin-top:8px" oninput="redrawAvaCrop()">
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-p btn-full" onclick="confirmAvaCrop()">✓ 确认使用</button>
+          <button class="btn btn-ghost btn-full" onclick="cancelAvaCrop()">取消</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-full" onclick="closeOv('ov-slave-ava')">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 背包弹窗 -->
+<div class="ov" id="ov-bag">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🎒 道具背包</span><button class="s-x" onclick="closeOv('ov-bag')">✕</button></div>
+    <div class="s-body" id="bag-list"></div>
+  </div>
+</div>
+
+<!-- API 设置弹窗 -->
+<div class="ov" id="ov-api">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🤖 AI 对话设置</span><button class="s-x" onclick="closeOv('ov-api')">✕</button></div>
+    <div class="s-body">
+      <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">Provider 预设</div>
+      <div class="prov-row" style="flex-wrap:wrap">
+        <button class="prov-btn on" data-provider="gemini"   onclick="selectProvider('gemini',this)">✨ Gemini</button>
+        <button class="prov-btn"    data-provider="claude"   onclick="selectProvider('claude',this)">🟠 Claude</button>
+        <button class="prov-btn"    data-provider="zhipu"    onclick="selectProvider('zhipu',this)">🧠 智谱</button>
+        <button class="prov-btn"    data-provider="openai"   onclick="selectProvider('openai',this)">🤖 OpenAI</button>
+        <button class="prov-btn"    data-provider="deepseek" onclick="selectProvider('deepseek',this)">🌊 DeepSeek</button>
+        <button class="prov-btn"    data-provider="custom"   onclick="selectProvider('custom',this)">⚙️ 自定义</button>
+      </div>
+      <div class="api-field">
+        <label class="inp-lbl">model <span style="font-size:.65rem;color:var(--muted)">（点击输入框可选择）</span></label>
+        <input class="inp" id="inp-model" type="text" placeholder="例如：gemini-2.0-flash" list="model-suggestions" autocomplete="off" onfocus="updateModelSuggestions()">
+        <datalist id="model-suggestions"></datalist>
+      </div>
+      <div class="api-field">
+        <label class="inp-lbl">base_url</label>
+        <input class="inp" id="inp-url" type="text" placeholder="https://api.deepseek.com">
+      </div>
+      <div class="api-field">
+        <label class="inp-lbl">api_key</label>
+        <div class="verify-row">
+          <input class="inp" id="inp-key" type="password" placeholder="输入 API Key" style="flex:1">
+          <button class="btn btn-sm btn-ok" onclick="verifyApiKey()" style="margin-left:8px;flex-shrink:0">🛡 验证</button>
+        </div>
+        <div class="verify-result verify-pend" id="verify-result" style="margin-top:5px">会用当前配置做一次连通性校验。</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-full btn-ghost" onclick="closeOv('ov-api')">取消</button>
+        <button class="btn btn-full btn-p" onclick="saveApiSettings()">保存</button>
+      </div>
+      <button class="btn btn-full" style="margin-top:8px;background:rgba(220,50,50,.15);color:#f06;border:1px solid rgba(220,50,50,.3)" onclick="disconnectApi()">🔌 断开 AI 连接</button>
+    </div>
+  </div>
+</div>
+
+<!-- 主题弹窗 -->
+<div class="ov" id="ov-theme">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🎨 界面主题</span><button class="s-x" onclick="closeOv('ov-theme')">✕</button></div>
+    <div class="s-body">
+      <div style="font-size:.76rem;color:var(--muted);margin-bottom:12px">点击预览，确认后应用。</div>
+      <div class="th-grid" id="theme-grid"></div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn btn-full btn-ghost" onclick="closeOv('ov-theme')">取消</button>
+        <button class="btn btn-full btn-p" onclick="confirmTheme()">确认应用</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 角色详情弹窗 -->
+<div class="ov" id="ov-det">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="det-title">角色详情</span><button class="s-x" onclick="closeOv('ov-det')">✕</button></div>
+    <div class="s-body">
+      <div id="det-rows" style="margin-bottom:12px"></div>
+      <div id="det-desc" style="font-size:.8rem;color:var(--txt2);line-height:1.7;padding:11px 0;border-top:1px solid var(--bdr2);margin-bottom:12px"></div>
+      <div class="s-ttl">当前状态</div>
+      <div id="det-stats"></div>
+      <!-- ★ 人格面板 -->
+      <div style="padding:0 16px">
+        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🧠 人格状态</h4>
+        <div id="det-persona"></div>
+        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🛤️ 路线进度</h4>
+        <div id="det-routes"></div>
+        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">😟 情绪状态</h4>
+        <div id="det-emotion"></div>
+        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🌙 关系阶段</h4>
+        <div id="det-relation"></div>
+      </div>
+      <button class="btn btn-p btn-full" onclick="closeOv('ov-det')" style="margin:14px 16px">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCRIPTS ════════════════════════════════════════════ -->
+<script src="js/data/chars_trains.js"></script>
+<script src="js/data/items.js"></script>
+<script src="js/data/cmd_descs.js"></script>
+<script src="js/data/jealousy_events.js"></script>
+<script src="js/data/dialogues.js"></script>
+<script src="js/data/stories.js"></script>
+    <script src="js/data/command_stories.js"></script>
+<script src="js/data/work_events.js"></script>
+<script src="js/data/date_stories.js"></script>
+<script src="js/core/state.js"></script>
+<!-- ★ 人格系统 (在 state.js 之后, game.js 之前) -->
+<script src="js/data/personality_texts.js"></script>
+<script src="js/core/personality.js"></script>
+<!-- ★ 情绪系统 -->
+<script src="js/data/emotion_texts.js"></script>
+<script src="js/data/event_chains.js"></script>
+<script src="js/core/emotion.js"></script>
+<script src="js/core/game.js"></script>
+<script src="js/core/shop.js"></script>
+<script src="js/core/story.js"></script>
+<script src="js/core/outing.js"></script>
+<script src="js/core/api.js"></script>
+<script src="js/ui/nav.js"></script>
+<script src="js/ui/achieve.js"></script>
+<script src="js/data/item_self_stories.js"></script>
+<script src="js/data/reverse_training.js"></script>
+<script src="js/core/features.js"></script>
+<script src="js/core/pregnancy.js"></script>
+<script src="js/core/relationship.js"></script>
+<script src="js/core/calendar.js"></script>
+<!-- ★ 统一集成桥梁 (必须最后加载) -->
+<script src="js/ui/bridge.js"></script>
+<script>
+// ── 玩家档案 ──────────────────────────────────────────────
+const AVATARS = ['👑','🌹','⚔️','🔮','🦋','🌙','✨','💎','🐉','🌸','👁','🗡️',
+                 '🌿','🔥','💀','🌊','⚡','🎭','🎪','🦅','🐺','🦊','🌺','💫'];
+
+let _playerProfile = JSON.parse(localStorage.getItem('era_profile') || '{"name":"主人","avatar":"👑","gender":"男","energy":2000,"stamina":2000,"staminaMax":2000,"energyMax":2000}');
+// Migrate old profiles that don't have stamina
+if(_playerProfile.stamina==null){_playerProfile.stamina=_playerProfile.energy||75;_playerProfile.staminaMax=_playerProfile.staminaMax||2000;_playerProfile.energyMax=_playerProfile.energyMax||2000;if(_playerProfile.energy<200)_playerProfile.stamina=2000;if(_playerProfile.energy<200)_playerProfile.energy=2000;localStorage.setItem('era_profile',JSON.stringify(_playerProfile));}
+
+function renderPlayerCard() {
+  const avaEl = document.getElementById('pc-ava');
+  if (_playerProfile.avatarImg) {
+    avaEl.textContent = '';
+    avaEl.style.backgroundImage = `url('${_playerProfile.avatarImg}')`;
+    avaEl.style.backgroundSize = 'cover';
+    avaEl.style.backgroundPosition = 'center';
+  } else {
+    avaEl.textContent = _playerProfile.avatar || '👑';
+    avaEl.style.backgroundImage = '';
+  }
+  var _el;
+  _el = document.getElementById('pc-name-display'); if (_el) _el.textContent = _playerProfile.name || '主人';
+  _el = document.getElementById('pc-gender');       if (_el) _el.textContent = '性别：' + (_playerProfile.gender || '未设定');
+  _el = document.getElementById('pc-stamina');      if (_el) _el.textContent = Math.round(_playerProfile.stamina != null ? _playerProfile.stamina : (_playerProfile.energy || 75));
+  _el = document.getElementById('pc-stamina-max');  if (_el) _el.textContent = _playerProfile.staminaMax || 2000;
+  _el = document.getElementById('pc-day');          if (_el) _el.textContent = `第 ${State.day} 天`;
+  _el = document.getElementById('pc-date-actual');  if (_el && typeof _dayToMD==='function') { var _dm=_dayToMD(State.day||1); _el.textContent=_dm.month+'月'+_dm.day+'日'; }
+  _el = document.getElementById('pc-money-home');   if (_el) _el.textContent = fmtMoney(State.money);
+  _el = document.getElementById('pc-exp');          if (_el) _el.textContent = State.playerExp || 0;
+  // Update log counts
+  if(typeof updateLogCounts==='function') updateLogCounts();
+}
+
+function openAvaModal() {
+  const grid = document.getElementById('ava-grid');
+  if (grid) {
+    // 上传按钮
+    const uploadBtn = `<div class="ava-opt ava-upload" onclick="document.getElementById('ava-file-inp').click()" title="上传图片">📁<div style="font-size:.55rem;margin-top:2px">上传</div></div>`;
+    grid.innerHTML = uploadBtn + AVATARS.map(a => `
+      <div class="ava-opt ${a === _playerProfile.avatar ? 'on' : ''}"
+           onclick="pickAvatar('${a}',this)">${a}</div>`).join('');
+  }
+  openOv('ov-ava');
+}
+
+var _pAvaCropImg=null,_pAvaZ=100,_pAvaX=0,_pAvaY=0,_pAvaDrag=false,_pAvaDragS={x:0,y:0};
+function handleAvaUpload(e) {
+  var file = e.files ? e.files[0] : e.target.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    _pAvaCropImg = new Image();
+    _pAvaCropImg.onload = function(){
+      // Show crop area
+      var area = document.getElementById('player-ava-crop-area');
+      if(!area){
+        area=document.createElement('div');area.id='player-ava-crop-area';
+        area.innerHTML='<div style="text-align:center;margin:10px 0"><canvas id="player-ava-canvas" width="160" height="160" style="border-radius:50%;border:2px solid var(--acc);cursor:grab"></canvas></div><input type="range" id="player-ava-zoom" min="10" max="300" value="100" style="width:100%;margin:8px 0" oninput="redrawPlayerAvaCrop()"><div style="display:flex;gap:8px"><button class="btn btn-p" style="flex:1" onclick="confirmPlayerAvaCrop()">✓ 确认</button><button class="btn btn-ghost" style="flex:1" onclick="cancelPlayerAvaCrop()">取消</button></div>';
+        var body=document.querySelector('#ov-ava .s-body');
+        if(body)body.appendChild(area);
+      }
+      area.style.display='block';
+      var fitScale=160/Math.min(_pAvaCropImg.width,_pAvaCropImg.height);
+      _pAvaZ=Math.round(fitScale*100);_pAvaX=0;_pAvaY=0;
+      var sl=document.getElementById('player-ava-zoom');
+      if(sl){sl.min=Math.max(10,Math.round(fitScale*60));sl.max=Math.round(fitScale*350);sl.value=_pAvaZ;}
+      redrawPlayerAvaCrop();
+      var cv=document.getElementById('player-ava-canvas');
+      if(cv){
+        cv.onpointerdown=function(e){_pAvaDrag=true;_pAvaDragS={x:e.clientX-_pAvaX,y:e.clientY-_pAvaY};cv.setPointerCapture(e.pointerId);e.preventDefault();};
+        cv.onpointermove=function(e){if(!_pAvaDrag)return;_pAvaX=e.clientX-_pAvaDragS.x;_pAvaY=e.clientY-_pAvaDragS.y;redrawPlayerAvaCrop();};
+        cv.onpointerup=cv.onpointercancel=function(){_pAvaDrag=false;};
+      }
+    };
+    _pAvaCropImg.src=ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+function redrawPlayerAvaCrop(){
+  var cv=document.getElementById('player-ava-canvas');if(!cv||!_pAvaCropImg)return;
+  var ctx=cv.getContext('2d');var sl=document.getElementById('player-ava-zoom');
+  if(sl)_pAvaZ=parseInt(sl.value);
+  var z=_pAvaZ/100,w=_pAvaCropImg.width*z,h=_pAvaCropImg.height*z;
+  var ox=(160-w)/2+_pAvaX,oy=(160-h)/2+_pAvaY;
+  ctx.clearRect(0,0,160,160);ctx.save();ctx.beginPath();ctx.arc(80,80,80,0,Math.PI*2);ctx.clip();
+  ctx.drawImage(_pAvaCropImg,ox,oy,w,h);ctx.restore();
+}
+function confirmPlayerAvaCrop(){
+  var cv=document.getElementById('player-ava-canvas');if(!cv)return;
+  var url=cv.toDataURL('image/jpeg',0.85);
+  _playerProfile.avatar=null;_playerProfile.avatarImg=url;
+  var avaEl=document.getElementById('pc-ava');
+  if(avaEl){avaEl.textContent='';avaEl.style.backgroundImage="url('"+url+"')";avaEl.style.backgroundSize='cover';avaEl.style.backgroundPosition='center';}
+  localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+  toast('头像已更新 ✓','ok');closeOv('ov-ava');
+}
+function cancelPlayerAvaCrop(){
+  var area=document.getElementById('player-ava-crop-area');if(area)area.style.display='none';
+}
+
+function pickAvatar(ava, el) {
+  _playerProfile.avatar = ava;
+  _playerProfile.avatarImg = null;  // 清除上传图片
+  const avaEl = document.getElementById('pc-ava');
+  avaEl.textContent = ava;
+  avaEl.style.backgroundImage = '';
+  document.querySelectorAll('.ava-opt').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+}
+
+function openNameEdit() {
+  const inp = document.getElementById('inp-name');
+  if (inp) inp.value = _playerProfile.name || '';
+  openOv('ov-name');
+}
+
+function saveName() {
+  const inp = document.getElementById('inp-name');
+  const name = inp?.value.trim().slice(0, 8) || '主人';
+  _playerProfile.name = name;
+  document.getElementById('pc-name-display').textContent = name;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  toast('名字已更新 ✓', 'ok');
+  closeOv('ov-name');
+}
+
+// ── 商店：NPC 购买弹窗（覆盖 shop.js 的 buyItem 后半段）───
+const _origBuyItem = buyItem;
+function buyItem(itemId) {
+  const item = ITEMS_DATA.find(it => it.id === itemId);
+  if (!item) return;
+  if (State.money < item.price) {
+    const msg = pick(SHOP_NPC_BROKE);
+    // Still show the NPC popup for broke
+    document.getElementById('npc-buy-item-name').textContent = item.name;
+    document.getElementById('npc-buy-say').textContent = msg;
+    closeOv('ov-item-preview');
+    openOv('ov-npc-buy');
+    return;
+  }
+  if (item.category === 'standard' && getItemCount(itemId) > 0) {
+    toast('已经拥有这件道具了', ''); return;
+  }
+  if (item.category !== 'standard' && getItemCount(itemId) >= 99) {
+    toast('数量已达上限', ''); return;
+  }
+  State.money -= item.price;
+  State.inventory[itemId] = (State.inventory[itemId] || 0) + 1;
+  if(typeof _logMoney==='function') _logMoney('购买·'+item.name, -item.price);
+  const npcLine = pick(item.npcSay) || pick(SHOP_NPC_BUY_OK);
+  // Show NPC popup
+  document.getElementById('npc-buy-item-name').textContent = item.name;
+  document.getElementById('npc-buy-say').textContent = npcLine;
+  closeOv('ov-item-preview');
+  openOv('ov-npc-buy');
+  checkAch(); checkTitles();
+  updateShopMoney(); renderShopItems();
+  const moneyEl = document.getElementById('p-money');
+  if (moneyEl) moneyEl.textContent = fmtMoney(State.money);
+  renderPlayerCard();
+}
+// ── 休息（触发休息剧情与完美弹窗）──────────────────────────────────
+function doRest() {
+  // 1. 获取休息剧情（带保底机制）
+  var stories = (typeof REST_STORIES !== 'undefined' && REST_STORIES && REST_STORIES.length)
+    ? REST_STORIES : null;
+  if (!stories) {
+    stories = [{
+      id:'fallback_rest', title:'平静地休息了一晚',
+      story:['关上灯，躺下来，窗外的风声很轻。','不知不觉睡着了，没有梦，或者梦了但记不清楚。','醒来时天色已经亮了，体力好了很多。'],
+      effects:{stamina:30,energy:25}
+    }];
+  }
+  
+  var rs = stories[Math.floor(Math.random() * stories.length)];
+  var ef = rs.effects || {stamina:30, energy:25};
+
+  // 准备用于可视化的 HTML 标签
+  let effHtml = '';
+
+  // 2. 恢复角色状态 (currentChar)
+  if (State.currentChar) {
+    State.currentChar.stamina = Math.min(100, (State.currentChar.stamina||0) + (ef.stamina||30));
+    State.currentChar.energy  = Math.min(100, (State.currentChar.energy||0) + (ef.energy||25));
+    
+    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">💪 奴隶体力 +${ef.stamina||30}</span>`;
+    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">🔋 奴隶气力 +${ef.energy||25}</span>`;
+
+    if (typeof writeSave === 'function') writeSave();
+    if (typeof setStat === 'function') {
+      setStat('stamina', State.currentChar.stamina);
+      setStat('energy',  State.currentChar.energy);
+    }
+  }
+
+  // 3. 推进天数
+  State.day = (State.day || 1) + 1;
+
+  // 4. 恢复主人精力 (+25)
+  if (typeof _playerProfile !== 'undefined') {
+    _playerProfile.energy = Math.min(100, (_playerProfile.energy || 75) + 25);
+    localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+    effHtml += `<span class="eff-item eff-pos" style="display:inline-block; font-size:0.85rem;">👑 主人精力 +25</span>`;
+  }
+
+  // 5. 更新顶部栏
+  var sub = document.getElementById('hdr-sub');
+  if (sub && State.currentChar) {
+    sub.textContent = '第 ' + State.day + ' 天 · 训练 ' + (State.currentChar.total_training_count||0) + ' 次';
+  }
+
+  // 6. 写入后台剧情记录 (供之后翻阅)
+  var dateStr = (typeof getDateStr==='function') ? getDateStr() : ('第'+State.day+'天');
+  if (typeof pushStoryLog === 'function') {
+    pushStoryLog('rest', { title: rs.title, date: dateStr, story: rs.story || [] });
+  }
+
+  if (typeof renderPlayerCard === 'function') renderPlayerCard();
+
+  // 7. 【核心可视化】：拼装带有UI结算框的剧情数组，并弹窗！
+  const displayStory = [...(rs.story || ['好好休息了一番。'])];
+  
+  if (effHtml) {
+    displayStory.push(`
+      <div style="margin-top: 15px; padding: 12px; background: rgba(115, 209, 139, 0.1); border-left: 4px solid #73d18b; border-radius: 6px;">
+        <div style="font-size: 0.85rem; color: var(--txt); font-weight: bold; margin-bottom: 6px;">🌙 休息效果结算：</div>
+        <div style="display:flex; flex-wrap:wrap; gap: 8px;">${effHtml}</div>
+      </div>
+    `);
+  }
+
+  // 唤起弹窗
+  if (typeof openStoryModal === 'function') {
+    openStoryModal({ 
+      title: '🌙 休息 · ' + rs.title, 
+      story: displayStory 
+    }, '休息剧情', {});
+  } else {
+    alert("弹窗函数不存在，请检查 story.js");
+  }
+}
+
+// 兼容旧按键的映射
+// doRestFromHome is defined in features.js
+
+
+
+
+
+
+// ── Nav extend：增加 outing 页面 ───────────────────────
+
+// 保存原始 navTo
+const originalNavTo = window.navTo;
+
+// 重写 navTo
+window.navTo = function(tab) {
+
+  // 外出页特殊处理
+  if (tab === 'outing') {
+
+    State.currentNav = tab;
+
+    // bottom nav 高亮
+    document.querySelectorAll('.ni').forEach(el => {
+      el.classList.toggle('on', el.dataset.tab === tab);
+    });
+
+    // 隐藏全部页面
+    document.querySelectorAll('.scr').forEach(s => {
+      s.classList.remove('on');
+    });
+
+    // 显示 outing
+    const scr = document.getElementById('s-outing');
+
+    if (scr) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          scr.classList.add('on');
+        });
+      });
+    }
+
+    // header
+    document.getElementById('hdr-h1').textContent = '外出';
+    const md = dayToDate(State.day);
+    document.getElementById('hdr-sub').textContent = `${md} · 打工 · 闲逛 · 约会 · 劳役`;
+
+    document.getElementById('hdr-back')
+      .classList.remove('on');
+
+    ['btn-save','btn-det'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = 'none';
+    });
+
+    renderOutingPage();
+
+    return;
+  }
+
+  // 其它页面走原始逻辑
+  originalNavTo(tab);
+
+  // 首页额外刷新
+  if (tab === 'home') {
+    renderPlayerCard();
+  }
+};
+
+
+// ── Init extra ────────────────────────────────────────────
+// ── 特殊性别筛选 ───────────────────────────────────────────
+function filterGenderSpecial(btn) {
+  document.querySelectorAll('.g-chip').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  State.genderFilter = '__special__';
+  State.charPage = 0;
+  renderChars();
+}
+
+// Patch filterGender to handle __special__
+const _origFilterGender = window.filterGender;
+window.filterGender = function(g, btn) {
+  State.genderFilter = g;
+  State.charPage = 0;
+  document.querySelectorAll('.g-chip').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  renderChars();
+};
+
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  // Safe deferred init — waits for all scripts
+  try {
+    if (typeof loadMiniState === 'function') loadMiniState();
+  } catch(e) { console.warn('loadMiniState:', e); }
+  try { renderPlayerCard(); } catch(e) {}
+  // Small delay ensures all scripts are fully parsed
+  setTimeout(function() {
+    try { if (typeof loadMiniState === 'function') loadMiniState(); } catch(e) {}
+    try { if (typeof initFeatures === 'function') initFeatures(); } catch(e) {}
+    try { if (typeof updateLogCounts === 'function') updateLogCounts(); } catch(e) {}
+    try { renderPlayerCard(); } catch(e) {}
+  }, 50);
+});
+
+// ── 开始调教：先嫉妒检测，再选角色 ──────────────────────
+function startTraining() {
+  navTo('chars');
+  // 嫉妒检测在选中角色时触发 (patched below)
+}
+
+// ── 道具图标映射 ─────────────────────────────────────────
+const ITEM_ICONS = {
+  standard: '📦', consumable: '💊', special: '✨',
+  1:'🔔', 2:'⛓️', 3:'💊', 4:'🌹', 5:'📷', 6:'👗', 7:'💎',
+  10:'🍵', 11:'🍷', 12:'💉', 20:'📜', 21:'🔮', 30:'🎭',
+  80:'✨', 81:'💊', 82:'🌿',
+};
+function getItemIcon(item) {
+  return ITEM_ICONS[item.id] || ITEM_ICONS[item.category] || '📦';
+}
+
+// ── 背包 override：点道具打开使用弹窗 ──────────────────
+const _origOpenBag = openBag;
+function openBag() {
+  const list = document.getElementById('bag-list');
+  if (!list) { _origOpenBag && _origOpenBag(); return; }
+  const inv = State.inventory || {};
+  // Support both numeric and string keys (e.g. 'date_voucher')
+  const keys = Object.keys(inv).filter(k => inv[k] > 0);
+  if (!keys.length) {
+    list.innerHTML = '<div class="empty"><div class="empty-ico">🎒</div><p>背包是空的</p></div>';
+  } else {
+    list.innerHTML = keys.map(id => {
+      // Try numeric id first, then string id
+      const numId = isNaN(id) ? id : Number(id);
+      const item = ITEMS_DATA?.find(i => i.id === numId) || ITEMS_DATA?.find(i => String(i.id) === String(id));
+      if (!item) return '';
+      const cnt  = inv[id];
+      const isConsumable = item.category !== 'standard';
+      return `<div class="bag-item" onclick="openItemUseFromBag(${JSON.stringify(numId)})">
+        <div style="font-size:1.5rem">${item.icon||'📦'}</div>
+        <div style="flex:1;min-width:0">
+          <div class="bag-item-name">${esc(item.name)}</div>
+          <div class="bag-item-desc">${esc((item.desc||'').slice(0,40))}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          ${isConsumable ? `<div class="bag-item-cnt">× ${cnt}</div>` : '<div class="bag-item-cnt" style="color:var(--sg)">已拥有</div>'}
+          <div style="font-size:.65rem;color:var(--acc);margin-top:3px">点击使用</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  openOv('ov-bag');
+}
+
+// ── 选角色时：嫉妒检测 ─────────────────────────────────
+// Override selectChar (defined in game.js) to add jealousy check
+const _origSelectChar = window.selectChar;
+window.selectChar = function(charId) {
+  // Call original
+  _origSelectChar && _origSelectChar(charId);
+  // After setting currentChar, check jealousy
+  setTimeout(() => {
+    if (State.currentChar && typeof checkJealousy === 'function') {
+      checkJealousy(State.currentChar);
+    }
+  }, 400);
+};
+
+// ── 购买NPC弹窗：显示道具描述 ──────────────────────────
+const _origBuyItemOld = window.buyItem;
+window.buyItem = function(itemId) {
+  const item = ITEMS_DATA?.find(i => i.id === itemId);
+  _origBuyItemOld && _origBuyItemOld(itemId);
+  // After original runs, fill in desc for npc-buy modal
+  setTimeout(() => {
+    const descEl = document.getElementById('npc-buy-item-desc');
+    if (descEl && item) descEl.textContent = item.desc || '';
+  }, 50);
+};
+</script>
+
+
+<!-- 个人状态面板 -->
+<div class="ov" id="ov-status">
+  <div class="sheet">
+    <div class="s-hdr"><span class="s-ttl-modal">📊 个人状态</span><button class="s-x" onclick="closeOv('ov-status')">✕</button></div>
+    <div class="s-body" id="status-body"></div>
+  </div>
+</div>
+
+<!-- 头像上传 input（隐藏）-->
+<input type="file" id="ava-file-inp" accept="image/*" style="display:none" onchange="handleAvaUpload(this)">
+
+<!-- 购买成功NPC弹窗（高层级）-->
+<div class="ov" id="ov-npc-buy" style="z-index:310">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr">
+      <span class="s-ttl-modal">🛒 <span id="npc-buy-item-name">道具</span></span>
+      <button class="s-x" onclick="closeOv('ov-npc-buy')">✕</button>
+    </div>
+    <div class="s-body">
+      <div class="shop-npc-box" id="npc-buy-say" style="margin-bottom:14px">「……」</div>
+      <div id="npc-buy-item-desc" style="display:none"></div>
+      <button class="btn btn-p btn-full" onclick="closeOv('ov-npc-buy')">好的，谢谢</button>
+    </div>
+  </div>
+</div>
+
+<!-- 洗脑催眠弹窗 -->
+<div class="ov" id="ov-hypnosis">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🔮 洗脑催眠</span><button class="s-x" onclick="closeOv('ov-hypnosis')">✕</button></div>
+    <div class="s-body" id="hypnosis-body"></div>
+  </div>
+</div>
+
+<!-- 月老红线弹窗 -->
+<div class="ov" id="ov-matchmaking">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🌹 月老红线</span><button class="s-x" onclick="closeOv('ov-matchmaking')">✕</button></div>
+    <div class="s-body" id="matchmaking-body"></div>
+  </div>
+</div>
+
+<!-- 经验详情弹窗 -->
+<div class="ov" id="ov-exp-detail">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">📊 经验详情</span><button class="s-x" onclick="closeOv('ov-exp-detail')">✕</button></div>
+    <div class="s-body" id="exp-detail-body"></div>
+  </div>
+</div>
+
+<!-- 主人详情弹窗 -->
+<div class="ov" id="ov-player-detail">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">👑 主人档案</span><button class="s-x" onclick="closeOv('ov-player-detail')">✕</button></div>
+    <div class="s-body" id="player-detail-body"></div>
+  </div>
+</div>
+
+<!-- 剧情记录弹窗（通用） -->
+<div class="ov" id="ov-story-log">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="story-log-title">剧情记录</span><button class="s-x" onclick="closeOv('ov-story-log')">✕</button></div>
+    <div class="s-body" id="story-log-list"></div>
+  </div>
+</div>
+
+<!-- 剧情详情阅读弹窗 -->
+<div class="ov" id="ov-story-read" style="z-index:450">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="story-read-title">剧情</span><button class="s-x" onclick="closeOv('ov-story-read')">✕</button></div>
+    <div class="s-body">
+      <div id="story-read-body" style="font-size:.85rem;line-height:2;color:var(--txt2)"></div>
+      <button class="btn btn-ghost btn-full" onclick="closeOv('ov-story-read')" style="margin-top:14px">关闭</button>
+    </div>
+  </div>
+</div>
+
+<!-- 背包道具使用弹窗 -->
+<div class="ov" id="ov-item-use" style="z-index:400">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="item-use-name">使用道具</span><button class="s-x" onclick="closeOv('ov-item-use')">✕</button></div>
+    <div class="s-body">
+      <div id="item-use-desc" style="font-size:.82rem;color:var(--txt2);line-height:1.7;margin-bottom:14px"></div>
+      <div style="display:grid;gap:9px">
+        <button class="btn btn-p btn-full" id="item-use-self-btn" onclick="useItemOnSelf()">🙋 自己使用（立即触发剧情）</button>
+        <button class="btn btn-full" id="item-use-slave-btn" onclick="useItemOnSlave()">⚔️ 留着对奴隶使用</button>
+        <button class="btn btn-ghost btn-full" onclick="closeOv('ov-item-use')">取消</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 日常事件弹窗 -->
+<div class="ov" id="ov-daily-event">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="daily-ev-title">日常事件</span><button class="s-x" onclick="closeOv('ov-daily-event')">✕</button></div>
+    <div class="s-body" id="daily-ev-body"></div>
+  </div>
+</div>
+
+<!-- 逆推系统弹窗 -->
+<div class="ov" id="ov-reverse-training" style="z-index:270">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr">
+      <span class="s-ttl-modal">🔄 逆推</span>
+      <button class="s-x" onclick="closeOv('ov-reverse-training')">✕</button>
+    </div>
+    <div class="s-body" id="rt-body"></div>
+  </div>
+</div>
+
+<style>
+/* ── 逆推系统样式 ───────────────────────────────────── */
+.rt-scene { margin-bottom: 4px; }
+.rt-p {
+  font-size: .88rem;
+  line-height: 1.9;
+  color: var(--txt2);
+  margin-bottom: 8px;
+  text-align: justify;
+}
+.rt-btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.rt-btn-accept { background: linear-gradient(135deg,#e05e8a,#c03070); color:#fff; border:none; }
+.rt-btn-reject { background: var(--card2); color: var(--txt); border: 1px solid var(--bdr2); }
+
+/* 状态条 */
+.rt-status-bars {
+  background: var(--card2);
+  border: 1px solid var(--bdr2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.rt-stat-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.rt-stat-label {
+  font-size: .75rem;
+  font-weight: 700;
+  color: var(--txt2);
+  min-width: 48px;
+  flex-shrink: 0;
+}
+.rt-stat-track {
+  flex: 1;
+  height: 18px;
+  background: var(--bdr);
+  border-radius: 9px;
+  overflow: hidden;
+  position: relative;
+}
+.rt-stat-fill {
+  height: 100%;
+  border-radius: 9px;
+  transition: width .4s;
+}
+.rt-stat-val {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: .64rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,.5);
+  pointer-events: none;
+}
+
+/* 回合标签 */
+.rt-round-label {
+  font-size: .8rem;
+  color: var(--acc2);
+  font-weight: 700;
+  margin-bottom: 10px;
+  padding-left: 4px;
+  border-left: 3px solid var(--acc2);
+}
+
+/* 指令卡片 */
+.rt-cmds { display: flex; flex-direction: column; gap: 10px; }
+.rt-cmd-card {
+  background: var(--card);
+  border: 1px solid var(--bdr2);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.rt-cmd-name {
+  font-size: .92rem;
+  font-weight: 800;
+  color: var(--acc2);
+  margin-bottom: 4px;
+}
+.rt-cmd-desc {
+  font-size: .76rem;
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+.rt-cmd-btns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.rt-accept-btn {
+  font-size: .78rem;
+  padding: 6px 10px;
+  background: rgba(229,115,115,.15);
+  color: #e57373;
+  border: 1px solid rgba(229,115,115,.3);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.rt-accept-btn:active { background: rgba(229,115,115,.3); }
+.rt-reject-btn {
+  font-size: .78rem;
+  padding: 6px 10px;
+  background: var(--card2);
+  color: var(--muted);
+  border: 1px solid var(--bdr2);
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s;
+}
+.rt-next-btn { font-size: .88rem; }
+.rt-ending { border-left: 3px solid var(--acc); padding-left: 12px; }
+</style>
+
+<!-- 嫉妒/争风剧情弹窗 -->
+<div class="ov" id="ov-jealousy" style="z-index:260">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">💢 争风吃醋</span><button class="s-x" onclick="closeOv('ov-jealousy')">✕</button></div>
+    <div class="s-body" id="jealousy-body"></div>
+  </div>
+</div>
+
+
+
+<div class="ov" id="ov-save-menu">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">💾 存档菜单</span><button class="s-x" onclick="closeOv('ov-save-menu')">✕</button></div>
+    <div class="s-body">
+      <button class="btn btn-p btn-full" onclick="doSaveGame()">💾 更新自动存档</button>
+      <button class="btn btn-full" style="margin-top:8px;background:var(--card);border:1px solid var(--acc);color:var(--acc)" onclick="doManualSave()">📝 新建手动存档</button>
+      <div class="s-ttl" style="margin-top:14px;margin-bottom:8px">已有存档</div>
+      <div id="save-slot-list" style="display:grid;gap:8px;max-height:320px;overflow-y:auto"></div>
+      <button class="btn btn-full" style="margin-top:14px;background:#d35b5b;color:#fff" onclick="newGamePlus()">开始新周目</button>
+    </div>
+  </div>
+</div>
+
+<div class="ov" id="ov-rename">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">✏️ 修改名字</span><button class="s-x" onclick="closeOv('ov-rename')">✕</button></div>
+    <div class="s-body">
+      <input class="inp" id="rename-input" maxlength="8" placeholder="输入新的名字">
+      <button class="btn btn-p btn-full" style="margin-top:12px" onclick="confirmPrettyRename()">确认修改</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function openPrettyRename(){
+  document.getElementById('rename-input').value = _playerProfile.name || '主人';
+  openOv('ov-rename');
+}
+function confirmPrettyRename(){
+  const v=document.getElementById('rename-input').value.trim().slice(0,8)||'主人';
+  _playerProfile.name=v;
+  localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  closeOv('ov-rename');
+  toast('名字已更新 ✓','ok');
+}
+function openSaveMenu(){ renderSaveSlots(); openOv('ov-save-menu'); }
+
+// ── 事件概率管理 ──
+var _eventProbs={jealousy:15,reverse:8,affair:25,manor:25};
+(function(){try{var s=JSON.parse(localStorage.getItem('era_event_probs'));if(s)_eventProbs=Object.assign(_eventProbs,s);}catch(e){}})();
+function updateEventProb(type,val){
+  _eventProbs[type]=parseInt(val)||0;
+  var lbl=document.getElementById(type+'-pct-label');
+  if(lbl)lbl.textContent=val+'%';
+}
+function saveEventProbs(){
+  localStorage.setItem('era_event_probs',JSON.stringify(_eventProbs));
+  toast('概率设置已保存 ✓','ok');closeOv('ov-event-prob');
+}
+function getEventProb(type){return(_eventProbs[type]||0)/100;}
+function openEventProbModal(){
+  var body=document.getElementById('event-prob-body');if(!body)return;
+  var items=[
+    {k:'jealousy',label:'🫣 嫉妒事件',desc:'训练其他奴隶时，已有奴隶触发嫉妒'},
+    {k:'reverse',label:'🔄 逆推事件',desc:'调教时奴隶反过来推倒主人'},
+    {k:'affair',label:'💕 偷情事件',desc:'休息后奴隶之间发生偷情'},
+    {k:'manor',label:'🌅 庄园随机事件',desc:'进入庄园时触发晨昏剧情'},
+  ];
+  var html='<div style="font-size:.75rem;color:var(--muted);margin-bottom:14px">调整各类随机事件的触发概率（0%~100%）。</div>';
+  items.forEach(function(it){
+    var v=_eventProbs[it.k]||0;
+    html+='<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:12px;margin-bottom:8px">';
+    html+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:.82rem;font-weight:700;color:var(--txt)">'+it.label+'</span><span id="'+it.k+'-pct-label" style="font-size:.82rem;color:var(--acc2);font-weight:700">'+v+'%</span></div>';
+    html+='<div style="font-size:.65rem;color:var(--muted);margin-bottom:6px">'+it.desc+'</div>';
+    html+='<input type="range" min="0" max="100" value="'+v+'" style="width:100%;accent-color:var(--acc2)" oninput="updateEventProb(\''+it.k+'\',this.value)">';
+    html+='</div>';
+  });
+  html+='<button class="btn btn-p btn-full" onclick="saveEventProbs()" style="margin-top:6px">💾 保存设置</button>';
+  html+='<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-event-prob\')" style="margin-top:6px">取消</button>';
+  body.innerHTML=html;openOv('ov-event-prob');
+}
+function doSaveGame(){
+  if(writeSave()){ toast('自动存档已更新 ✓','ok'); renderSaveSlots(); }
+  else toast('存档失败','err');
+}
+function doManualSave(){
+  var name=prompt('输入存档名称：', (State.currentChar?State.currentChar.name:'')+'·第'+(State.day||1)+'天');
+  if(name===null)return;
+  if(writeNamedSave(name)){ toast('手动存档成功 ✓','ok'); renderSaveSlots(); }
+  else toast('存档失败','err');
+}
+function renderSaveSlots(){
+  var list=document.getElementById('save-slot-list');
+  if(!list)return;
+  var saves=[];
+  // 读取单个自动存档镜像
+  try{var ar=localStorage.getItem('era_auto_save');if(ar){var as2=JSON.parse(ar);if(as2&&as2.char)saves.push({key:'era_auto_save',data:as2,isManual:false});}}catch(e){}
+  // 如果没有新格式自动存档，兜底显示旧格式的（取最新的一个）
+  if(!saves.length){
+    var bestAuto=null,bestTime=0;
+    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+      if(k&&k.startsWith('era_sv_')){try{var s=JSON.parse(localStorage.getItem(k));if(s&&s.char&&(s.saveTime||0)>bestTime){bestAuto={key:k,data:s,isManual:false};bestTime=s.saveTime||0;}}catch(e){}}
+    }
+    if(bestAuto)saves.push(bestAuto);
+  }
+  // 读取手动存档
+  for(var i2=0;i2<localStorage.length;i2++){var k2=localStorage.key(i2);
+    if(k2&&k2.startsWith('era_msv_')){try{var s2=JSON.parse(localStorage.getItem(k2));if(s2&&s2.char)saves.push({key:k2,data:s2,isManual:true});}catch(e){}}
+  }
+  if(!saves.length){list.innerHTML='<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--muted)">暂无存档</div>';return;}
+  saves.sort(function(a,b){return(b.data.saveTime||0)-(a.data.saveTime||0);});
+  list.innerHTML=saves.map(function(sv){
+    var c=sv.data.char;
+    var label=sv.data.saveName||(sv.isManual?'手动存档':'自动存档');
+    var timeStr=sv.data.saveTime?new Date(sv.data.saveTime).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
+    return '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">'+
+      '<div style="font-size:1.4rem">'+(sv.isManual?'📝':'💾')+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:.82rem;font-weight:700;color:var(--txt)">'+esc(label)+'</div>'+
+        '<div style="font-size:.66rem;color:var(--muted);margin-top:2px">'+esc(c.name)+' · 第'+(sv.data.day||1)+'天 · 好感'+Math.round(c.affection||0)+(timeStr?' · '+timeStr:'')+'</div>'+
+      '</div>'+
+      '<div style="display:flex;gap:4px;flex-shrink:0">'+
+        '<button class="btn btn-sm btn-p" onclick="loadSaveSlot(\''+sv.key+'\')">读取</button>'+
+        (sv.isManual?'<button class="btn btn-sm btn-ghost" onclick="renameSaveSlot(\''+sv.key+'\')" style="font-size:.65rem">✏️</button>':'')+
+        '<button class="btn btn-sm btn-ghost" onclick="deleteSaveSlot(\''+sv.key+'\',this)" style="color:#f06;font-size:.65rem">✕</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+}
+function loadSaveSlot(key){
+  try{
+    var s=JSON.parse(localStorage.getItem(key));
+    if(!s||!s.char)return;
+    State.currentChar=s.char;
+    State.gameLog=s.log||[];
+    State.day=s.day||1;
+    State.money=s.money||10000;
+    State.inventory=s.inventory||{};
+    closeOv('ov-save-menu');
+    navTo('play');
+    renderPlay();
+    toast('存档已读取 ✓','ok');
+  }catch(e){ toast('读取失败','err'); }
+}
+function renameSaveSlot(key){
+  try{
+    var s=JSON.parse(localStorage.getItem(key));
+    if(!s)return;
+    var name=prompt('输入新名称：',s.saveName||'');
+    if(name===null)return;
+    s.saveName=name;
+    localStorage.setItem(key,JSON.stringify(s));
+    renderSaveSlots();
+    toast('已重命名 ✓','ok');
+  }catch(e){}
+}
+function deleteSaveSlot(key,btn){
+  if(!confirm('确定删除此存档？'))return;
+  localStorage.removeItem(key);
+  toast('存档已删除','');
+  renderSaveSlots();
+}
+
+// ── 金币弹窗 ─────────────────────────────────────────────
+function openMoneyLogPopup(){
+  const cur=document.getElementById('money-log-cur');
+  if(cur) cur.textContent=fmtMoney(State.money);
+  if(typeof openMoneyLog==='function') openMoneyLog();
+}
+function clearMoneyLog(){
+  if(typeof _moneyLog!=='undefined'){
+    _moneyLog.length=0;
+    localStorage.removeItem('era_money_log');
+    const b=document.getElementById('money-log-body');
+    if(b) b.innerHTML='<div style="text-align:center;padding:20px 0;color:var(--muted)">已清空</div>';
+    toast('记录已清空','ok');
+  }
+}
+
+// ── 奴隶头像编辑器 ──────────────────────────────────────
+var _slaveAvaEditId = null;
+const SLAVE_AVATARS = ['👩','🧑','🐾','🐉','👼','😈','🧝','🌸','🦊','🐺','🦋','🌙',
+                       '⚔️','🔮','💎','🌹','✨','💫','🎭','🌺','🌊','🔥','⚡','🎪'];
+function openSlaveAvaModal(charId){
+  _slaveAvaEditId = charId;
+  const c = CHARS_DATA.find(x=>x.id===charId);
+  const sv = loadSave(charId);
+  if(!c||!sv) return;
+  const profile = sv.charProfile||{};
+  // 标题
+  const ttl=document.getElementById('slave-ava-title');
+  if(ttl) ttl.textContent=c.name+' · 更换头像';
+  // 预览
+  const prev=document.getElementById('slave-ava-preview');
+  if(prev){
+    if(profile.avaImg){ prev.style.backgroundImage=`url('${profile.avaImg}')`; prev.style.backgroundSize='cover'; prev.textContent=''; }
+    else { prev.textContent=profile.ava||cEmoji(c); prev.style.backgroundImage=''; }
+  }
+  // 表情格
+  const grid=document.getElementById('slave-ava-grid');
+  if(grid){
+    grid.innerHTML=SLAVE_AVATARS.map(a=>`<div class="ava-opt${a===(profile.ava||cEmoji(c))?' on':''}" onclick="pickSlaveAva('${a}',this)">${a}</div>`).join('');
+  }
+  openOv('ov-slave-ava');
+}
+function pickSlaveAva(ava, el){
+  if(_slaveAvaEditId==null) return;
+  const sv=loadSave(_slaveAvaEditId); if(!sv) return;
+  sv.charProfile=sv.charProfile||{};
+  sv.charProfile.ava=ava;
+  sv.charProfile.avaImg=null;
+  localStorage.setItem('era_sv_'+_slaveAvaEditId, JSON.stringify(sv));
+  // 刷新预览
+  const prev=document.getElementById('slave-ava-preview');
+  if(prev){ prev.textContent=ava; prev.style.backgroundImage=''; }
+  document.querySelectorAll('#slave-ava-grid .ava-opt').forEach(b=>b.classList.remove('on'));
+  if(el) el.classList.add('on');
+  // 刷新庄园&训练页
+  if(typeof renderManor==='function') try{renderManor();}catch(e){}
+  if(typeof renderPlay==='function'&&State.currentChar&&State.currentChar.id===_slaveAvaEditId) try{renderPlay();}catch(e){}
+  toast('头像已更新 ✓','ok');
+}
+var _avaCropImg=null,_avaCropZoom=100,_avaCropX=0,_avaCropY=0,_avaDrag=false,_avaDragS={x:0,y:0};
+function handleSlaveAvaUpload(inp){
+  var file=inp.files&&inp.files[0]; if(!file)return;
+  var r=new FileReader();
+  r.onload=function(ev){
+    _avaCropImg=new Image();
+    _avaCropImg.onload=function(){
+      var prev=document.getElementById('slave-ava-preview');
+      if(prev){prev.innerHTML='';prev.style.backgroundImage='url('+ev.target.result+')';prev.style.backgroundSize='cover';prev.style.backgroundPosition='center';}
+      var area=document.getElementById('slave-ava-crop-area');
+      if(area)area.style.display='block';
+      // 让短边刚好填满200px
+      var fitScale=200/Math.min(_avaCropImg.width,_avaCropImg.height);
+      _avaCropZoom=Math.round(fitScale*100);
+      _avaCropX=0;_avaCropY=0;
+      var sl=document.getElementById('slave-ava-zoom');
+      if(sl){sl.min=Math.max(10,Math.round(fitScale*60));sl.max=Math.round(fitScale*350);sl.value=_avaCropZoom;}
+      redrawAvaCrop();
+      // 拖动支持
+      var cv=document.getElementById('slave-ava-canvas');
+      if(cv){
+        cv.onpointerdown=function(e){_avaDrag=true;_avaDragS={x:e.clientX-_avaCropX,y:e.clientY-_avaCropY};cv.setPointerCapture(e.pointerId);e.preventDefault();};
+        cv.onpointermove=function(e){if(!_avaDrag)return;_avaCropX=e.clientX-_avaDragS.x;_avaCropY=e.clientY-_avaDragS.y;redrawAvaCrop();};
+        cv.onpointerup=cv.onpointercancel=function(){_avaDrag=false;};
+      }
+    };
+    _avaCropImg.src=ev.target.result;
+  };
+  r.readAsDataURL(file);
+}
+function redrawAvaCrop(){
+  var canvas=document.getElementById('slave-ava-canvas');
+  if(!canvas||!_avaCropImg)return;
+  var ctx=canvas.getContext('2d');
+  var sl=document.getElementById('slave-ava-zoom');
+  if(sl)_avaCropZoom=parseInt(sl.value);
+  var z=_avaCropZoom/100;
+  var w=_avaCropImg.width*z,h=_avaCropImg.height*z;
+  var ox=(200-w)/2+_avaCropX,oy=(200-h)/2+_avaCropY;
+  ctx.clearRect(0,0,200,200);
+  ctx.save();ctx.beginPath();ctx.arc(100,100,100,0,Math.PI*2);ctx.clip();
+  ctx.drawImage(_avaCropImg,ox,oy,w,h);
+  ctx.restore();
+}
+function confirmAvaCrop(){
+  var canvas=document.getElementById('slave-ava-canvas');
+  if(!canvas||_slaveAvaEditId==null) return;
+  var dataUrl=canvas.toDataURL('image/jpeg',0.85);
+  var sv=loadSave(_slaveAvaEditId); if(!sv) return;
+  sv.charProfile=sv.charProfile||{};
+  sv.charProfile.avaImg=dataUrl;
+  sv.charProfile.ava=null;
+  localStorage.setItem('era_sv_'+_slaveAvaEditId, JSON.stringify(sv));
+  // 同步到当前角色
+  if(State.currentChar&&State.currentChar.id==_slaveAvaEditId) State._charProfile=sv.charProfile;
+  if(typeof renderManor==='function') try{renderManor();}catch(e){}
+  if(typeof renderPlay==='function'&&State.currentChar) try{renderPlay();}catch(e){}
+  toast('头像已更新 ✓','ok');
+  closeOv('ov-slave-ava');
+}
+function cancelAvaCrop(){
+  var area=document.getElementById('slave-ava-crop-area');
+  if(area) area.style.display='none';
+  var prev=document.getElementById('slave-ava-preview');
+  if(prev){prev.style.backgroundImage='';prev.innerHTML='预览';}
+  // 解除页面锁定
+  document.body.style.overflow='';document.documentElement.style.overflow='';
+  var btn=document.getElementById('ava-lock-btn');if(btn){btn.textContent='🔒 固定页面';btn._locked=false;}
+}
+var _avaPageLocked=false;
+function toggleAvaPageLock(){
+  _avaPageLocked=!_avaPageLocked;
+  var btn=document.getElementById('ava-lock-btn');
+  if(_avaPageLocked){
+    document.body.style.overflow='hidden';document.documentElement.style.overflow='hidden';
+    if(btn)btn.textContent='🔓 解除固定';
+    toast('页面已固定，可以安心裁剪~','ok');
+  }else{
+    document.body.style.overflow='';document.documentElement.style.overflow='';
+    if(btn)btn.textContent='🔒 固定页面';
+  }
+}
+function newGamePlus(){
+  openCustomConfirm(
+    '⚠️ 开始新周目',
+    '<div style="text-align:center;padding:8px 0"><div style="font-size:2.5rem;margin-bottom:10px">🔄</div><div style="font-size:.9rem;color:var(--txt2);line-height:1.7">所有存档、金币、奴隶数据将被<b style=\"color:#f06\">彻底清空</b>。<br>此操作不可撤销。</div></div>',
+    '🗑️ 确认清空并重启',
+    function(){ localStorage.clear(); location.reload(); }
+  );
+}
+</script>
+
+<!-- 奴隶采购弹窗 -->
+<div class="ov" id="ov-slave-procurement">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">⛓️ 奴隶采购</span><button class="s-x" onclick="closeOv('ov-slave-procurement')">✕</button></div>
+    <div class="s-body" id="slave-procurement-body"></div>
+  </div>
+</div>
+
+<!-- 作弊码弹窗 -->
+<div class="ov" id="ov-cheat" style="z-index:500">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" style="color:#f06">🔑 作弊面板（测试模式）</span><button class="s-x" onclick="closeOv('ov-cheat')">✕</button></div>
+    <div class="s-body" id="cheat-body"></div>
+  </div>
+</div>
+
+<!-- 字体大小弹窗 -->
+<div class="ov" id="ov-fontsize">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🔤 字体大小</span><button class="s-x" onclick="closeOv('ov-fontsize')">✕</button></div>
+    <div class="s-body" id="fontsize-body">
+      <div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">选择适合您的字体大小：</div>
+      <div style="display:grid;gap:9px">
+        <div class="sr fs-option" data-fs="sm" onclick="setFontSize('sm',this)" style="cursor:pointer">
+          <div style="font-size:.82rem">A</div>
+          <div style="flex:1;margin-left:12px"><div class="sr-ttl">小字体</div><div class="sr-sub">更紧凑，适合小屏</div></div>
+        </div>
+        <div class="sr fs-option on" data-fs="md" onclick="setFontSize('md',this)" style="cursor:pointer">
+          <div style="font-size:1rem">A</div>
+          <div style="flex:1;margin-left:12px"><div class="sr-ttl">标准（推荐）</div><div class="sr-sub">默认显示大小</div></div>
+        </div>
+        <div class="sr fs-option" data-fs="lg" onclick="setFontSize('lg',this)" style="cursor:pointer">
+          <div style="font-size:1.2rem">A</div>
+          <div style="flex:1;margin-left:12px"><div class="sr-ttl">大字体</div><div class="sr-sub">更舒适，适合护眼</div></div>
+        </div>
+        <div class="sr fs-option" data-fs="xl" onclick="setFontSize('xl',this)" style="cursor:pointer">
+          <div style="font-size:1.4rem">A</div>
+          <div style="flex:1;margin-left:12px"><div class="sr-ttl">超大字体</div><div class="sr-sub">最大显示，适合视力不佳</div></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;padding:10px;background:var(--card2);border-radius:9px;font-size:.8rem;line-height:1.7;color:var(--txt2)">
+        预览文字：主人今天心情怎么样？这里是剧情文本预览，字体设置会立即生效。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 字体样式弹窗 -->
+<div class="ov" id="ov-fontstyle">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">✒️ 字体样式</span><button class="s-x" onclick="closeOv('ov-fontstyle')">✕</button></div>
+    <div class="s-body" id="fontstyle-body"></div>
+  </div>
+</div>
+
+<script>
+// ── 字体大小 ──────────────────────────────────────────────
+function openFontSizeModal(){
+  var cur=localStorage.getItem('era_fontsize')||'md';
+  document.querySelectorAll('.fs-option').forEach(function(e){
+    e.classList.toggle('on',e.dataset.fs===cur);
+    e.style.border=e.dataset.fs===cur?'2px solid var(--acc)':'';
+  });
+  var label={sm:'小字体',md:'标准',lg:'大字体',xl:'超大字体'};
+  var sub=document.getElementById('fontsize-settings-sub');
+  if(sub)sub.textContent=label[cur]||'标准';
+  openOv('ov-fontsize');
+}
+function setFontSize(size,el){
+  localStorage.setItem('era_fontsize',size);
+  document.documentElement.setAttribute('data-fontsize',size);
+  document.querySelectorAll('.fs-option').forEach(function(e){
+    e.classList.toggle('on',e.dataset.fs===size);
+    e.style.border=e.dataset.fs===size?'2px solid var(--acc)':'';
+  });
+  var label={sm:'小字体',md:'标准',lg:'大字体',xl:'超大字体'};
+  var sub=document.getElementById('fontsize-settings-sub');
+  if(sub)sub.textContent=label[size]||'标准';
+  toast('字体已设为：'+label[size],'ok');
+}
+// 初始化字体大小
+(function(){
+  var fs=localStorage.getItem('era_fontsize')||'md';
+  document.documentElement.setAttribute('data-fontsize',fs);
+  var label={sm:'小字体',md:'标准',lg:'大字体',xl:'超大字体'};
+  document.addEventListener('DOMContentLoaded',function(){
+    var sub=document.getElementById('fontsize-settings-sub');
+    if(sub)sub.textContent=label[fs]||'标准';
+  });
+})();
+
+// ── 字体样式系统 ──────────────────────────────────────────
+var FONT_STYLES = [
+  {id:'default',  name:'默认',       family:"-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif", desc:'系统默认字体'},
+  {id:'serif',    name:'宋体/衬线',  family:"'Noto Serif SC','Songti SC','SimSun',serif", desc:'古典优雅，适合阅读'},
+  {id:'kai',      name:'楷体',       family:"'ZCOOL XiaoWei','KaiTi','STKaiti',serif", desc:'书法韵味，文艺范'},
+  {id:'round',    name:'圆体',       family:"'Noto Sans SC','PingFang SC','Microsoft YaHei',sans-serif", desc:'圆润可爱，轻松活泼'},
+  {id:'mono',     name:'等宽字体',   family:"'JetBrains Mono','Fira Code','Courier New',monospace", desc:'代码风格，整齐划一'},
+  {id:'fangsong', name:'仿宋',       family:"'FangSong','STFangsong',serif", desc:'仿古印刷风格'}
+];
+
+function openFontStyleModal(){
+  var cur=localStorage.getItem('era_fontstyle')||'default';
+  var body=document.getElementById('fontstyle-body');
+  if(body){
+    body.innerHTML='<div style="font-size:.78rem;color:var(--muted);margin-bottom:14px">选择适合您的字体样式：</div>'+
+      '<div style="display:grid;gap:9px">'+
+      FONT_STYLES.map(function(f){
+        var on=f.id===cur;
+        return '<div class="sr fst-option'+(on?' on':'')+'" data-fst="'+f.id+'" onclick="setFontStyle(\''+f.id+'\',this)" style="cursor:pointer;'+(on?'border:2px solid var(--acc)':'')+'">' +
+          '<div style="flex:1;margin-left:4px"><div class="sr-ttl" style="font-family:'+f.family+'">'+f.name+'</div><div class="sr-sub">'+f.desc+'</div></div>' +
+          '<div style="font-size:.78rem;color:var(--muted);font-family:'+f.family+'">预览Abc</div>' +
+        '</div>';
+      }).join('')+
+      '</div>'+
+      '<div style="margin-top:14px;padding:10px;background:var(--card2);border-radius:9px;font-size:.8rem;line-height:1.7;color:var(--txt2)" id="fontstyle-preview">'+
+        '预览文字：主人今天心情怎么样？这里是剧情文本预览。ABCDE 12345'+
+      '</div>';
+  }
+  openOv('ov-fontstyle');
+}
+function setFontStyle(id,el){
+  localStorage.setItem('era_fontstyle',id);
+  var f=FONT_STYLES.find(function(s){return s.id===id;});
+  if(f) document.documentElement.style.setProperty('--user-font',f.family);
+  document.querySelectorAll('.fst-option').forEach(function(e){
+    e.classList.toggle('on',e.dataset.fst===id);
+    e.style.border=e.dataset.fst===id?'2px solid var(--acc)':'';
+  });
+  var sub=document.getElementById('fontstyle-settings-sub');
+  if(sub)sub.textContent=f?f.name:'默认';
+  var preview=document.getElementById('fontstyle-preview');
+  if(preview&&f) preview.style.fontFamily=f.family;
+  toast('字体样式已设为：'+(f?f.name:'默认'),'ok');
+}
+// 初始化字体样式
+(function(){
+  var fst=localStorage.getItem('era_fontstyle')||'default';
+  var f=FONT_STYLES.find(function(s){return s.id===fst;});
+  if(f&&f.id!=='default') document.documentElement.style.setProperty('--user-font',f.family);
+  document.addEventListener('DOMContentLoaded',function(){
+    var sub=document.getElementById('fontstyle-settings-sub');
+    if(sub)sub.textContent=f?f.name:'默认';
+  });
+})();
+
+// ── AI 断开连接 ───────────────────────────────────────────
+function disconnectApi(){
+  openCustomConfirm(
+    '🔌 断开AI连接',
+    '<div style="text-align:center;padding:8px 0"><div style="font-size:2rem;margin-bottom:8px">🤖</div><div style="font-size:.9rem;color:var(--txt2)">将清除所有 API Key 配置，<br>切换回本地离线对话模式。</div></div>',
+    '🔌 确认断开',
+    function(){
+  localStorage.removeItem('era_api_key');
+  localStorage.removeItem('era_provider');
+  localStorage.removeItem('era_model');
+  localStorage.removeItem('era_base_url');
+  if(window.API_STATE){window.API_STATE.key='';window.API_STATE.provider='gemini';window.API_STATE.model='';window.API_STATE.baseUrl='';}
+    var subEl=document.getElementById('api-settings-sub');
+    if(subEl)subEl.textContent='未设置 · 本地对话模式';
+    closeOv('ov-api');
+    toast('已断开AI连接 ✓','ok');
+    if(typeof updateAiBadge==='function')updateAiBadge();
+  });
+}
+</script>
+
+<!-- 作弊码密码输入弹窗 -->
+<div class="ov" id="ov-cheat-pwd" style="z-index:600">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🔑 作弊模式</span><button class="s-x" onclick="closeOv('ov-cheat-pwd')">✕</button></div>
+    <div class="s-body" id="cheat-pwd-body"></div>
+  </div>
+</div>
+
+<!-- 通用确认弹窗 -->
+<div class="ov" id="ov-custom-confirm" style="z-index:600">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="custom-confirm-title">确认</span><button class="s-x" onclick="closeOv('ov-custom-confirm')">✕</button></div>
+    <div class="s-body">
+      <div id="custom-confirm-body"></div>
+      <div style="display:flex;gap:8px;margin-top:16px">
+        <button class="btn btn-ghost btn-full" onclick="closeOv('ov-custom-confirm')">取消</button>
+        <button class="btn btn-p btn-full" id="custom-confirm-ok">确认</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 事件概率弹窗 -->
+<div class="ov" id="ov-event-prob" style="z-index:400">
+  <div class="sheet"><div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🎲 调整事件概率</span><button class="s-x" onclick="closeOv('ov-event-prob')">✕</button></div>
+    <div class="s-body" id="event-prob-body"></div>
+  </div>
+</div>
+
+<!-- 孕育系统弹窗 -->
+<div class="ov" id="ov-pregnancy" style="z-index:400">
+  <div class="sheet"><div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🤰 孕育系统</span><button class="s-x" onclick="closeOv('ov-pregnancy')">✕</button></div>
+    <div class="s-body" id="pregnancy-body"></div>
+  </div>
+</div>
+<!-- 人际关系弹窗 -->
+<div class="ov" id="ov-relationship" style="z-index:400">
+  <div class="sheet"><div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">💕 人际关系</span><button class="s-x" onclick="closeOv('ov-relationship')">✕</button></div>
+    <div class="s-body" id="relationship-body"></div>
+  </div>
+</div>
+<!-- 拍卖弹窗 -->
+<div class="ov" id="ov-auction" style="z-index:400">
+  <div class="sheet"><div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🔨 拍卖奴隶</span><button class="s-x" onclick="closeOv('ov-auction')">✕</button></div>
+    <div class="s-body" id="auction-body"></div>
+  </div>
+</div>
+<!-- 日历弹窗 -->
+<div class="ov" id="ov-calendar" style="z-index:400">
+  <div class="sheet"><div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">📅 日历</span><button class="s-x" onclick="closeOv('ov-calendar')">✕</button></div>
+    <div class="s-body" id="calendar-body"></div>
+  </div>
+</div>
+
+<!-- 奴隶详情弹窗 -->
+<div class="ov" id="ov-slave-detail" style="z-index:400">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">📋 奴隶档案</span><button class="s-x" onclick="closeOv('ov-slave-detail')">✕</button></div>
+    <div class="s-body" id="slave-detail-body"></div>
+  </div>
+</div>
+
+<!-- 奴隶房间弹窗 -->
+<div class="ov" id="ov-slave-room" style="z-index:400">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🛏️ 奴隶房间</span><button class="s-x" onclick="closeOv('ov-slave-room')">✕</button></div>
+    <div class="s-body" id="slave-room-body"></div>
+  </div>
+</div>
+
+</body>
+</html>
