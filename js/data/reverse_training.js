@@ -186,8 +186,10 @@ var RT_EXHAUSTED_STORIES = [
 var _rtState = {
   active: false,
   slaveName: '',
-  playerStamina: 100,
-  playerEnergy: 100,
+  playerStamina: 2000,
+  playerStaminaMax: 2000,
+  playerEnergy: 3000,
+  playerEnergyMax: 3000,
   slaveStamina: 0,
   round: 0,
 };
@@ -199,8 +201,10 @@ function openReverseTrainingModal() {
   _rtState = {
     active: true,
     slaveName: c.name,
-    playerStamina: parseFloat((typeof _playerProfile !== 'undefined' ? _playerProfile.energy : 75)) || 75,
-    playerEnergy: 100,
+    playerStamina: parseFloat((typeof _playerProfile !== 'undefined' ? _playerProfile.stamina : 2000)) || 2000,
+    playerStaminaMax: (typeof _playerProfile !== 'undefined' ? (_playerProfile.staminaMax || 2000) : 2000),
+    playerEnergy: parseFloat((typeof _playerProfile !== 'undefined' ? _playerProfile.energy : 3000)) || 3000,
+    playerEnergyMax: (typeof _playerProfile !== 'undefined' ? (_playerProfile.energyMax || 3000) : 3000),
     slaveStamina: c.stamina,
     round: 0,
   };
@@ -271,7 +275,7 @@ function _rtRenderMainPhase() {
   var body = document.getElementById('rt-body');
   if (!body) return;
 
-  var psHtml = _rtStatusBar('主人', _rtState.playerStamina, 100, '#e57373', '#ef9a9a');
+  var psHtml = _rtStatusBar('主人', _rtState.playerStamina, _rtState.playerStaminaMax || 2000, '#e57373', '#ef9a9a');
   var ssHtml = _rtStatusBar(c.name, _rtState.slaveStamina, getMaxStamina(c), '#4db6ac', '#80cbc4');
 
   var cmdsHtml = chosen.map(function(req, i) {
@@ -343,6 +347,13 @@ function _rtEnding() {
       if(typeof setStat==='function') setStat(k, State.currentChar[k]);
     });
     if(typeof writeSave==='function') writeSave();
+  }
+  // 同步主人体力到profile
+  if(typeof _playerProfile!=='undefined'){
+    _playerProfile.stamina=Math.max(0,_rtState.playerStamina);
+    _playerProfile.energy=Math.max(0,_rtState.playerEnergy);
+    localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+    if(typeof renderPlayerCard==='function')renderPlayerCard();
   }
 
   var body = document.getElementById('rt-body');

@@ -70,6 +70,8 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 .ov{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(10px);
   z-index:200;display:flex;align-items:center;justify-content:center;
   opacity:0;pointer-events:none;transition:opacity .2s}
+#ov-exp-detail{z-index:220}
+#ov-custom-confirm{z-index:230}
 .ov.on{opacity:1;pointer-events:all}
 .sheet{width:calc(100% - 28px);max-width:480px;background:var(--bg2);border-radius:18px;
   padding-bottom:max(env(safe-area-inset-bottom,0px),18px);
@@ -691,3 +693,9 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
   0%, 100% { box-shadow: 0 0 8px rgba(240,192,80,.2); }
   50% { box-shadow: 0 0 16px rgba(240,192,80,.4); }
 }
+
+/* ── 经验变化显示样式 ── */
+.eff-row { display:flex; flex-wrap:wrap; gap:4px 8px; align-items:center; }
+.eff-row-pos .eff-item { color:#4caf50; }
+.eff-row-neg .eff-item { color:#e53935; }
+.eff-item.eff-exp { color:var(--acc3); font-size:.72rem; }

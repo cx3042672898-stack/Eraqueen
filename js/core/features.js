@@ -1511,7 +1511,8 @@ function checkJealousy(targetChar){
   if(!targetChar)return;
   var rivals=CHARS_DATA.filter(function(c){if(c.id===targetChar.id)return false;var sv=loadSave(c.id);return sv&&sv.char&&(sv.char.affection||0)>=60;});
   if(!rivals.length)return;
-  if(Math.random()>0.30)return;
+  var jealousyProb=(typeof getEventProb==='function')?getEventProb('jealousy'):0.15;
+  if(Math.random()>jealousyProb)return;
   var rival=rivals[Math.floor(Math.random()*rivals.length)];
   var tmpl=JEALOUSY_LINES[Math.floor(Math.random()*JEALOUSY_LINES.length)];
   var story=tmpl.story(rival.name,targetChar.name);

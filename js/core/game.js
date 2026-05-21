@@ -535,6 +535,17 @@ async function doAction(name, cat) {
       toast('🌟 '+c.name+' 的'+labels[sn]+'升至 Lv.'+newLv+'！','success');
     }
   });
+  // ── 主人体力/精力消耗（调教奴隶基础消耗）──
+  if (typeof _playerProfile !== 'undefined') {
+    var trainStaCost = Math.max(5, Math.abs(changes.stamina));
+    var trainEneCost = Math.max(3, Math.abs(changes.energy));
+    // logStaminaCost handles stamina deduction + logging
+    if (typeof logStaminaCost === 'function') logStaminaCost('调教·' + (c.name || '奴隶'), trainStaCost);
+    // energy deducted separately (no log function for energy)
+    _playerProfile.energy = Math.max(0, (_playerProfile.energy || 0) - trainEneCost);
+    localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+    if (typeof renderPlayerCard === 'function') renderPlayerCard();
+  }
   ['stamina', 'energy', 'lust', 'obedience', 'affection']
     .forEach(k => setStat(k, State.currentChar[k]));
   const timeEl2 = document.getElementById('hdr-h1');
@@ -665,7 +676,7 @@ function doRest() {
   if (typeof _playerProfile !== 'undefined') {
     var maxSta = _playerProfile.staminaMax || 2000;
     _playerProfile.stamina = Math.min(maxSta, (_playerProfile.stamina || 0) + Math.floor(maxSta * 0.5));
-    _playerProfile.energy = Math.min(_playerProfile.energyMax || 2000, (_playerProfile.energy || 0) + Math.floor((_playerProfile.energyMax || 2000) * 0.5));
+    _playerProfile.energy = Math.min(_playerProfile.energyMax || 3000, (_playerProfile.energy || 0) + Math.floor((_playerProfile.energyMax || 3000) * 0.5));
     localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
   }
   if (typeof consumeTime === 'function') { consumeTime('night'); } else { State.day++; }

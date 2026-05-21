@@ -376,51 +376,7 @@
   }
 
   function _injectDetailPanels() {
-    const c = State?.currentChar;
-    if (!c) return;
-
-    // 人格面板
-    const personaEl = document.getElementById('det-persona');
-    if (personaEl && c.persona && HAS_PERSONALITY && typeof renderPersonalityPanel === 'function') {
-      personaEl.innerHTML = renderPersonalityPanel(c.persona);
-    }
-
-    // 路线进度
-    const routeEl = document.getElementById('det-routes');
-    if (routeEl && c.persona && HAS_PERSONALITY && typeof getAllRouteProgress === 'function') {
-      const routes = getAllRouteProgress(c.persona);
-      routeEl.innerHTML = '<div class="route-progress">' + routes.map(r => `
-        <div class="route-row">
-          <span class="route-row-icon">${r.icon}</span>
-          <span class="route-row-name">${r.name}</span>
-          <div class="route-dots">
-            ${Array.from({length:r.maxStages},(_,i)=>
-              `<span class="route-dot ${i<=r.stageIdx?(r.active?'active':'on'):''}"></span>`
-            ).join('')}
-          </div>
-          <span class="route-row-stage">${r.stageName}</span>
-        </div>`).join('') + '</div>';
-    }
-
-    // 情绪面板
-    const emotionEl = document.getElementById('det-emotion');
-    if (emotionEl && HAS_EMOTION && typeof renderEmotionPanel === 'function') {
-      emotionEl.innerHTML = renderEmotionPanel(c);
-    }
-
-    // 关系阶段进度
-    const relEl = document.getElementById('det-relation');
-    if (relEl && HAS_EMOTION) {
-      const stage = c.emotionState?.relationStage ?? 0;
-      const names = ['陌生','信任','依赖','扭曲依赖','病态占有'];
-      relEl.innerHTML = `
-        <div class="relation-progress">
-          ${names.map((_,i) => `<div class="relation-dot ${i<stage?'reached':''} ${i===stage?'current':''}"></div>`).join('')}
-        </div>
-        <div class="relation-labels">
-          ${names.map((n,i) => `<span class="${i===stage?'current-stage':''}">${n}</span>`).join('')}
-        </div>`;
-    }
+    // Old static panels removed; new interactive content is in openCharDetail() in nav.js
   }
 
 
