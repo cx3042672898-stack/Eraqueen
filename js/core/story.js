@@ -36,6 +36,7 @@ function openStoryModal(story, actionName, changes) {
   _SM.effects = changes || {};
   _SM.action  = actionName || '剧情';
   _SM.title   = story.title || actionName || '剧情';
+  _SM.story   = story;  // ★ 保存story对象以便读取经验变化
 
   requestAnimationFrame(() => {
     try{
@@ -110,13 +111,50 @@ function _renderStoryModal() {
         { k: 'stamina',   label: '体力', icon: '💪' },
         { k: 'energy',    label: '精力', icon: '⚡' },
       ];
-      const html = rows
-        .filter(r => _SM.effects[r.k] !== undefined && _SM.effects[r.k] !== 0)
-        .map(r => {
-          const v   = Math.round(_SM.effects[r.k]);
-          const cls = v > 0 ? 'eff-pos' : 'eff-neg';
-          return `<span class="eff-item ${cls}">${r.icon}${r.label} ${v > 0 ? '+' : ''}${v}</span>`;
-        }).join('');
+      // ★ 分组：增加行 / 减少行（横排，增加在上减少在下）
+      var posItems = rows.filter(r => _SM.effects[r.k] > 0).map(r => {
+        var v = Math.round(_SM.effects[r.k]);
+        return `<span class="eff-item eff-pos">${r.icon}${r.label} +${v}</span>`;
+      }).join('  ');
+      var negItems = rows.filter(r => _SM.effects[r.k] < 0).map(r => {
+        var v = Math.round(_SM.effects[r.k]);
+        return `<span class="eff-item eff-neg">${r.icon}${r.label} ${v}</span>`;
+      }).join('  ');
+      
+      var html = '';
+      // 奴隶属性变化（横排，增减分行）
+      if (posItems || negItems) {
+        html += '<div style="font-size:.62rem;color:var(--muted);margin-bottom:2px">📋 奴隶属性变化</div>';
+        if (posItems) html += '<div class="eff-row eff-row-pos">' + posItems + '</div>';
+        if (negItems) html += '<div class="eff-row eff-row-neg">' + negItems + '</div>';
+      }
+      
+      // ★ 奴隶经验变化
+      var slaveExpHtml = '';
+      if (_SM.story && _SM.story._slaveExpChanges) {
+        var se = _SM.story._slaveExpChanges;
+        for (var sk in se) {
+          if (se[sk]) {
+            var cnLabel = (typeof _expKeyToCn === 'function') ? _expKeyToCn(sk) : sk;
+            slaveExpHtml += '<span class="eff-item eff-exp">✨' + cnLabel + ' +' + se[sk] + '</span>';
+          }
+        }
+      }
+      if (slaveExpHtml) html += '<div class="eff-row eff-row-exp" style="margin-top:3px"><span style="font-size:.62rem;color:var(--muted);margin-right:4px">奴隶经验：</span>' + slaveExpHtml + '</div>';
+      
+      // ★ 玩家经验变化
+      var playerExpHtml = '';
+      if (_SM.story && _SM.story._playerExpChanges) {
+        var pe = _SM.story._playerExpChanges;
+        for (var pk in pe) {
+          if (pe[pk]) {
+            var cnLabel2 = (typeof _expKeyToCn === 'function') ? _expKeyToCn(pk) : pk;
+            playerExpHtml += '<span class="eff-item eff-exp">✨' + cnLabel2 + ' +' + pe[pk] + '</span>';
+          }
+        }
+      }
+      if (playerExpHtml) html += '<div class="eff-row eff-row-exp" style="border-top:1px dashed var(--bdr2);padding-top:3px;margin-top:3px"><span style="font-size:.62rem;color:var(--muted);margin-right:4px">玩家经验：</span>' + playerExpHtml + '</div>';
+      
       effBox.innerHTML = html;
       effBox.style.display = html ? '' : 'none';
     } else {

@@ -87,10 +87,20 @@ function selectChar(id) {
     State.currentChar = saved.char;
     State.gameLog     = saved.log     || [];
     State.day         = saved.day     || 1;
-    State.money       = saved.money   || 10000;
+    State.money       = saved.money   != null ? saved.money : 10000;
     State.inventory   = saved.inventory || {};
     toast('已读取存档 ✓', 'ok');
   } else {
+    // ★ 新角色：不继承旧存档的money/inventory/day
+    // 检查是否有任何其他角色的存档来确定是否是全新开始
+    var hasAnySave = false;
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.startsWith('era_sv_')&&k!=='era_sv_'+id){
+        var sv2=loadSave(k.replace('era_sv_',''));
+        if(sv2&&sv2.char){hasAnySave=true;break;}
+      }
+    }
     State.currentChar = {
       ...base,
       stamina:   typeof getMaxStamina==='function' ? getMaxStamina(base) : 1500,
@@ -101,9 +111,13 @@ function selectChar(id) {
       total_training_count: 0,
     };
     State.gameLog   = [{ type: 'sys', text: `开始与「${base.name}」的互动……` }];
-    State.day       = 1;
-    State.money     = State.money || 10000;
-    State.inventory = State.inventory || {};
+    // 如果有其他存档，保留当前money/inventory（共享经济系统）
+    // 如果完全没有存档，重置为初始值
+    if(!hasAnySave){
+      State.day       = 1;
+      State.money     = 10000;
+      State.inventory = {};
+    }
 
     // 初次调教剧情
     const firstStory = _genFirstTrainStory(base);
@@ -265,7 +279,14 @@ function setCat(cat, btn) {
 }
 
 function renderActs() {
-  const acts = TRAINS_DATA.filter(t => t.category === State.currentCat);
+  var allActs = TRAINS_DATA.filter(t => t.category === State.currentCat);
+  // ★ 性别过滤：某些指令只适用于女/双性/扶她
+  var FEMALE_ONLY_CMDS = ['舔阴','玩弄小穴','阴蒂夹','阴蒂爱抚•助手命令','玩弄小穴•助手命令','命其胸部自慰','舔阴命令','命其舔阴','磨镜','触手玩弄阴蒂','触手阴道扩张','触手两穴扩张','触手玩弄子宫','触手玩弄Ｇ点','两穴拳交','拳交','Ｇ点刺激','淫乱牡丹','插入Ｇ点玩弄','插入子宫口玩弄','搾乳','挤奶器','触手挤奶','正常位','后背位','骑乘位','对面座位','背面座位','对面立位','背面立位','错开内裤插入'];
+  var slaveGender = State.currentChar ? State.currentChar.gender : '';
+  var acts = allActs;
+  if (slaveGender === '男') {
+    acts = allActs.filter(function(a) { return FEMALE_ONLY_CMDS.indexOf(a.name) < 0; });
+  }
   const grid  = document.getElementById('act-grid');
   if (!grid) return;
   var html = '';
@@ -390,15 +411,83 @@ async function doAction(name, cat) {
   State.isProcessing = true;
   renderActs();
 
-  // 1. 优先查 COMMAND_STORIES（按指令名+好感度分段）
+  // 1. 优先查 COMMAND_STORIES（多层级分支系统）
   let story = null;
   if (typeof COMMAND_STORIES !== 'undefined' && COMMAND_STORIES[name]) {
     const stages = COMMAND_STORIES[name].stages;
     const aff = State.currentChar.affection;
-    const matched = stages.filter(s => aff >= s.affRange[0] && aff < s.affRange[1]);
-    // 如果好感度超出所有区间上界，取最后一段
-    const stage = matched.length ? pick(matched) : stages[stages.length - 1];
-    story = { title: name, story: stage.story, cat, effects: stage.effects };
+    const affLv = State.currentChar.affection_level || 1;
+    const personality = State.currentChar.personality || '';
+    // ★ 好感度匹配用等级：Lv1-2=低, Lv3-5=中, Lv6-10=高
+    // affRange 仍然用数字范围，但匹配时转换为等级范围
+    // 兼容旧格式（affRange用raw值如[0,30]）和新格式（用等级如[1,2]或[0,30]）
+    var matchedStages = stages.filter(function(s) {
+      var lo = s.affRange[0], hi = s.affRange[1];
+      // 如果范围值较小（<=10），按等级匹配
+      if (hi <= 10 || (lo <= 10 && hi <= 10)) {
+        return affLv >= lo && affLv < hi;
+      }
+      // 否则按raw值匹配（兼容旧格式）
+      // 但自动转换：0-30→Lv1-2, 30-70→Lv3-5, 70+→Lv6+
+      var lvLo, lvHi;
+      if (lo < 30) lvLo = 1; else if (lo < 70) lvLo = 3; else lvLo = 6;
+      if (hi <= 30) lvHi = 3; else if (hi <= 70) lvHi = 6; else lvHi = 11;
+      return affLv >= lvLo && affLv < lvHi;
+    });
+    var stage = matchedStages.length ? matchedStages[matchedStages.length - 1] : stages[stages.length - 1];
+    
+    if (stage.branches) {
+      // 新版多层级分支
+      var storyPool = null;
+      // 按性格关键词匹配分支
+      for (var branchKey in stage.branches) {
+        if (branchKey === '_default') continue;
+        try {
+          if (new RegExp(branchKey).test(personality)) {
+            storyPool = stage.branches[branchKey];
+            break;
+          }
+        } catch(e) {}
+      }
+      // 无匹配则用默认分支
+      if (!storyPool) storyPool = stage.branches['_default'] || [];
+      if (storyPool.length) {
+        var chosen = pick(storyPool);
+        // 应用占位符替换
+        var replacedStory = (chosen.story || []).map(function(p) { return applyStoryPlaceholders(p); });
+        story = { title: name, story: replacedStory, cat: cat, effects: chosen.effects || {} };
+        // 应用经验变化（支持中文键名 + 双方经验）
+        if (chosen.expChanges) {
+          var ec = chosen.expChanges;
+          // 新格式: { slave: {...}, player: {...} }
+          // 旧格式: { expV: 1 } → 默认给奴隶
+          var slaveExp = ec.slave || (ec.player ? {} : ec);
+          var playerExp = ec.player || {};
+          // 应用奴隶经验
+          for (var ek in slaveExp) {
+            var realKey = _expCnToKey(ek);
+            var ev = slaveExp[ek];
+            if (ev && State.currentChar && realKey) {
+              State.currentChar[realKey] = (State.currentChar[realKey] || 0) + ev;
+            }
+          }
+          // 应用玩家经验
+          for (var pk in playerExp) {
+            var realPK = _expCnToKey(pk);
+            var pv = playerExp[pk];
+            if (pv && realPK) {
+              if (typeof addPlayerExp === 'function') addPlayerExp(realPK, pv);
+            }
+          }
+          // 存入story.effects用于展示
+          story._slaveExpChanges = slaveExp;
+          story._playerExpChanges = playerExp;
+        }
+      }
+    } else if (stage.story) {
+      // 旧版兼容（直接有story数组）
+      story = { title: name, story: stage.story.map(function(p){ return applyStoryPlaceholders(p); }), cat: cat, effects: stage.effects || {} };
+    }
   }
   // 2. 回退：从 ACTION_STORIES 中按 cat 随机选取
   if (!story) {
@@ -719,4 +808,65 @@ function openSlaveExpBars() {
   html += '<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-slave-detail\')" style="margin-top:12px">关闭</button>';
   body.innerHTML = html;
   openOv('ov-slave-detail');
+}
+
+// ── 中文经验键名映射（支持中文或英文写法）────────────────
+var _EXP_CN_MAP = {
+  'V经验':'expV','A经验':'expA','绝顶经验':'expPeak','射精经验':'expEjac',
+  '性交经验':'expSex','内射经验':'expCreampie','口交经验':'expOral',
+  '爱情经验':'expLove','紧缚经验':'expBind','调教经验':'expTrain',
+  '肛射经验':'expAnal','U经验':'expU','M经验':'expM','自慰经验':'expSolo',
+  '爱抚经验':'expCaress','接吻经验':'expKiss','道具经验':'expToy',
+  '露出经验':'expExhibit','束缚经验':'expBondage',
+};
+// 反向映射（英文→中文显示名）
+var _EXP_KEY_CN = {};
+for(var _ck in _EXP_CN_MAP) _EXP_KEY_CN[_EXP_CN_MAP[_ck]] = _ck;
+
+function _expCnToKey(cnOrEn) {
+  if (_EXP_CN_MAP[cnOrEn]) return _EXP_CN_MAP[cnOrEn];  // 中文→英文
+  if (cnOrEn && cnOrEn.startsWith('exp')) return cnOrEn;  // 已经是英文
+  return cnOrEn;
+}
+function _expKeyToCn(key) {
+  return _EXP_KEY_CN[key] || key;
+}
+
+// ── 人称系统 & 占位符替换 ──────────────────────────────────
+// 人称设置：'first'(我), 'second'(你), 'third'(主人名字)
+function getPerspective() {
+  return localStorage.getItem('era_perspective') || 'first';
+}
+function setPerspective(mode) {
+  localStorage.setItem('era_perspective', mode);
+  toast('人称已切换为：' + ({first:'第一人称（我）',second:'第二人称（你）',third:'第三人称（名字）'}[mode] || mode), 'ok');
+}
+
+function applyStoryPlaceholders(text) {
+  if (!text || typeof text !== 'string') return text;
+  var c = State.currentChar;
+  var slaveName = c ? c.name : '对方';
+  var slaveGender = c ? c.gender : '';
+  var ta = slaveGender === '女' ? '她' : '他';
+  var tade = ta + '的';
+
+  // 主人称呼（根据人称设置）
+  var perspective = getPerspective();
+  var profile = (typeof _playerProfile !== 'undefined') ? _playerProfile : {};
+  var masterName = profile.name || '主人';
+  var master, masterD;
+  if (perspective === 'first') {
+    master = '我'; masterD = '我的';
+  } else if (perspective === 'second') {
+    master = '你'; masterD = '你的';
+  } else {
+    master = masterName; masterD = masterName + '的';
+  }
+
+  return text
+    .replace(/\{slave\}/g, slaveName)
+    .replace(/\{master\}/g, master)
+    .replace(/\{masterD\}/g, masterD)
+    .replace(/\{ta\}/g, ta)
+    .replace(/\{tade\}/g, tade);
 }

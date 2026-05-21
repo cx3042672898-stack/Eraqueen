@@ -48,8 +48,8 @@ function ensureProfileDefaults(){
   if(!_playerProfile.gender||_playerProfile.gender==='未设定'){_playerProfile.gender='男';changed=true;}
   if(_playerProfile.stamina==null){_playerProfile.stamina=_playerProfile.energy||2000;changed=true;}
   if(_playerProfile.staminaMax==null){_playerProfile.staminaMax=2000;changed=true;}
-  if(_playerProfile.energy==null){_playerProfile.energy=2000;changed=true;}
-  if(_playerProfile.energyMax==null){_playerProfile.energyMax=2000;changed=true;}
+  if(_playerProfile.energy==null){_playerProfile.energy=3000;changed=true;}
+  if(_playerProfile.energyMax==null){_playerProfile.energyMax=3000;changed=true;}
   if(changed) localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
   var gEl=document.getElementById('pc-gender');
   if(gEl) gEl.textContent='性别：'+_playerProfile.gender;
@@ -90,21 +90,37 @@ function openStaminaDetail(){
   var body=document.getElementById('exp-detail-body');if(!body)return;
   var maxSta=_playerProfile.staminaMax||2000;
   var curSta=Math.round(_playerProfile.stamina!=null?_playerProfile.stamina:2000);
-  var pct=Math.min(100,Math.round(curSta/maxSta*100));
-  var html='<div style="text-align:center;margin-bottom:16px"><div style="font-size:2rem;margin-bottom:6px">⚡</div>';
-  html+='<div style="font-size:1.2rem;font-weight:800;color:var(--txt)">体力 '+curSta+' / '+maxSta+'</div>';
-  html+='<div style="height:10px;background:var(--bdr);border-radius:5px;overflow:hidden;margin:8px 20px"><div style="height:100%;width:'+pct+'%;background:linear-gradient(90deg,#4caf50,#81c784);border-radius:5px;transition:width .4s"></div></div></div>';
+  var pctSta=Math.min(100,Math.round(curSta/maxSta*100));
+  var maxEne=_playerProfile.energyMax||3000;
+  var curEne=Math.round(_playerProfile.energy!=null?_playerProfile.energy:3000);
+  var pctEne=Math.min(100,Math.round(curEne/maxEne*100));
+  
+  var html='<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
+  // 体力卡
+  html+='<div style="text-align:center;padding:12px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px"><div style="font-size:1.5rem;margin-bottom:4px">💪</div>';
+  html+='<div style="font-size:.75rem;color:var(--muted)">体力</div>';
+  html+='<div style="font-size:1.1rem;font-weight:800;color:var(--txt)">'+curSta+' / '+maxSta+'</div>';
+  html+='<div style="height:8px;background:var(--bdr);border-radius:4px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+pctSta+'%;background:linear-gradient(90deg,#4caf50,#81c784);border-radius:4px"></div></div></div>';
+  // 精力卡
+  html+='<div style="text-align:center;padding:12px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px"><div style="font-size:1.5rem;margin-bottom:4px">⚡</div>';
+  html+='<div style="font-size:.75rem;color:var(--muted)">精力</div>';
+  html+='<div style="font-size:1.1rem;font-weight:800;color:var(--txt)">'+curEne+' / '+maxEne+'</div>';
+  html+='<div style="height:8px;background:var(--bdr);border-radius:4px;overflow:hidden;margin-top:6px"><div style="height:100%;width:'+pctEne+'%;background:linear-gradient(90deg,#42a5f5,#90caf9);border-radius:4px"></div></div></div>';
+  html+='</div>';
+  
+  html+='<div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;text-align:center">体力影响调教和外出活动，精力影响精神类指令</div>';
+  
   html+='<div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:10px;border-left:3px solid var(--acc);padding-left:8px">体力消耗记录</div>';
   if(!_staminaLog.length){html+='<div style="text-align:center;padding:20px 0;color:var(--muted);font-size:.8rem">暂无消耗记录</div>';}
   else{
-    var logs=[].concat(_staminaLog).reverse();
-    html+='<div style="max-height:300px;overflow-y:auto">';
+    var logs=[].concat(_staminaLog).reverse().slice(0,20);
+    html+='<div style="max-height:250px;overflow-y:auto">';
     logs.forEach(function(r){
-      html+='<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--bdr2)">';
-      html+='<div style="font-size:1rem">📉</div>';
-      html+='<div style="flex:1"><div style="font-size:.78rem;font-weight:600;color:var(--txt)">'+esc(r.desc)+'</div>';
-      html+='<div style="font-size:.65rem;color:var(--muted)">第'+r.day+'天 · 剩余 '+r.remain+'</div></div>';
-      html+='<div style="font-weight:700;font-size:.82rem;color:var(--sr)">-'+r.cost+'</div></div>';
+      html+='<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bdr2)">';
+      html+='<div style="font-size:.9rem">📉</div>';
+      html+='<div style="flex:1"><div style="font-size:.75rem;font-weight:600;color:var(--txt)">'+esc(r.desc)+'</div>';
+      html+='<div style="font-size:.62rem;color:var(--muted)">第'+r.day+'天</div></div>';
+      html+='<div style="font-weight:700;font-size:.78rem;color:var(--sr)">-'+r.cost+'</div></div>';
     });
     html+='</div>';
   }
@@ -2186,12 +2202,26 @@ var NON_HUMAN_RACES = ['龙族','天使','精灵','魔族','吸血鬼','猫娘',
 
 // ── 奴隶与玩家的关系阶段 ──
 function _getPlayerSlaveStage(c){
-  var aff=c.affection||0,obed=c.obedience||0;
-  if(obed>=80&&aff>=80)return{name:'臣服',color:'#7e57c2',bg:'rgba(126,87,194,.12)'};
-  if(aff>=70)return{name:'依恋',color:'#ec407a',bg:'rgba(236,64,122,.1)'};
-  if(aff>=50)return{name:'信赖',color:'#66bb6a',bg:'rgba(102,187,106,.1)'};
-  if(aff>=30)return{name:'接受',color:'#42a5f5',bg:'rgba(66,165,245,.1)'};
-  if(aff>=15)return{name:'警戒',color:'#ffa726',bg:'rgba(255,167,38,.1)'};
+  // 优先使用emotion.js设置的关系阶段
+  if(typeof getRelationStage==='function'){
+    try{var rs=getRelationStage(c);if(rs&&rs.name)return{name:rs.name,color:rs.color||'var(--muted)',bg:rs.bg||'var(--card2)'};}catch(e){}
+  }
+  // 如果角色有手动设置的关系阶段
+  if(c.relation_stage){
+    var stageColors={'臣服':{c:'#7e57c2',b:'rgba(126,87,194,.12)'},'依恋':{c:'#ec407a',b:'rgba(236,64,122,.1)'},'信赖':{c:'#66bb6a',b:'rgba(102,187,106,.1)'},'接受':{c:'#42a5f5',b:'rgba(66,165,245,.1)'},'警戒':{c:'#ffa726',b:'rgba(255,167,38,.1)'},'陌生':{c:'var(--muted)',b:'var(--card2)'}};
+    var sc=stageColors[c.relation_stage]||{c:'var(--muted)',b:'var(--card2)'};
+    return{name:c.relation_stage,color:sc.c,bg:sc.b};
+  }
+  // 兜底：用好感度等级判断
+  var affLv=c.affection_level||1;
+  var aff=c.affection||0;
+  var obed=c.obedience||0;
+  var obedLv=c.obedience_level||1;
+  if(obedLv>=8&&affLv>=8)return{name:'臣服',color:'#7e57c2',bg:'rgba(126,87,194,.12)'};
+  if(affLv>=6)return{name:'依恋',color:'#ec407a',bg:'rgba(236,64,122,.1)'};
+  if(affLv>=4)return{name:'信赖',color:'#66bb6a',bg:'rgba(102,187,106,.1)'};
+  if(affLv>=3)return{name:'接受',color:'#42a5f5',bg:'rgba(66,165,245,.1)'};
+  if(affLv>=2)return{name:'警戒',color:'#ffa726',bg:'rgba(255,167,38,.1)'};
   return{name:'陌生',color:'var(--muted)',bg:'var(--card2)'};
 }
 

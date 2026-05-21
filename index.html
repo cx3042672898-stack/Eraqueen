@@ -104,6 +104,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
             <div class="pc-gender" id="pc-gender">性别：未设定</div>
             <div class="pc-stats-row" style="margin-top:6px">
               <span class="pc-stat" onclick="openStaminaDetail()" style="cursor:pointer" title="查看体力消耗详情">⚡ 体力 <span id="pc-stamina">75</span>/<span id="pc-stamina-max">2000</span></span>
+              <span class="pc-stat" style="color:var(--acc2)">🔋 精力 <span id="pc-energy">3000</span>/<span id="pc-energy-max">3000</span></span>
               <span class="pc-stat" onclick="openExpDetail()" title="查看详情" style="cursor:pointer;color:#fff">📊 经验详情</span>
             </div>
           </div>
@@ -382,12 +383,21 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         <div style="color:var(--muted)">›</div>
       </div>
 
+      <div class="s-ttl" style="margin-top:14px">游戏设置</div>
+      <div class="sr" onclick="openPerspectiveModal()">
+        <div class="sr-ico">👤</div>
+        <div style="flex:1"><div class="sr-ttl">改变人称</div><div class="sr-sub" id="perspective-settings-sub">第一人称（我）</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+
       <div class="s-ttl" style="margin-top:14px">事件概率</div>
       <div class="sr" onclick="openEventProbModal()">
         <div class="sr-ico">🎲</div>
         <div style="flex:1"><div class="sr-ttl">调整事件概率</div><div class="sr-sub">嫉妒·逆推·偷情·庄园事件</div></div>
         <div style="color:var(--muted)">›</div>
       </div>
+
+      <input type="file" id="import-save-input" accept=".json" style="display:none" onchange="handleImportSave(event)">
 
       <div class="s-ttl" style="margin-top:14px">AI 对话</div>
       <div class="sr" onclick="openApiModal()">
@@ -708,17 +718,6 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
       <div id="det-desc" style="font-size:.8rem;color:var(--txt2);line-height:1.7;padding:11px 0;border-top:1px solid var(--bdr2);margin-bottom:12px"></div>
       <div class="s-ttl">当前状态</div>
       <div id="det-stats"></div>
-      <!-- ★ 人格面板 -->
-      <div style="padding:0 16px">
-        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🧠 人格状态</h4>
-        <div id="det-persona"></div>
-        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🛤️ 路线进度</h4>
-        <div id="det-routes"></div>
-        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">😟 情绪状态</h4>
-        <div id="det-emotion"></div>
-        <h4 style="margin:12px 0 6px;color:var(--acc);font-size:.82rem">🌙 关系阶段</h4>
-        <div id="det-relation"></div>
-      </div>
       <button class="btn btn-p btn-full" onclick="closeOv('ov-det')" style="margin:14px 16px">关闭</button>
     </div>
   </div>
@@ -762,9 +761,9 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 const AVATARS = ['👑','🌹','⚔️','🔮','🦋','🌙','✨','💎','🐉','🌸','👁','🗡️',
                  '🌿','🔥','💀','🌊','⚡','🎭','🎪','🦅','🐺','🦊','🌺','💫'];
 
-let _playerProfile = JSON.parse(localStorage.getItem('era_profile') || '{"name":"主人","avatar":"👑","gender":"男","energy":2000,"stamina":2000,"staminaMax":2000,"energyMax":2000}');
+let _playerProfile = JSON.parse(localStorage.getItem('era_profile') || '{"name":"主人","avatar":"👑","gender":"男","energy":3000,"stamina":2000,"staminaMax":2000,"energyMax":3000}');
 // Migrate old profiles that don't have stamina
-if(_playerProfile.stamina==null){_playerProfile.stamina=_playerProfile.energy||75;_playerProfile.staminaMax=_playerProfile.staminaMax||2000;_playerProfile.energyMax=_playerProfile.energyMax||2000;if(_playerProfile.energy<200)_playerProfile.stamina=2000;if(_playerProfile.energy<200)_playerProfile.energy=2000;localStorage.setItem('era_profile',JSON.stringify(_playerProfile));}
+if(_playerProfile.stamina==null){_playerProfile.stamina=_playerProfile.energy||75;_playerProfile.staminaMax=_playerProfile.staminaMax||2000;_playerProfile.energyMax=_playerProfile.energyMax||3000;if(_playerProfile.energy<200)_playerProfile.stamina=2000;if(_playerProfile.energy<200)_playerProfile.energy=3000;localStorage.setItem('era_profile',JSON.stringify(_playerProfile));}
 
 function renderPlayerCard() {
   const avaEl = document.getElementById('pc-ava');
@@ -782,6 +781,8 @@ function renderPlayerCard() {
   _el = document.getElementById('pc-gender');       if (_el) _el.textContent = '性别：' + (_playerProfile.gender || '未设定');
   _el = document.getElementById('pc-stamina');      if (_el) _el.textContent = Math.round(_playerProfile.stamina != null ? _playerProfile.stamina : (_playerProfile.energy || 75));
   _el = document.getElementById('pc-stamina-max');  if (_el) _el.textContent = _playerProfile.staminaMax || 2000;
+  _el = document.getElementById('pc-energy');        if (_el) _el.textContent = Math.round(_playerProfile.energy != null ? _playerProfile.energy : 3000);
+  _el = document.getElementById('pc-energy-max');    if (_el) _el.textContent = _playerProfile.energyMax || 3000;
   _el = document.getElementById('pc-day');          if (_el) _el.textContent = `第 ${State.day} 天`;
   _el = document.getElementById('pc-date-actual');  if (_el && typeof _dayToMD==='function') { var _dm=_dayToMD(State.day||1); _el.textContent=_dm.month+'月'+_dm.day+'日'; }
   _el = document.getElementById('pc-money-home');   if (_el) _el.textContent = fmtMoney(State.money);
@@ -938,13 +939,17 @@ function doRest() {
   // 准备用于可视化的 HTML 标签
   let effHtml = '';
 
-  // 2. 恢复角色状态 (currentChar)
+  // 2. 恢复角色状态 (currentChar) - 恢复上限的一半
   if (State.currentChar) {
-    State.currentChar.stamina = Math.min(100, (State.currentChar.stamina||0) + (ef.stamina||30));
-    State.currentChar.energy  = Math.min(100, (State.currentChar.energy||0) + (ef.energy||25));
+    var maxSta = (typeof getMaxStamina==='function') ? getMaxStamina(State.currentChar) : 1500;
+    var maxEne = (typeof getMaxEnergy==='function') ? getMaxEnergy(State.currentChar) : 1500;
+    var slaveStaGain = Math.floor(maxSta * 0.5);
+    var slaveEneGain = Math.floor(maxEne * 0.5);
+    State.currentChar.stamina = Math.min(maxSta, (State.currentChar.stamina||0) + slaveStaGain);
+    State.currentChar.energy  = Math.min(maxEne, (State.currentChar.energy||0) + slaveEneGain);
     
-    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">💪 奴隶体力 +${ef.stamina||30}</span>`;
-    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">🔋 奴隶气力 +${ef.energy||25}</span>`;
+    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">💪 奴隶体力 +${slaveStaGain}</span>`;
+    effHtml += `<span class="eff-item eff-pos" style="margin-right:8px; display:inline-block; font-size:0.85rem;">🔋 奴隶精力 +${slaveEneGain}</span>`;
 
     if (typeof writeSave === 'function') writeSave();
     if (typeof setStat === 'function') {
@@ -956,11 +961,17 @@ function doRest() {
   // 3. 推进天数
   State.day = (State.day || 1) + 1;
 
-  // 4. 恢复主人精力 (+25)
+  // 4. 恢复主人体力和精力 - 恢复上限的一半
   if (typeof _playerProfile !== 'undefined') {
-    _playerProfile.energy = Math.min(100, (_playerProfile.energy || 75) + 25);
+    var maxPlayerSta = _playerProfile.staminaMax||2000;
+    var maxPlayerEne = _playerProfile.energyMax || 3000;
+    var playerStaGain = Math.floor(maxPlayerSta * 0.5);
+    var playerEneGain = Math.floor(maxPlayerEne * 0.5);
+    _playerProfile.stamina = Math.min(maxPlayerSta, (_playerProfile.stamina||0) + playerStaGain);
+    _playerProfile.energy = Math.min(maxPlayerEne, (_playerProfile.energy || 0) + playerEneGain);
     localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
-    effHtml += `<span class="eff-item eff-pos" style="display:inline-block; font-size:0.85rem;">👑 主人精力 +25</span>`;
+    effHtml += `<span class="eff-item eff-pos" style="display:inline-block; font-size:0.85rem;">👑 主人体力 +${playerStaGain}</span> `;
+    effHtml += `<span class="eff-item eff-pos" style="display:inline-block; font-size:0.85rem;">👑 主人精力 +${playerEneGain}</span>`;
   }
 
   // 5. 更新顶部栏
@@ -1235,7 +1246,7 @@ window.buyItem = function(itemId) {
 <div class="ov" id="ov-exp-detail">
   <div class="sheet">
     <div class="s-hdl"></div>
-    <div class="s-hdr"><span class="s-ttl-modal">📊 经验详情</span><button class="s-x" onclick="closeOv('ov-exp-detail')">✕</button></div>
+    <div class="s-hdr"><span class="s-ttl-modal" id="exp-detail-title">📊 经验详情</span><button class="s-x" onclick="closeOv('ov-exp-detail')">✕</button></div>
     <div class="s-body" id="exp-detail-body"></div>
   </div>
 </div>
@@ -1524,9 +1535,24 @@ function doSaveGame(){
   if(writeSave()){ toast('自动存档已更新 ✓','ok'); renderSaveSlots(); }
   else toast('存档失败','err');
 }
+function _setExpDetailTitle(t){var el=document.getElementById('exp-detail-title');if(el)el.textContent=t;}
 function doManualSave(){
-  var name=prompt('输入存档名称：', (State.currentChar?State.currentChar.name:'')+'·第'+(State.day||1)+'天');
-  if(name===null)return;
+  var defName=(State.currentChar?State.currentChar.name:'')+'·第'+(State.day||1)+'天';
+  var body=document.getElementById('exp-detail-body');if(!body)return;
+  _setExpDetailTitle('💾 新建存档');
+  body.innerHTML='<div style="text-align:center;margin-bottom:14px"><div style="font-size:2rem;margin-bottom:8px">💾</div><div style="font-weight:700;font-size:1rem;color:var(--txt)">新建手动存档</div></div>'+
+    '<div style="margin-bottom:14px"><div style="font-size:.78rem;color:var(--muted);margin-bottom:6px">存档名称：</div><input type="text" id="manual-save-name" value="'+esc(defName)+'" style="width:100%;padding:10px 12px;font-size:.88rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box"></div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+    '<button class="btn btn-ghost" onclick="closeOv(\'ov-exp-detail\')">取消</button>'+
+    '<button class="btn btn-p" onclick="_doManualSaveConfirm()">确认保存</button></div>';
+  openOv('ov-exp-detail');
+  setTimeout(function(){var inp=document.getElementById('manual-save-name');if(inp)inp.focus();},200);
+}
+function _doManualSaveConfirm(){
+  var inp=document.getElementById('manual-save-name');
+  var name=inp?inp.value.trim():'存档';
+  if(!name)name='存档';
+  closeOv('ov-exp-detail');
   if(writeNamedSave(name)){ toast('手动存档成功 ✓','ok'); renderSaveSlots(); }
   else toast('存档失败','err');
 }
@@ -1554,19 +1580,41 @@ function renderSaveSlots(){
     var c=sv.data.char;
     var label=sv.data.saveName||(sv.isManual?'手动存档':'自动存档');
     var timeStr=sv.data.saveTime?new Date(sv.data.saveTime).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    return '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;display:flex;align-items:center;gap:10px">'+
-      '<div style="font-size:1.4rem">'+(sv.isManual?'📝':'💾')+'</div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-size:.82rem;font-weight:700;color:var(--txt)">'+esc(label)+'</div>'+
-        '<div style="font-size:.66rem;color:var(--muted);margin-top:2px">'+esc(c.name)+' · 第'+(sv.data.day||1)+'天 · 好感'+Math.round(c.affection||0)+(timeStr?' · '+timeStr:'')+'</div>'+
-      '</div>'+
-      '<div style="display:flex;gap:4px;flex-shrink:0">'+
-        '<button class="btn btn-sm btn-p" onclick="loadSaveSlot(\''+sv.key+'\')">读取</button>'+
-        (sv.isManual?'<button class="btn btn-sm btn-ghost" onclick="renameSaveSlot(\''+sv.key+'\')" style="font-size:.65rem">✏️</button>':'')+
-        '<button class="btn btn-sm btn-ghost" onclick="deleteSaveSlot(\''+sv.key+'\',this)" style="color:#f06;font-size:.65rem">✕</button>'+
+    return '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;position:relative">'+
+      '<div style="position:absolute;top:6px;left:8px;display:flex;gap:6px">'+(sv.isManual?'<span onclick="renameSaveSlot(\''+sv.key+'\')" style="cursor:pointer;font-size:.75rem;opacity:.5" title="重命名">✏️</span>':'')+'</div>'+
+      '<div style="position:absolute;top:6px;right:8px"><span onclick="deleteSaveSlot(\''+sv.key+'\',this)" style="cursor:pointer;font-size:.7rem;opacity:.4;color:#e53935" title="删除">✕</span></div>'+
+      '<div style="display:flex;align-items:center;gap:10px">'+
+        '<div style="font-size:1.2rem;flex-shrink:0">'+(sv.isManual?'📝':'💾')+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-size:.8rem;font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:40px">'+esc(label)+'</div>'+
+          '<div style="font-size:.64rem;color:var(--muted);margin-top:3px">'+esc(c.name)+' · 第'+(sv.data.day||1)+'天 · ❤'+Math.round(c.affection||0)+(timeStr?' · '+timeStr:'')+'</div>'+
+        '</div>'+
+        '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'+
+          '<button class="btn btn-sm btn-ghost" onclick="_exportSingleSave(\''+sv.key+'\')" style="font-size:.62rem;padding:2px 8px">📤导出</button>'+
+          '<button class="btn btn-sm btn-p" onclick="loadSaveSlot(\''+sv.key+'\')" style="font-size:.7rem;padding:4px 12px">读取</button>'+
+        '</div>'+
       '</div>'+
     '</div>';
-  }).join('');
+  }).join('')+
+  '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--bdr2)">'+
+    '<button class="btn btn-ghost btn-full" onclick="exportAllSaves()" style="font-size:.75rem">📤 导出全部存档</button>'+
+    '<button class="btn btn-ghost btn-full" onclick="importSaveFile()" style="font-size:.75rem">📥 导入存档</button>'+
+  '</div>';
+}
+function _exportSingleSave(key){
+  try{
+    var data={};data[key]=localStorage.getItem(key);
+    var json=JSON.stringify(data,null,2);
+    var blob=new Blob([json],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    var s=JSON.parse(data[key]);
+    var fname='eraQ_'+(s&&s.char?s.char.name:'save')+'_'+new Date().toISOString().slice(0,10)+'.json';
+    a.href=url;a.download=fname;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('存档已导出 ✓','ok');
+  }catch(e){toast('导出失败','err');}
 }
 function loadSaveSlot(key){
   try{
@@ -1587,19 +1635,34 @@ function renameSaveSlot(key){
   try{
     var s=JSON.parse(localStorage.getItem(key));
     if(!s)return;
-    var name=prompt('输入新名称：',s.saveName||'');
-    if(name===null)return;
-    s.saveName=name;
+    var body=document.getElementById('exp-detail-body');if(!body)return;
+    _setExpDetailTitle('✏️ 存档修改');
+    body.innerHTML='<div style="text-align:center;margin-bottom:14px"><div style="font-size:1.5rem;margin-bottom:6px">✏️</div><div style="font-weight:700;color:var(--txt)">重命名存档</div></div>'+
+      '<input type="text" id="rename-save-input" value="'+esc(s.saveName||'')+'" style="width:100%;padding:10px 12px;font-size:.88rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box;margin-bottom:12px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<button class="btn btn-ghost" onclick="closeOv(\'ov-exp-detail\')">取消</button>'+
+      '<button class="btn btn-p" onclick="_doRenameSave(\''+key+'\')">确认</button></div>';
+    openOv('ov-exp-detail');
+  }catch(e){}
+}
+function _doRenameSave(key){
+  try{
+    var s=JSON.parse(localStorage.getItem(key));
+    var inp=document.getElementById('rename-save-input');
+    if(!s||!inp)return;
+    s.saveName=inp.value.trim()||'存档';
     localStorage.setItem(key,JSON.stringify(s));
+    closeOv('ov-exp-detail');
     renderSaveSlots();
     toast('已重命名 ✓','ok');
   }catch(e){}
 }
 function deleteSaveSlot(key,btn){
-  if(!confirm('确定删除此存档？'))return;
-  localStorage.removeItem(key);
-  toast('存档已删除','');
-  renderSaveSlots();
+  openCustomConfirm('🗑️ 删除存档','<div style="text-align:center;padding:8px 0"><div style="font-size:2rem;margin-bottom:8px">⚠️</div><div style="font-size:.88rem;color:var(--txt2);line-height:1.7">确定要删除此存档吗？<br><span style="color:#e53935;font-weight:600">此操作不可撤销。</span></div></div>','确认删除',function(){
+    localStorage.removeItem(key);
+    toast('存档已删除','');
+    renderSaveSlots();
+  });
 }
 
 // ── 金币弹窗 ─────────────────────────────────────────────
@@ -1746,9 +1809,26 @@ function toggleAvaPageLock(){
 function newGamePlus(){
   openCustomConfirm(
     '⚠️ 开始新周目',
-    '<div style="text-align:center;padding:8px 0"><div style="font-size:2.5rem;margin-bottom:10px">🔄</div><div style="font-size:.9rem;color:var(--txt2);line-height:1.7">所有存档、金币、奴隶数据将被<b style=\"color:#f06\">彻底清空</b>。<br>此操作不可撤销。</div></div>',
+    '<div style="text-align:center;padding:8px 0"><div style="font-size:2.5rem;margin-bottom:10px">🔄</div><div style="font-size:.9rem;color:var(--txt2);line-height:1.7">所有存档、角色数据将被<b style=\"color:#f06\">彻底清空</b>。<br>保留设置、主题、API密钥。<br>此操作不可撤销。</div></div>',
     '🗑️ 确认清空并重启',
-    function(){ localStorage.clear(); location.reload(); }
+    function(){
+      // 只清除游戏存档数据，保留设置
+      var keysToRemove=[];
+      for(var i=0;i<localStorage.length;i++){
+        var k=localStorage.key(i);
+        if(k&&(k.startsWith('era_sv_')||k.startsWith('era_msv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children')){
+          keysToRemove.push(k);
+        }
+      }
+      keysToRemove.forEach(function(k){localStorage.removeItem(k);});
+      // 重置玩家体力
+      if(typeof _playerProfile!=='undefined'){
+        _playerProfile.stamina=_playerProfile.staminaMax||2000;
+        _playerProfile.energy=_playerProfile.energyMax||3000;
+        localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+      }
+      location.reload();
+    }
   );
 }
 </script>
@@ -1902,6 +1982,111 @@ function setFontStyle(id,el){
     if(sub)sub.textContent=f?f.name:'默认';
   });
 })();
+
+// ── 人称切换弹窗 ──────────────────────────────────────────
+function openPerspectiveModal(){
+  _setExpDetailTitle('👤 改变人称');
+  var cur=localStorage.getItem('era_perspective')||'first';
+  var options=[
+    {id:'first', name:'第一人称',desc:'主人用「我」来表述，如：我伸出手…',example:'我轻轻触碰了她的脸颊。'},
+    {id:'second',name:'第二人称',desc:'主人用「你」来表述，如：你伸出手…',example:'你轻轻触碰了她的脸颊。'},
+    {id:'third', name:'第三人称',desc:'用主人的名字来表述',example:'主人轻轻触碰了她的脸颊。'},
+  ];
+  var profile=(typeof _playerProfile!=='undefined')?_playerProfile:{};
+  var masterName=profile.name||'主人';
+  var body=document.getElementById('exp-detail-body');
+  if(!body)return;
+  body.innerHTML='<div style="font-size:.82rem;color:var(--muted);margin-bottom:14px">选择指令剧情中主人的人称表述方式：</div>'+
+    '<div style="display:grid;gap:9px">'+
+    options.map(function(o){
+      var on=o.id===cur;
+      var exText=o.id==='third'?o.example.replace('主人',masterName):o.example;
+      return '<div class="sr" onclick="setPerspective(\''+o.id+'\');openPerspectiveModal()" style="cursor:pointer;'+(on?'border:2px solid var(--acc)':'')+'">' +
+        '<div style="flex:1;margin-left:4px"><div class="sr-ttl">'+o.name+(on?' ✓':'')+'</div><div class="sr-sub">'+o.desc+'</div>'+
+        '<div style="font-size:.72rem;color:var(--acc3);margin-top:4px;font-style:italic">示例：'+exText+'</div></div></div>';
+    }).join('')+
+    '</div>'+
+    '<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-exp-detail\')" style="margin-top:14px">关闭</button>';
+  // 更新设置页sub文本
+  var subEl=document.getElementById('perspective-settings-sub');
+  var labels={first:'第一人称（我）',second:'第二人称（你）',third:'第三人称（'+masterName+'）'};
+  if(subEl)subEl.textContent=labels[cur]||'第一人称（我）';
+  openOv('ov-exp-detail');
+}
+// 初始化人称显示
+document.addEventListener('DOMContentLoaded',function(){
+  var cur=localStorage.getItem('era_perspective')||'first';
+  var profile=(typeof _playerProfile!=='undefined')?_playerProfile:{};
+  var masterName=profile.name||'主人';
+  var labels={first:'第一人称（我）',second:'第二人称（你）',third:'第三人称（'+masterName+'）'};
+  var subEl=document.getElementById('perspective-settings-sub');
+  if(subEl)subEl.textContent=labels[cur]||'第一人称（我）';
+});
+
+// ── 导出/导入存档 ──────────────────────────────────────────
+function exportAllSaves(){
+  try{
+    var data={};
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&k.startsWith('era_')){data[k]=localStorage.getItem(k);}
+    }
+    var json=JSON.stringify(data,null,2);
+    var blob=new Blob([json],{type:'application/json'});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement('a');
+    a.href=url;a.download='eraQueenA_save_'+new Date().toISOString().slice(0,10)+'.json';
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast('存档导出成功 ✓','ok');
+  }catch(e){toast('导出失败：'+e.message,'err');}
+}
+function importSaveFile(){
+  document.getElementById('import-save-input').click();
+}
+function handleImportSave(e){
+  var file=e.target.files[0];if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(ev){
+    try{
+      var data=JSON.parse(ev.target.result);
+      var count=0;
+      for(var k in data){
+        if(k.startsWith('era_')){localStorage.setItem(k,data[k]);count++;}
+      }
+      toast('已导入 '+count+' 项存档数据，刷新页面生效','ok');
+      setTimeout(function(){location.reload();},1500);
+    }catch(err){toast('导入失败：文件格式错误','err');}
+  };
+  reader.readAsText(file);
+  e.target.value='';
+}
+
+// ── 新周目（清理存档BUG修复）──────────────────────────────
+function startNewGame(){
+  openCustomConfirm('🔄 开始新周目','<div style="padding:8px;font-size:.85rem;color:var(--txt2);line-height:1.8">确定要开始新周目吗？<br><br>这将清除所有角色存档、互动记录和金币数据，<br>但保留设置和成就。<br><br><span style="color:#e53935">此操作不可撤销！</span></div>','确认开始新周目',function(){
+    // 清除所有角色存档
+    var keysToRemove=[];
+    for(var i=0;i<localStorage.length;i++){
+      var k=localStorage.key(i);
+      if(k&&(k.startsWith('era_sv_')||k.startsWith('era_msv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children')){
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(function(k){localStorage.removeItem(k);});
+    // 重置游戏状态
+    State.currentChar=null;State.gameLog=[];State.day=1;State.money=10000;State.inventory={};
+    State.workLog=[];State.wanderLog=[];State.corveeLog=[];State.dateLog=[];State.storyLog=[];State.playerExp=0;
+    // 重置玩家体力
+    _playerProfile.stamina=_playerProfile.staminaMax||2000;
+    _playerProfile.energy=_playerProfile.energyMax||3000;
+    localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+    toast('新周目开始！所有数据已重置','ok');
+    if(typeof renderPlayerCard==='function')renderPlayerCard();
+    if(typeof renderHome==='function')renderHome();
+    navTo('home');
+  });
+}
 
 // ── AI 断开连接 ───────────────────────────────────────────
 function disconnectApi(){

@@ -221,80 +221,81 @@ function openCharDetail() {
 
   // 素质解释数据
   const STAT_EXPLAIN = {
-    '信任':'对主人的信任程度。通过温柔的互动和兑现承诺来提升。高信任的奴隶更容易接受进阶指令~',
-    '恐惧':'对主人的恐惧感。惩罚和强制手段会增加。过高的恐惧会导致崩坏，要小心哦！',
-    '羞耻':'在调教中感受到的羞耻心。适度的羞耻是调教的调味料，过度则可能适得其反~',
-    '爱情':'对主人萌生的恋慕之心。这是最珍贵的素质，需要长时间的温柔相处才能培养♡',
-    '自尊':'保留的自尊心。自尊高的奴隶更有个性但也更难调教。打破还是守护，选择在你~',
-    '依赖':'对主人的依赖程度。依赖越高越离不开你，但也要注意不要变成病态的执着。',
-    '理智':'残存的理性思维。理智归零可能触发崩坏路线……要不要保留，取决于你的目标。',
-    '崩坏':'精神崩坏的程度。当理智被消磨殆尽，崩坏值会急剧上升。这是一条不归路。',
-    '抵抗':'对调教的抵抗意志。高抵抗的奴隶需要更多耐心，但征服的成就感也更大！',
-    '占有':'对主人的独占欲。占有欲强的奴隶看到你和别人互动会吃醋哦~',
+    '信任':'🤝 对主人的信任程度哦~\n通过温柔的互动和兑现承诺来提升。\n高信任的奴隶更容易接受进阶指令，也会主动和你亲近呢♡',
+    '恐惧':'😰 对主人的恐惧感……\n惩罚和强制手段会增加。\n适度的恐惧有助于调教，但过高会导致精神崩坏，要小心！',
+    '羞耻':'😳 在调教中感受到的羞耻心~\n适度的羞耻是调教的调味料♡\n过度则可能适得其反，或者……反而觉醒了？',
+    '爱情':'💗 对主人萌生的恋慕之心……\n这是最珍贵的感情，需要长时间的温柔相处才能培养。\n只有真心对待，才能得到真心的回报♡',
+    '自尊':'👑 保留的自尊心~\n自尊高的奴隶更有个性但也更难调教。\n打破还是守护，这个选择只有你能做~',
+    '依赖':'🫂 对主人的依赖程度~\n依赖越高越离不开你。\n但也要注意不要变成病态的执着哦……',
+    '理智':'🧠 残存的理性思维~\n理智归零可能触发崩坏路线……\n是保持清醒还是让ta沉沦，取决于你的目标。',
+    '崩坏':'💔 精神崩坏的程度……\n当理智被消磨殆尽，崩坏值会急剧上升。\n这是一条不归路。走上了，就回不来了。',
   };
+
+  // 路线解释（可爱版）
   const ROUTE_EXPLAIN = {
-    '恋慕线':'💕 走恋爱路线！通过高好感+高爱情+低恐惧来推进。终点是真正的恋人关系。需要大量温柔互动和约会~',
-    '隶属线':'⛓️ 走服从路线！通过高服从+高依赖+适度恐惧来推进。终点是完美的主仆关系。需要恩威并施~',
-    '崩坏线':'💔 走崩坏路线！通过低理智+高崩坏+高恐惧来推进。这是一条黑暗的道路……一旦走上很难回头。',
+    love: '💕 恋爱路线\n\n让ta从心底爱上你♡\n\n🔑 达成条件：\n• 爱情 ≥ 60  • 信任 ≥ 50\n• 崩坏 < 30  • 理智 ≥ 40\n\n💡 攻略提示：\n多多爱抚、亲吻、约会~\n温柔地对待ta，送礼物，一起聊天。\n避免使用惩罚和强制手段哦！\n让ta感受到你是真心的♡',
+    domination: '⛓️ 支配路线\n\n绝对的服从，灵魂都属于你。\n\n🔑 达成条件：\n• 恐惧 ≥ 50  • 依赖 ≥ 50\n• 自尊 < 30\n\n💡 攻略提示：\n恩威并施，用惩罚建立威严。\n同时给予关怀让ta依赖你。\n慢慢削弱自尊心，直到ta\n完全将自己交给你~',
+    corruption: '🖤 黑化路线\n\n将ta推向精神的深渊……\n\n🔑 达成条件：\n• 崩坏 ≥ 60  • 理智 < 40\n\n💡 攻略提示：\n大量使用特殊惩罚和极端手段。\n消磨ta的理智，直到精神崩溃。\n⚠️ 这是一条黑暗的道路。\n一旦走上就很难回头……',
+    yandere: '🔪 病娇路线\n\n扭曲的爱，永远不放手。\n\n🔑 达成条件：\n• 爱情 ≥ 50  • 依赖 ≥ 60\n• 理智 < 50  • 崩坏 ≥ 30\n\n💡 攻略提示：\n先培养深厚的感情，然后\n慢慢增加ta的依赖和独占欲。\n当爱情与崩坏交织……\n最可怕也最炽热的感情就诞生了♡',
   };
 
   let html = '';
-  // 关系阶段
-  const stages = ['陌生','警戒','接受','信赖','依恋','臣服'];
-  const stageIdx = Math.min(Math.floor((c.affection||0)/20), stages.length-1);
-  html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:8px">🔗 关系阶段</div>';
-  html += '<div style="display:flex;gap:6px;flex-wrap:wrap">';
-  stages.forEach((s,i) => {
-    const on = i <= stageIdx;
-    html += `<span style="padding:3px 10px;border-radius:20px;font-size:.72rem;font-weight:600;${on?'background:var(--acc);color:#fff':'background:var(--card2);color:var(--muted)'}">${s}</span>`;
+
+  // ═══ 合并后的关系阶段 ═══
+  html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:8px">🔗 当前关系</div>';
+  // 用统一的 _getPlayerSlaveStage 获取
+  var rs = (typeof _getPlayerSlaveStage==='function') ? _getPlayerSlaveStage(c) : {name:'陌生',color:'var(--muted)'};
+  html += '<div style="display:inline-block;padding:4px 14px;border-radius:20px;font-size:.82rem;font-weight:700;background:'+rs.bg+';color:'+rs.color+';border:1px solid '+rs.color+'20">'+rs.name+'</div>';
+  // 基础→进阶阶段条
+  var allStages = [
+    {name:'陌生',c:'var(--muted)',type:'基础'},{name:'信任',c:'#42a5f5',type:'基础'},{name:'依赖',c:'#66bb6a',type:'基础'},
+    {name:'恋慕',c:'#ec407a',type:'进阶'},{name:'臣服',c:'#7e57c2',type:'进阶'},{name:'放荡',c:'#ff7043',type:'进阶'},{name:'病娇',c:'#e53935',type:'进阶'},
+  ];
+  html += '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">';
+  allStages.forEach(function(s){
+    var on = s.name===rs.name;
+    html += '<span style="padding:2px 8px;border-radius:12px;font-size:.65rem;'+(on?'background:'+s.c+';color:#fff;font-weight:700':'background:var(--card2);color:var(--muted)')+'">'+s.name+'</span>';
   });
   html += '</div></div>';
 
-  // 人格状态（双击弹出解释）
-  const personas = [];
-  if(c.persona_rational!=null) personas.push({name:'理智',val:c.persona_rational||0,icon:'🧠'});
-  if(c.persona_pride!=null) personas.push({name:'自尊',val:c.persona_pride||0,icon:'👑'});
-  if(c.persona_resist!=null) personas.push({name:'抵抗',val:c.persona_resist||0,icon:'🔥'});
-  if(c.persona_depend!=null) personas.push({name:'依赖',val:c.persona_depend||0,icon:'🫂'});
-  if(c.persona_broken!=null) personas.push({name:'崩坏',val:c.persona_broken||0,icon:'💔'});
-  if(c.trust!=null) personas.push({name:'信任',val:c.trust||0,icon:'🤝'});
-  if(c.fear!=null) personas.push({name:'恐惧',val:c.fear||0,icon:'😰'});
-  if(c.shame!=null) personas.push({name:'羞耻',val:c.shame||0,icon:'😳'});
-  if(c.love!=null) personas.push({name:'爱情',val:c.love||0,icon:'💗'});
-  if(c.possessiveness!=null) personas.push({name:'占有',val:c.possessiveness||0,icon:'💢'});
-
-  if(personas.length) {
-    html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:4px">🧠 人格状态</div><div style="font-size:.6rem;color:var(--muted);margin-bottom:8px">💡 双击素质查看详细解释</div>';
-    html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">';
-    personas.forEach(p => {
-      const pct = Math.min(100, Math.max(0, Math.round(p.val)));
-      const explainText = (STAT_EXPLAIN[p.name]||'暂无解释').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      html += `<div style="background:var(--card2);border-radius:8px;padding:6px 10px;cursor:pointer" ondblclick="openCustomConfirm('${p.icon} ${p.name}','<div style=\\'padding:8px;font-size:.84rem;color:var(--txt2);line-height:1.8\\'>${explainText}<br><br>当前值：<b>${Math.round(p.val)}</b></div>','知道了~',function(){})">
-        <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:3px"><span>${p.icon} ${p.name}</span><span style="font-weight:700">${Math.round(p.val)}</span></div>
-        <div style="height:4px;background:var(--bdr);border-radius:2px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--acc);border-radius:2px"></div></div>
-      </div>`;
-    });
-    html += '</div></div>';
-  }
-
-  // 路线进度（点击弹出攻略提示）
-  const routes = [];
-  if(c.route_love != null) routes.push({name:'恋慕线',val:c.route_love||0});
-  if(c.route_slave != null) routes.push({name:'隶属线',val:c.route_slave||0});
-  if(c.route_broken != null) routes.push({name:'崩坏线',val:c.route_broken||0});
-  if(routes.length) {
-    html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:4px">📍 路线进度</div><div style="font-size:.6rem;color:var(--muted);margin-bottom:8px">💡 点击路线查看攻略提示</div>';
-    routes.forEach(r => {
-      const pct = Math.min(100, Math.max(0, r.val));
-      const rExplain = (ROUTE_EXPLAIN[r.name]||'暂无攻略提示').replace(/'/g,"\\'").replace(/"/g,'&quot;');
-      html += `<div style="margin-bottom:6px;cursor:pointer" onclick="openCustomConfirm('📍 ${r.name}','<div style=\\'padding:8px;font-size:.84rem;color:var(--txt2);line-height:1.8\\'>${rExplain}<br><br>当前进度：<b>${r.val}%</b></div>','明白了！',function(){})">
-        <div style="display:flex;justify-content:space-between;font-size:.72rem;margin-bottom:2px"><span>${r.name}</span><span>${pct >= 100 ? '✅ 已达成' : r.val + '%'}</span></div>
-        <div style="height:5px;background:var(--bdr);border-radius:3px;overflow:hidden"><div style="height:100%;width:${pct}%;background:var(--acc3);border-radius:3px"></div></div></div>`;
+  // ═══ 人格状态 ═══
+  if (c.persona) {
+    html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:4px">🧩 人格状态</div><div style="font-size:.58rem;color:var(--muted);margin-bottom:8px">点击素质查看详细解释~</div>';
+    var pKeys = ['trust','fear','dependency','shame','pride','love','sanity','broken'];
+    var pLabels = {trust:['信任','🤝','#4caf50'],fear:['恐惧','😰','#e53935'],dependency:['依赖','🫂','#7e57c2'],shame:['羞耻','😳','#ff9800'],pride:['自尊','👑','#42a5f5'],love:['爱情','💗','#e91e63'],sanity:['理智','🧠','#66bb6a'],broken:['崩坏','💔','#666']};
+    pKeys.forEach(function(key){
+      var info = pLabels[key];
+      var val = Math.round(c.persona[key]||0);
+      var pct = Math.min(100, Math.max(0, val));
+      var explain = (STAT_EXPLAIN[info[0]]||'').replace(/\n/g,'<br>').replace(/'/g,"\\'");
+      html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;cursor:pointer" onclick="openCustomConfirm(\''+info[1]+' '+info[0]+'\',\'<div style=padding:8px;font-size:.84rem;color:var(--txt2);line-height:1.8>'+explain+'<br><br>当前值：<b>'+val+'</b></div>\',\'知道了~\',function(){})">';
+      html += '<span style="font-size:.85rem;width:22px;text-align:center">'+info[1]+'</span>';
+      html += '<span style="font-size:.72rem;color:var(--txt2);width:32px">'+info[0]+'</span>';
+      html += '<div style="flex:1;height:6px;background:var(--bdr2);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+info[2]+';border-radius:3px"></div></div>';
+      html += '<span style="font-size:.72rem;color:var(--txt);font-weight:700;width:28px;text-align:right">'+val+'</span>';
+      html += '</div>';
     });
     html += '</div>';
   }
 
-  // 情绪状态
+  // ═══ 路线进度（点击弹出可爱攻略）═══
+  if (typeof PERSONALITY_ROUTES !== 'undefined' && c.persona) {
+    html += '<div style="margin-bottom:14px"><div style="font-size:.82rem;font-weight:700;color:var(--txt);margin-bottom:4px">🗺️ 路线进度</div><div style="font-size:.58rem;color:var(--muted);margin-bottom:8px">点击路线查看达成条件和攻略提示~</div>';
+    var progress = (typeof getAllRouteProgress==='function') ? getAllRouteProgress(c.persona) : [];
+    progress.forEach(function(r){
+      var explain = (ROUTE_EXPLAIN[r.id]||r.name+' - 暂无详细攻略').replace(/\n/g,'<br>').replace(/'/g,"\\'");
+      var pct = Math.round(((r.stageIdx+1) / r.maxStages) * 100);
+      if(r.stageIdx < 0) pct = 0;
+      var barColor = r.active ? '#4caf50' : 'var(--acc3)';
+      html += '<div style="margin-bottom:8px;cursor:pointer;background:var(--card2);border-radius:8px;padding:8px 10px" onclick="openCustomConfirm(\''+r.icon+' '+r.name+'\',\'<div style=padding:8px;font-size:.84rem;color:var(--txt2);line-height:1.8>'+explain+'<br><br>当前阶段：<b>'+(r.stageIdx>=0?r.stageName:'未开始')+'</b></div>\',\'明白了！\',function(){})">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px"><span style="font-size:.78rem;font-weight:600">'+r.icon+' '+r.name+'</span><span style="font-size:.68rem;color:'+(r.active?'#4caf50':'var(--muted)')+';font-weight:600">'+(r.active?'✅ 已达成':r.stageIdx>=0?r.stageName:'未达成')+'</span></div>';
+      html += '<div style="height:5px;background:var(--bdr);border-radius:3px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+barColor+';border-radius:3px"></div></div>';
+      html += '</div>';
+    });
+    html += '</div>';
+  }
+
+  // ═══ 情绪状态 ═══
   if(typeof getEmotionState === 'function') {
     const emo = getEmotionState(c);
     if(emo) {
