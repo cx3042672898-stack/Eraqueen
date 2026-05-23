@@ -27,9 +27,14 @@ function _splitPages(storyArr, noSplit) {
 function openStoryModal(story, actionName, changes) {
   if (!story) return;
 
-  const storyArr = Array.isArray(story.story)
+  var storyArr = Array.isArray(story.story)
     ? story.story
     : [String(story.story || '（暂无剧情）')];
+
+  // ★ 统一应用人称占位符替换（{slave},{master},{ta},{tade},{masterD}）
+  if (typeof applyStoryPlaceholders === 'function') {
+    storyArr = storyArr.map(function(p){ return applyStoryPlaceholders(p); });
+  }
 
   _SM.pages   = _splitPages(storyArr, story.noSplit);
   _SM.pageIdx = 0;
@@ -53,7 +58,11 @@ function openDailyEvent(eventId) {
   const ev = DAILY_EVENTS.find(e => e.id === eventId);
   if (!ev) { toast('事件不存在', 'err'); return; }
 
-  _SM.pages   = _splitPages(ev.story || []);
+  var stArr = ev.story || [];
+  if (typeof applyStoryPlaceholders === 'function') {
+    stArr = stArr.map(function(p){ return applyStoryPlaceholders(p); });
+  }
+  _SM.pages   = _splitPages(stArr);
   _SM.pageIdx = 0;
   _SM.effects = {};   // 日常事件不改变属性
   _SM.action  = '日常事件';

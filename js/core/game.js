@@ -411,9 +411,29 @@ async function doAction(name, cat) {
   State.isProcessing = true;
   renderActs();
 
-  // 1. 优先查 COMMAND_STORIES（多层级分支系统）
+  // 0. 【最高优先级】角色专属文件剧情（有角色文件时优先于通用剧情库）
   let story = null;
-  if (typeof COMMAND_STORIES !== 'undefined' && COMMAND_STORIES[name]) {
+  if (typeof getCharCommandStory === 'function' && State.currentChar) {
+    var charStoryResult = getCharCommandStory(
+      State.currentChar.id,
+      name,
+      State.currentChar
+    );
+    if (charStoryResult) {
+      story = {
+        title:   name,
+        story:   (charStoryResult.stories || [charStoryResult]).map(function(p){
+                   return typeof applyStoryPlaceholders === 'function' ? applyStoryPlaceholders(p) : p;
+                 }),
+        cat:     cat,
+        effects: charStoryResult.effects || {},
+        _charFile: true,  // 标记来自角色文件，供调试
+      };
+    }
+  }
+
+  // 1. 查 COMMAND_STORIES（多层级分支系统）
+  if (!story && typeof COMMAND_STORIES !== 'undefined' && COMMAND_STORIES[name]) {
     const stages = COMMAND_STORIES[name].stages;
     const aff = State.currentChar.affection;
     const affLv = State.currentChar.affection_level || 1;
@@ -488,7 +508,7 @@ async function doAction(name, cat) {
       // 旧版兼容（直接有story数组）
       story = { title: name, story: stage.story.map(function(p){ return applyStoryPlaceholders(p); }), cat: cat, effects: stage.effects || {} };
     }
-  }
+  }  // end if(!story && COMMAND_STORIES)
   // 2. 回退：从 ACTION_STORIES 中按 cat 随机选取
   if (!story) {
     const pool = ACTION_STORIES.filter(s => s.cat === cat);
@@ -557,13 +577,20 @@ async function doAction(name, cat) {
   if (story) {
     openStoryModal(story, name, changes);
   } else {
-    // 无剧情 → 直接获取台词
+    // 无预设剧情：有API则调用AI，否则用本地台词
     let dialogue = '';
     if (window.API_STATE?.key) {
       const thinkEl = document.getElementById('ai-think');
       if (thinkEl) thinkEl.style.display = 'flex';
       try { dialogue = await callAI(State.currentChar, name); } catch (e) {}
       if (thinkEl) thinkEl.style.display = 'none';
+
+      // 有角色文件 + API成功 → 用弹窗显示完整剧情
+      var hasCharFile = (typeof CharRegistry !== 'undefined') && CharRegistry.get(State.currentChar && State.currentChar.id);
+      if (dialogue && hasCharFile) {
+        openStoryModal({ title: name, story: [dialogue], cat: cat, effects: {} }, name, changes);
+        return;
+      }
     }
     // ★ 优先使用人格/情绪条件台词
     if (!dialogue && typeof getEnhancedDialogue === 'function') {

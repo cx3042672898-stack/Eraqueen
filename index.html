@@ -156,6 +156,12 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         <div class="func-btn" onclick="openCheatCode()">
           <div class="fb-icon">🔑</div><div class="fb-name">作弊码</div>
         </div>
+        <div class="func-btn" onclick="openPetSystem()">
+          <div class="fb-icon">🦊</div><div class="fb-name">宠物系统</div>
+        </div>
+        <div class="func-btn" onclick="openCGGallery()">
+          <div class="fb-icon">🖼️</div><div class="fb-name">CG图库</div>
+        </div>
       </div>
 
       <!-- 继续游戏 -->
@@ -629,7 +635,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
           <span style="font-size:.72rem;color:var(--muted)">拖动调整裁剪区域：</span>
           <button class="btn btn-sm" id="ava-lock-btn" style="font-size:.62rem;padding:2px 8px" onclick="toggleAvaPageLock()">🔒 固定页面</button>
         </div>
-        <canvas id="slave-ava-canvas" width="200" height="200" style="border-radius:50%;border:2px solid var(--acc);display:block;margin:0 auto;touch-action:none"></canvas>
+        <canvas id="slave-ava-canvas" width="400" height="400" style="width:200px;height:200px;border-radius:50%;border:2px solid var(--acc);display:block;margin:0 auto;touch-action:none"></canvas>
         <input type="range" id="slave-ava-zoom" min="50" max="300" value="100" style="width:100%;margin-top:8px" oninput="redrawAvaCrop()">
         <div style="display:flex;gap:8px;margin-top:8px">
           <button class="btn btn-p btn-full" onclick="confirmAvaCrop()">✓ 确认使用</button>
@@ -659,16 +665,17 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
       <div style="font-size:.75rem;color:var(--muted);margin-bottom:8px">Provider 预设</div>
       <div class="prov-row" style="flex-wrap:wrap">
         <button class="prov-btn on" data-provider="gemini"   onclick="selectProvider('gemini',this)">✨ Gemini</button>
+        <button class="prov-btn"    data-provider="openai"   onclick="selectProvider('openai',this)">🤖 OpenAI</button>
+        <button class="prov-btn"    data-provider="grok"     onclick="selectProvider('grok',this)">⚡ Grok</button>
         <button class="prov-btn"    data-provider="claude"   onclick="selectProvider('claude',this)">🟠 Claude</button>
         <button class="prov-btn"    data-provider="zhipu"    onclick="selectProvider('zhipu',this)">🧠 智谱</button>
-        <button class="prov-btn"    data-provider="openai"   onclick="selectProvider('openai',this)">🤖 OpenAI</button>
         <button class="prov-btn"    data-provider="deepseek" onclick="selectProvider('deepseek',this)">🌊 DeepSeek</button>
         <button class="prov-btn"    data-provider="custom"   onclick="selectProvider('custom',this)">⚙️ 自定义</button>
       </div>
       <div class="api-field">
-        <label class="inp-lbl">model <span style="font-size:.65rem;color:var(--muted)">（点击输入框可选择）</span></label>
-        <input class="inp" id="inp-model" type="text" placeholder="例如：gemini-2.0-flash" list="model-suggestions" autocomplete="off" onfocus="updateModelSuggestions()">
-        <datalist id="model-suggestions"></datalist>
+        <label class="inp-lbl">model <span style="font-size:.65rem;color:var(--muted)">（点击选择或手动输入）</span></label>
+        <input class="inp" id="inp-model" type="text" placeholder="例如：gemini-3.5-flash" autocomplete="off" style="margin-bottom:6px">
+        <div id="model-grid" style="display:flex;flex-wrap:wrap;gap:5px;max-height:120px;overflow-y:auto;padding:4px 0"></div>
       </div>
       <div class="api-field">
         <label class="inp-lbl">base_url</label>
@@ -724,6 +731,18 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 
 <!-- ══ SCRIPTS ════════════════════════════════════════════ -->
 <script src="js/data/chars_trains.js"></script>
+<!-- ★ state.js 必须在 char_loader.js 之前加载，避免 pick 重复声明 -->
+<script src="js/core/state.js"></script>
+<!-- ── 角色独立文件系统 ──────────────────────────────────────
+     每个角色有自己的独立文件，包含完整人设/API提示词/剧情/经验配置
+     新增角色：复制 js/chars/char_template.js，填写后在下方加一行
+     ──────────────────────────────────────────────────────── -->
+<script src="js/chars/char_loader.js"></script>
+<script src="js/chars/char_21_star.js"></script>
+<!-- 其他角色文件：复制上行，改 id 和文件名即可
+<script src="js/chars/char_1_youming.js"></script>
+<script src="js/chars/char_2_yan.js"></script>
+-->
 <script src="js/data/items.js"></script>
 <script src="js/data/cmd_descs.js"></script>
 <script src="js/data/jealousy_events.js"></script>
@@ -732,7 +751,6 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
     <script src="js/data/command_stories.js"></script>
 <script src="js/data/work_events.js"></script>
 <script src="js/data/date_stories.js"></script>
-<script src="js/core/state.js"></script>
 <!-- ★ 人格系统 (在 state.js 之后, game.js 之前) -->
 <script src="js/data/personality_texts.js"></script>
 <script src="js/core/personality.js"></script>
@@ -750,6 +768,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 <script src="js/data/item_self_stories.js"></script>
 <script src="js/data/reverse_training.js"></script>
 <script src="js/core/features.js"></script>
+<script src="js/core/pets.js"></script>
 <script src="js/core/pregnancy.js"></script>
 <script src="js/core/relationship.js"></script>
 <script src="js/core/calendar.js"></script>
@@ -814,12 +833,12 @@ function handleAvaUpload(e) {
       var area = document.getElementById('player-ava-crop-area');
       if(!area){
         area=document.createElement('div');area.id='player-ava-crop-area';
-        area.innerHTML='<div style="text-align:center;margin:10px 0"><canvas id="player-ava-canvas" width="160" height="160" style="border-radius:50%;border:2px solid var(--acc);cursor:grab"></canvas></div><input type="range" id="player-ava-zoom" min="10" max="300" value="100" style="width:100%;margin:8px 0" oninput="redrawPlayerAvaCrop()"><div style="display:flex;gap:8px"><button class="btn btn-p" style="flex:1" onclick="confirmPlayerAvaCrop()">✓ 确认</button><button class="btn btn-ghost" style="flex:1" onclick="cancelPlayerAvaCrop()">取消</button></div>';
+        area.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><span style="font-size:.72rem;color:var(--muted)">拖动调整裁剪区域：</span><button class="btn btn-sm" id="player-ava-lock-btn" style="font-size:.62rem;padding:2px 8px" onclick="togglePlayerAvaPageLock()">🔒 固定页面</button></div><div style="text-align:center;margin:10px 0"><canvas id="player-ava-canvas" width="400" height="400" style="width:180px;height:180px;border-radius:50%;border:2px solid var(--acc);cursor:grab;touch-action:none"></canvas></div><input type="range" id="player-ava-zoom" min="10" max="300" value="100" style="width:100%;margin:8px 0" oninput="redrawPlayerAvaCrop()"><div style="display:flex;gap:8px"><button class="btn btn-p" style="flex:1" onclick="confirmPlayerAvaCrop()">✓ 确认</button><button class="btn btn-ghost" style="flex:1" onclick="cancelPlayerAvaCrop()">取消</button></div>';
         var body=document.querySelector('#ov-ava .s-body');
         if(body)body.appendChild(area);
       }
       area.style.display='block';
-      var fitScale=160/Math.min(_pAvaCropImg.width,_pAvaCropImg.height);
+      var fitScale=400/Math.min(_pAvaCropImg.width,_pAvaCropImg.height);
       _pAvaZ=Math.round(fitScale*100);_pAvaX=0;_pAvaY=0;
       var sl=document.getElementById('player-ava-zoom');
       if(sl){sl.min=Math.max(10,Math.round(fitScale*60));sl.max=Math.round(fitScale*350);sl.value=_pAvaZ;}
@@ -840,13 +859,13 @@ function redrawPlayerAvaCrop(){
   var ctx=cv.getContext('2d');var sl=document.getElementById('player-ava-zoom');
   if(sl)_pAvaZ=parseInt(sl.value);
   var z=_pAvaZ/100,w=_pAvaCropImg.width*z,h=_pAvaCropImg.height*z;
-  var ox=(160-w)/2+_pAvaX,oy=(160-h)/2+_pAvaY;
-  ctx.clearRect(0,0,160,160);ctx.save();ctx.beginPath();ctx.arc(80,80,80,0,Math.PI*2);ctx.clip();
+  var ox=(400-w)/2+_pAvaX*(400/180),oy=(400-h)/2+_pAvaY*(400/180);
+  ctx.clearRect(0,0,400,400);ctx.save();ctx.beginPath();ctx.arc(200,200,200,0,Math.PI*2);ctx.clip();
   ctx.drawImage(_pAvaCropImg,ox,oy,w,h);ctx.restore();
 }
 function confirmPlayerAvaCrop(){
   var cv=document.getElementById('player-ava-canvas');if(!cv)return;
-  var url=cv.toDataURL('image/jpeg',0.85);
+  var url=cv.toDataURL('image/png');
   _playerProfile.avatar=null;_playerProfile.avatarImg=url;
   var avaEl=document.getElementById('pc-ava');
   if(avaEl){avaEl.textContent='';avaEl.style.backgroundImage="url('"+url+"')";avaEl.style.backgroundSize='cover';avaEl.style.backgroundPosition='center';}
@@ -1734,8 +1753,8 @@ function handleSlaveAvaUpload(inp){
       if(prev){prev.innerHTML='';prev.style.backgroundImage='url('+ev.target.result+')';prev.style.backgroundSize='cover';prev.style.backgroundPosition='center';}
       var area=document.getElementById('slave-ava-crop-area');
       if(area)area.style.display='block';
-      // 让短边刚好填满200px
-      var fitScale=200/Math.min(_avaCropImg.width,_avaCropImg.height);
+      // 让短边刚好填满400px（内部分辨率）
+      var fitScale=400/Math.min(_avaCropImg.width,_avaCropImg.height);
       _avaCropZoom=Math.round(fitScale*100);
       _avaCropX=0;_avaCropY=0;
       var sl=document.getElementById('slave-ava-zoom');
@@ -1761,16 +1780,16 @@ function redrawAvaCrop(){
   if(sl)_avaCropZoom=parseInt(sl.value);
   var z=_avaCropZoom/100;
   var w=_avaCropImg.width*z,h=_avaCropImg.height*z;
-  var ox=(200-w)/2+_avaCropX,oy=(200-h)/2+_avaCropY;
-  ctx.clearRect(0,0,200,200);
-  ctx.save();ctx.beginPath();ctx.arc(100,100,100,0,Math.PI*2);ctx.clip();
+  var ox=(400-w)/2+_avaCropX*2,oy=(400-h)/2+_avaCropY*2;
+  ctx.clearRect(0,0,400,400);
+  ctx.save();ctx.beginPath();ctx.arc(200,200,200,0,Math.PI*2);ctx.clip();
   ctx.drawImage(_avaCropImg,ox,oy,w,h);
   ctx.restore();
 }
 function confirmAvaCrop(){
   var canvas=document.getElementById('slave-ava-canvas');
   if(!canvas||_slaveAvaEditId==null) return;
-  var dataUrl=canvas.toDataURL('image/jpeg',0.85);
+  var dataUrl=canvas.toDataURL('image/png');
   var sv=loadSave(_slaveAvaEditId); if(!sv) return;
   sv.charProfile=sv.charProfile||{};
   sv.charProfile.avaImg=dataUrl;
@@ -1793,6 +1812,19 @@ function cancelAvaCrop(){
   var btn=document.getElementById('ava-lock-btn');if(btn){btn.textContent='🔒 固定页面';btn._locked=false;}
 }
 var _avaPageLocked=false;
+var _playerAvaPageLocked=false;
+function togglePlayerAvaPageLock(){
+  _playerAvaPageLocked=!_playerAvaPageLocked;
+  var btn=document.getElementById('player-ava-lock-btn');
+  if(_playerAvaPageLocked){
+    document.body.style.overflow='hidden';document.documentElement.style.overflow='hidden';
+    if(btn)btn.textContent='🔓 解除固定';
+    toast('页面已固定，可以安心裁剪~','ok');
+  }else{
+    document.body.style.overflow='';document.documentElement.style.overflow='';
+    if(btn)btn.textContent='🔒 固定页面';
+  }
+}
 function toggleAvaPageLock(){
   _avaPageLocked=!_avaPageLocked;
   var btn=document.getElementById('ava-lock-btn');
@@ -1820,12 +1852,18 @@ function newGamePlus(){
         }
       }
       keysToRemove.forEach(function(k){localStorage.removeItem(k);});
-      // 重置玩家体力
+      // ── 新周目：完整重置玩家档案（名字/头像/体力/金币全部归位）──
       if(typeof _playerProfile!=='undefined'){
-        _playerProfile.stamina=_playerProfile.staminaMax||2000;
-        _playerProfile.energy=_playerProfile.energyMax||3000;
-        localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+        _playerProfile.name        = '主人';          // 重置名字
+        _playerProfile.avatar      = '👑';            // 重置emoji头像
+        _playerProfile.avatarImg   = null;             // 清除上传头像
+        _playerProfile.gender      = '男';             // 重置性别
+        _playerProfile.stamina     = _playerProfile.staminaMax || 2000;
+        _playerProfile.energy      = _playerProfile.energyMax  || 3000;
+        localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
       }
+      // 重置金币（State会在reload后重新初始化，但需清掉持久化金币记录）
+      localStorage.removeItem('era_money_log');
       location.reload();
     }
   );

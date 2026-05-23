@@ -816,17 +816,30 @@ function mmB(id,el){_mmSelB=id;document.querySelectorAll('#mm-grid-b .mm-char-ca
 function quickBuyDateVoucher(){
   var max = Math.floor(State.money / 800);
   if(max <= 0){ toast('金币不足，需要 $800','err'); return; }
-  var qty = prompt('购买约会券（$800/张），当前可购买最多 '+max+' 张\n请输入购买数量：', '1');
-  if(qty===null) return;
-  qty = parseInt(qty);
-  if(isNaN(qty) || qty <= 0){ toast('无效数量','err'); return; }
-  if(qty > max){ toast('金币不足，最多可买 '+max+' 张','err'); return; }
-  var cost = qty * 800;
-  State.money -= cost;
-  State.inventory = State.inventory || {};
-  State.inventory['date_voucher'] = (State.inventory['date_voucher']||0) + qty;
-  if(typeof _logMoney === 'function') _logMoney('购买·约会券x'+qty, -cost);
-  writeSave();
+  var body=document.getElementById('exp-detail-body');if(!body)return;
+  _setExpDetailTitle('🌹 购买约会券');
+  var html='<div style="text-align:center;margin-bottom:14px"><div style="font-size:2rem;margin-bottom:8px">🎟️</div><div style="font-weight:700;color:var(--txt)">约会券</div><div style="font-size:.72rem;color:var(--muted);margin-top:4px">$800 / 张 · 当前可购买 '+max+' 张</div></div>';
+  html+='<div style="display:flex;align-items:center;justify-content:center;gap:14px;margin-bottom:16px">';
+  html+='<button class="btn btn-sm" style="font-size:1.1rem;width:36px;height:36px;border-radius:50%" onclick="var v=document.getElementById(\'voucher-qty\');var n=Math.max(1,parseInt(v.value)-1);v.value=n;document.getElementById(\'voucher-cost\').textContent=\'$\'+(n*800)">−</button>';
+  html+='<input type="number" id="voucher-qty" value="1" min="1" max="'+max+'" style="width:60px;text-align:center;font-size:1.2rem;font-weight:800;padding:8px;border:2px solid var(--acc);border-radius:10px;background:var(--card2);color:var(--txt)" oninput="var n=Math.min('+max+',Math.max(1,parseInt(this.value)||1));this.value=n;document.getElementById(\'voucher-cost\').textContent=\'$\'+(n*800)">';
+  html+='<button class="btn btn-sm" style="font-size:1.1rem;width:36px;height:36px;border-radius:50%" onclick="var v=document.getElementById(\'voucher-qty\');var n=Math.min('+max+',parseInt(v.value)+1);v.value=n;document.getElementById(\'voucher-cost\').textContent=\'$\'+(n*800)">+</button>';
+  html+='</div>';
+  html+='<div style="text-align:center;font-size:.88rem;color:var(--txt2);margin-bottom:14px">总价：<b id="voucher-cost" style="color:var(--acc)">$800</b></div>';
+  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+  html+='<button class="btn btn-ghost" onclick="closeOv(\'ov-exp-detail\')">取消</button>';
+  html+='<button class="btn btn-p" onclick="_doQuickBuyVoucher()">💰 确认购买</button></div>';
+  body.innerHTML=html;openOv('ov-exp-detail');
+}
+function _doQuickBuyVoucher(){
+  var inp=document.getElementById('voucher-qty');
+  var qty=parseInt(inp?inp.value:'1')||1;
+  var cost=qty*800;
+  if(State.money<cost){toast('金币不足','err');return;}
+  State.money-=cost;
+  State.inventory=State.inventory||{};
+  State.inventory['date_voucher']=(State.inventory['date_voucher']||0)+qty;
+  if(typeof _logMoney==='function')_logMoney('购买·约会券x'+qty,-cost);
+  writeSave();closeOv('ov-exp-detail');
   toast('购买成功！约会券 +'+qty,'ok');
   openMatchmaking();
 }
@@ -1619,7 +1632,7 @@ function openSlaveProcurement(){
     '<div style="display:grid;gap:10px">'+
       _slaveProcBtn('hunt','⚔️','托人猎捕奴隶','委托猎奴商前往各地搜寻，费用 $1500~$2500（含风险费）')+
       _slaveProcBtn('market','🏪','从奴隶市场购买','浏览完整角色列表，按需选购')+
-      _slaveProcBtn('summon','🔮','召唤非人之物','凭借秘法，从异界召来非人存在，代价难以预料')+
+      _slaveProcBtn('summon','🔮','召唤非人之物','浏览并指定召唤异界存在，代价难以预料')+
     '</div>';
   openOv('ov-slave-procurement');
 }
@@ -1669,33 +1682,54 @@ function doSlaveProcurement(type){
     _openSlaveMarket();
 
   } else if(type==='summon'){
-    // 从未获得的非人类角色中随机召唤一个
-    var spool = _getUnacquiredChars(_isNonHuman);
-    if(!spool.length){ toast('异界连接失败，目前无法召唤新存在','err'); return; }
-    var scost = 3000 + Math.floor(Math.random()*2001);
-    if(State.money<scost){ toast('召唤代价需 $'+scost+'，资金不足','err'); return; }
-    var starget = pick(spool);
-    State.money -= scost;
-    _logMoney('召唤·'+starget.name, -scost);
-    _acquireChar(starget);
-    if(typeof renderPlayerCard==='function') renderPlayerCard();
-    var sopener = pick([
-      '符文燃尽的瞬间，一道轮廓从虚空中凝聚而出，带着不属于这个世界的气息。',
-      '蜡烛骤灭，黑暗里有什么东西在动——随后，它的声音响起，令人一时无法分辨情绪。',
-      '召唤阵发出刺眼的白光，当视野恢复，对方已经站在了正中间，神情复杂地打量着四周。'
-    ]);
-    openStoryModal({
-      title:'🔮 召唤成功',
-      story:[
-        sopener,
-        '「'+starget.name+'」（'+starget.race+'·'+starget.class+'）已降临，可在【角色】页找到并开始调教。',
-        '召唤耗费 $'+scost+'，异界之力已消散。'
-      ],
-      cat:'special'
-    },'奴隶采购',{});
-    closeOv('ov-slave-procurement');
-    if(typeof saveMiniState==='function') saveMiniState();
+    // 打开非人类浏览列表（可指定召唤，解决拍卖后找不到的问题）
+    _openSummonMarket();
   }
+}
+
+// ── 召唤市场：可浏览并指定召唤非人类角色 ────────────────────
+var _summonSearchQuery='';
+function _openSummonMarket(searchQuery){
+  _summonSearchQuery=searchQuery!==undefined?searchQuery:(_summonSearchQuery||'');
+  var body=document.getElementById('slave-procurement-body');if(!body)return;
+  var pool=_getUnacquiredChars(_isNonHuman);
+  if(_summonSearchQuery){
+    var q=_summonSearchQuery.toLowerCase();
+    pool=pool.filter(function(c){return c.name.toLowerCase().includes(q)||(c.race||'').toLowerCase().includes(q)||(c.class||'').toLowerCase().includes(q);});
+  }
+  var cards=pool.slice(0,40).map(function(c){
+    var cost=3000+Math.floor(((c.initial_affection||0)+(c.initial_obedience||0)+(c.initial_lust||0))*50);
+    var canBuy=State.money>=cost;
+    return '<div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:8px">'+
+      '<div style="font-size:1.5rem">'+cEmoji(c)+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-size:.88rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>'+
+        '<div style="font-size:.68rem;color:var(--muted)">'+[c.gender,c.race,c.class,c.age?c.age+'岁':''].filter(Boolean).join(' · ')+'</div>'+
+      '</div>'+
+      '<button class="btn '+(canBuy?'btn-p':'btn-ghost')+' btn-sm" style="white-space:nowrap;font-size:.75rem" '+
+        (canBuy?'onclick="doSummonTarget('+c.id+','+cost+')"':'disabled')+
+      '>'+(canBuy?'$'+cost:'缺钱')+'</button>'+
+    '</div>';
+  }).join('');
+  body.innerHTML=
+    '<div style="font-size:.8rem;color:var(--muted);margin-bottom:10px">🔮 异界名录 · 可指定召唤（含曾拍卖的存在）<br><span style="color:#f0c050">💰 '+fmtMoney(State.money)+'</span></div>'+
+    '<input class="inp" type="text" placeholder="搜索名字/种族/职业" value="'+esc(_summonSearchQuery)+'" style="width:100%;margin-bottom:10px;font-size:.82rem;box-sizing:border-box" oninput="_openSummonMarket(this.value)">'+
+    (pool.length?('<div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">共 '+pool.length+' 位可召唤</div>'+cards):'<div style="text-align:center;padding:20px;color:var(--muted)">暂无可召唤的存在</div>')+
+    '<button class="btn btn-ghost btn-full" style="margin-top:10px" onclick="openSlaveProcurement()">← 返回</button>';
+}
+function doSummonTarget(charId,cost){
+  var c=CHARS_DATA.find(function(x){return x.id===charId;});
+  if(!c){toast('目标不存在','err');return;}
+  if(loadSave(charId)){toast('已经拥有此角色','');return;}
+  if(State.money<cost){toast('资金不足 $'+cost,'err');return;}
+  State.money-=cost;
+  _logMoney('召唤·'+c.name,-cost);
+  _acquireChar(c);
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  var opener=pick(['符文燃尽的瞬间，一道轮廓从虚空中凝聚而出，带着不属于这个世界的气息。','蜡烛骤灭，黑暗里有什么东西在动——随后，它的声音响起，令人一时无法分辨情绪。','召唤阵发出刺眼的白光，当视野恢复，对方已经站在了正中间，神情复杂地打量着四周。']);
+  openStoryModal({title:'🔮 召唤成功',story:[opener,'「'+c.name+'」（'+c.race+'·'+c.class+'）已降临，可在【角色】页找到并开始调教。','召唤耗费 $'+cost+'，异界之力已消散。'],cat:'special'},'奴隶采购',{});
+  closeOv('ov-slave-procurement');
+  if(typeof saveMiniState==='function')saveMiniState();
 }
 
 // ── 奴隶市场列表界面 ─────────────────────────────────────────
@@ -2350,7 +2384,8 @@ function renderManor(){
         _manorStatBar('🔥',lust,'var(--sr)')+
         _manorStatBar('💪',staPct+'%','var(--sg)',staPct)+
       '</div>'+
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">'+
+      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
+        '<button class="btn btn-sm" style="font-size:.72rem;background:rgba(233,30,99,.06);color:#e91e63;border:1px solid rgba(233,30,99,.15)" onclick="if(typeof viewCharCG===\'function\')viewCharCG('+cid+');else openCharCGList('+cid+')">🖼️ 形象</button>'+
         '<button class="btn btn-p btn-sm" style="font-size:.72rem" onclick="enterTrainingFromManor('+cid+')">⚔️ 调教</button>'+
         '<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="openSlaveRoom('+cid+')">🛏️ 房间</button>'+
       '</div>'+
