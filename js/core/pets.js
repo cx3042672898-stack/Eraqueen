@@ -1970,7 +1970,15 @@ function editCGInfo(key,idx){openCharCGAlbums(key);}
 function viewCharCG(charId){
   _migrateCGData();
   var cgData=getCGData();var cd=cgData[String(charId)];
-  if(!cd||!cd.albums||!cd.albums.length){openCharCGAlbums(charId);return;}
+  if(!cd||!cd.albums||!cd.albums.length){
+    // ★ 优先展示制作者预设立绘（_presetImages）
+    var _crCG=typeof CharRegistry!=='undefined'
+      ?(CharRegistry.get(charId)||CharRegistry.get(parseInt(charId))):null;
+    if(_crCG&&_crCG._presetImages&&_crCG._presetImages.length){
+      _viewPresetImage(String(charId),0);return;
+    }
+    openCharCGAlbums(charId);return;
+  }
   if(!cd.primaryImgId){
     // 找第一张图
     var firstAlb=cd.albums.find(function(a){return a.images&&a.images.length;});

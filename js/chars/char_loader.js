@@ -631,6 +631,8 @@ function _pickStoryBranch(branch, sv) {
 // ── 页面加载完后自动 init ───────────────────────────────────
 document.addEventListener('DOMContentLoaded', function () {
   CharLoader.init();
+  // ★ 加载角色预设图像（立绘头像 + CG相册内置图）
+  setTimeout(_autoLoadCharImages, 100);
 });
 
 

@@ -2642,7 +2642,8 @@ var FURNITURE_INTERACT_STORIES = {
 function openSlaveRoom(charId){
   var c=CHARS_DATA.find(function(x){return x.id===charId;});
   var sv=loadSave(charId);
-  if(!c||!sv)return;
+  if(!c){if(typeof toast==='function')toast('找不到角色数据','err');return;}
+  if(!sv||!sv.char){if(typeof toast==='function')toast('请先购买该角色再进入房间','');return;}
   // 初始化房间数据
   var room=sv.room||{};
   ROOM_FURNITURE.forEach(function(f){if(room[f.id]===undefined)room[f.id]=0;});
