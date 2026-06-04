@@ -2581,7 +2581,7 @@ function _statRow(label, val, color){
 }
 
 // ── 房间系统 ──────────────────────────────────────────────────
-var ROOM_FURNITURE = [
+var SLAVE_ROOM_FURNITURE = [
   {id:'window', name:'窗户', 
    icons:['🪟','🪟','🏠','🏡'],
    levels:['木板封死','简陋木窗','普通窗户','宽敞落地窗'], upgrade_cost:[200,800,3000],
@@ -2646,15 +2646,20 @@ function openSlaveRoom(charId){
   if(!sv||!sv.char){if(typeof toast==='function')toast('请先购买该角色再进入房间','');return;}
   // 初始化房间数据
   var room=sv.room||{};
-  ROOM_FURNITURE.forEach(function(f){if(room[f.id]===undefined)room[f.id]=0;});
+  SLAVE_ROOM_FURNITURE.forEach(function(f){if(room[f.id]===undefined)room[f.id]=0;});
   // 灯的开关状态
   if(room.lightOn===undefined)room.lightOn=true;
   // 窗户的开关状态
   if(room.windowOpen===undefined)room.windowOpen=false;
   sv.room=room;
-  localStorage.setItem('era_sv_'+charId,JSON.stringify(sv));
-  _renderSlaveRoom(charId, c, sv);
-  openOv('ov-slave-room');
+  try{
+    localStorage.setItem('era_sv_'+charId,JSON.stringify(sv));
+    _renderSlaveRoom(charId, c, sv);
+    openOv('ov-slave-room');
+  }catch(e){
+    if(typeof toast==='function')toast('房间加载出错：'+e.message,'err');
+    console.error('[房间]', e);
+  }
 }
 
 function _renderSlaveRoom(charId, c, sv){
@@ -2664,7 +2669,7 @@ function _renderSlaveRoom(charId, c, sv){
   var char=sv.char;
 
   var cid=typeof charId==='number'?charId:JSON.stringify(charId);
-  var furnitureHtml=ROOM_FURNITURE.map(function(f){
+  var furnitureHtml=SLAVE_ROOM_FURNITURE.map(function(f){
     var lvl=room[f.id]||0;
     var maxLvl=f.levels.length-1;
     var levelName=f.levels[lvl];
@@ -2728,7 +2733,7 @@ function _renderSlaveRoom(charId, c, sv){
 function upgradeFurniture(charId,furnitureId){
   var sv=loadSave(charId);if(!sv)return;
   var room=sv.room||{};
-  var f=ROOM_FURNITURE.find(function(x){return x.id===furnitureId;});
+  var f=SLAVE_ROOM_FURNITURE.find(function(x){return x.id===furnitureId;});
   if(!f)return;
   var lvl=room[f.id]||0;
   if(lvl>=f.levels.length-1)return;
@@ -2753,7 +2758,7 @@ function roomFurnitureInteract(charId, furnitureId){
   var sv=loadSave(charId);
   if(!c||!sv)return;
   var room=sv.room||{};
-  var f=ROOM_FURNITURE.find(function(x){return x.id===furnitureId;});
+  var f=SLAVE_ROOM_FURNITURE.find(function(x){return x.id===furnitureId;});
   if(!f)return;
 
   var story=[];

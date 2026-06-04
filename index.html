@@ -400,22 +400,24 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         <div style="flex:1"><div class="sr-ttl">改变人称</div><div class="sr-sub" id="perspective-settings-sub">第一人称（我）</div></div>
         <div style="color:var(--muted)">›</div>
       </div>
-
-      <div class="s-ttl" style="margin-top:14px">事件概率</div>
       <div class="sr" onclick="openEventProbModal()">
         <div class="sr-ico">🎲</div>
         <div style="flex:1"><div class="sr-ttl">调整事件概率</div><div class="sr-sub">嫉妒·逆推·偷情·庄园事件</div></div>
         <div style="color:var(--muted)">›</div>
       </div>
-
-      <input type="file" id="import-save-input" accept=".json" style="display:none" onchange="handleImportSave(event)">
-
-      <div class="s-ttl" style="margin-top:14px">AI 对话</div>
       <div class="sr" onclick="openApiModal()">
         <div class="sr-ico">🤖</div>
         <div style="flex:1"><div class="sr-ttl">API 设置</div><div class="sr-sub" id="api-settings-sub">未设置 · 本地对话模式</div></div>
         <div style="color:var(--muted)">›</div>
       </div>
+      <div class="sr" id="pwa-install-row" onclick="triggerPwaInstall()" style="display:none">
+        <div class="sr-ico">📲</div>
+        <div style="flex:1"><div class="sr-ttl">安装 APP</div><div class="sr-sub" id="pwa-install-sub">添加到桌面，更新自动同步</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+
+      <input type="file" id="import-save-input" accept=".json" style="display:none" onchange="handleImportSave(event)">
+
       <div style="margin:10px 0;padding:11px 13px;background:var(--card2);border-radius:11px;
                   font-size:.75rem;color:var(--muted);line-height:1.7">
         🔑 支持 Gemini / Claude / OpenAI / DeepSeek / 自定义接口。Key 仅存于本地。<br>
@@ -2244,12 +2246,51 @@ function disconnectApi(){
 
 <!-- ★ PWA Service Worker 注册 -->
 <script>
-if ('serviceWorker' in navigator) {
+if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   window.addEventListener('load', function() {
     navigator.serviceWorker.register('./sw.js')
       .then(function(reg) { console.log('[PWA] SW registered:', reg.scope); })
       .catch(function(err) { console.log('[PWA] SW failed:', err); });
   });
+}
+
+// ★ PWA 安装提示
+var _pwaInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+  e.preventDefault();
+  _pwaInstallPrompt = e;
+  // 显示设置页里的"安装APP"行
+  var row = document.getElementById('pwa-install-row');
+  if (row) row.style.display = '';
+});
+window.addEventListener('appinstalled', function() {
+  _pwaInstallPrompt = null;
+  var row = document.getElementById('pwa-install-row');
+  if (row) {
+    var sub = document.getElementById('pwa-install-sub');
+    if (sub) sub.textContent = '✅ 已安装到桌面';
+    row.style.opacity = '0.5';
+    row.onclick = null;
+  }
+});
+function triggerPwaInstall() {
+  if (_pwaInstallPrompt) {
+    _pwaInstallPrompt.prompt();
+    _pwaInstallPrompt.userChoice.then(function(r) {
+      if (r.outcome === 'accepted') {
+        var sub = document.getElementById('pwa-install-sub');
+        if (sub) sub.textContent = '安装中…';
+      }
+      _pwaInstallPrompt = null;
+    });
+  } else {
+    // iOS Safari 手动提示
+    if (/iphone|ipad|ipod/i.test(navigator.userAgent)) {
+      alert('iOS 安装方法：\n点击底部分享按钮 → 选择「添加到主屏幕」');
+    } else {
+      alert('请在浏览器菜单中选择「安装」或「添加到主屏幕」');
+    }
+  }
 }
 </script>
 

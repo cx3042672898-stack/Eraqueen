@@ -1612,14 +1612,16 @@ function openCharCGAlbums(charKey){
         var ratioObj = CG_RATIOS.find(function(r){return r.id===pi.ratio;}) || CG_RATIOS[3];
         html += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;overflow:hidden;cursor:pointer" onclick="_viewPresetImage(' + JSON.stringify(charKey) + ',' + idx + ')">';
         html += '<div style="' + ratioObj.style + ';background:var(--card2);overflow:hidden"><img src="' + pi.file + '" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div style=text-align:center;padding:8px;font-size:.6rem;color:var(--muted)>无法加载</div>\'"></div>';
-        html += '<div style="padding:4px 6px;font-size:.6rem;color:var(--muted)">' + esc(pi.album || '内置') + '</div>';
-        html += '</div>';
+        html += '<div style="padding:4px 6px">';
+        html += '<div style="font-size:.6rem;color:var(--muted)">' + esc(pi.album || '内置') + '</div>';
+        if (pi.desc) html += '<div style="font-size:.58rem;color:var(--txt2);margin-top:2px;line-height:1.4">' + esc(pi.desc) + '</div>';
+        html += '</div></div>';
       });
       html += '</div></div>';
     }
   }
 
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+  html += '<div style="margin-top:12px">';
   html += '<button class="btn btn-ghost btn-full" onclick="openCGGallery()" style="font-size:.72rem">← 返回</button>';
   html += '</div>';
   body.innerHTML = html;
@@ -1635,8 +1637,9 @@ function _viewPresetImage(charKey, idx) {
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
   ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
-  ov.innerHTML = '<img src="' + pi.file + '" style="max-width:94vw;max-height:80vh;border-radius:8px;object-fit:contain">' +
+  ov.innerHTML = '<img src="' + pi.file + '" style="max-width:94vw;max-height:78vh;border-radius:8px;object-fit:contain">' +
     '<div style="color:rgba(255,255,255,.55);font-size:.65rem;margin-top:10px">' + esc(pi.album || '内置') + '</div>' +
+    (pi.desc ? '<div style="color:rgba(255,255,255,.75);font-size:.72rem;margin-top:6px;max-width:80vw;text-align:center;line-height:1.5">' + esc(pi.desc) + '</div>' : '') +
     '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-top:12px;padding:8px 24px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-size:.8rem;cursor:pointer">关闭</button>';
   document.body.appendChild(ov);
 }

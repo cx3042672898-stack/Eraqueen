@@ -694,19 +694,32 @@ function _autoLoadCharImages() {
           file:  filePath,
           ratio: item.ratio || '3-4',
           album: item.album || '内置',
+          desc:  item.desc  || '',
         };
       });
     }
-    // 也尝试 manifest.json（作为补充，fetch 失败不影响主流程）
-    if (typeof fetch !== 'undefined') {
+    // 也尝试 manifest.json（仅在 http/https 下，file:// 协议跳过避免 CORS 报错）
+    if (typeof fetch !== 'undefined' && location.protocol !== 'file:') {
       fetch(basePath + 'manifest.json')
         .then(function(r) { return r.ok ? r.json() : null; })
         .then(function(manifest) {
           if (!manifest || !Array.isArray(manifest.images)) return;
-          // 合并而非覆盖
-          var moreImgs = manifest.images.map(function(item) {
-            return { file: basePath + item.file, ratio: item.ratio || '3-4', album: item.album || '内置' };
+          // 合并而非覆盖，★ 去重：跳过 presetImages 里已有的文件名
+          var existingFiles = (charData._presetImages || []).map(function(x) {
+            return x.file.split('/').pop(); // 只取文件名部分比较
           });
+          var moreImgs = manifest.images
+            .filter(function(item) {
+              return existingFiles.indexOf(item.file.split('/').pop()) === -1;
+            })
+            .map(function(item) {
+              return {
+                file:  basePath + item.file,
+                ratio: item.ratio || '3-4',
+                album: item.album || '内置',
+                desc:  item.desc  || '',
+              };
+            });
           charData._presetImages = (charData._presetImages || []).concat(moreImgs);
         })
         .catch(function() {});
