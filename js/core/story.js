@@ -90,17 +90,33 @@ function _renderStoryModal() {
   const page = _SM.pages[_SM.pageIdx] || [];
   if (body) {
     body.innerHTML = page.map(p => {
-      // 引号开头 → 对话格式
       p = String(p ?? '');
-      // 如果内容包含 HTML 标签，直接渲染（用于效果结算框等）
+      // HTML块直接渲染
       if (p.includes('<div') || p.includes('<span') || p.includes('<button')) {
         return '<div class="story-html-block">' + p + '</div>';
       }
-      if (p.startsWith('「') || p.startsWith('“') || p.startsWith('"'))
-        return `<p class="story-quote">${esc(p)}</p>`;
-      return `<p>${esc(p)}</p>`;
+// ★ 行内高亮：「」和""只高亮引号内+引号本身，旁白文字不变色
+      const _esc = esc(p);
+      let _hi = _esc;
+      // 「…」→ 高亮（含引号）
+      _hi = _hi.replace(/「([^」]*)」/g, '<span class="story-quote-inline">「$1」</span>');
+      // "…"→ 高亮（含引号）
+      _hi = _hi.replace(/\u201c([^\u201d]*)\u201d/g, '<span class="story-quote-inline">\u201c$1\u201d</span>');
+      if (_hi !== _esc) return `<p class="story-narr">${_hi}</p>`;
+      // 名字说话者（Star：……）
+      const sm = p.match(/^([\u4e00-\u9fa5A-Za-z\u00b7]{1,10})[\uff1a:](.+)$/);
+      if (sm) return `<p class="story-narr"><span class="story-speaker">${esc(sm[1])}</span>「${esc(sm[2].trim())}」</p>`;
+      // ★ 旁白叙事 → 正常颜色，不变色
+      return `<p class="story-narr">${esc(p)}</p>`;
     }).join('');
   }
+
+  // ── 页码信息 & 自动回顶 ──
+  const pageInfo = document.getElementById('story-page-info');
+  if (pageInfo && _SM.pages.length > 1) {
+    pageInfo.textContent = (_SM.pageIdx + 1) + ' / ' + _SM.pages.length;
+  } else if (pageInfo) { pageInfo.textContent = ''; }
+  if (body) { body.scrollTop = 0; }
 
   // ── 分页指示点 ──
   if (dots) {
@@ -228,3 +244,29 @@ function openDailyEventList() {
 
   openOv('ov-daily');
 }
+
+// ── 左右滑动翻页 ─────────────────────────────────────────
+(function(){
+  var el, startX, startY, moved;
+  function getPanel(){ return document.getElementById('ov-story'); }
+  document.addEventListener('touchstart', function(e){
+    var p=getPanel(); if(!p||!p.classList.contains('on')) return;
+    var t=e.touches[0]; startX=t.clientX; startY=t.clientY; moved=false;
+  }, {passive:true});
+  document.addEventListener('touchmove', function(e){
+    if(startX==null) return;
+    var dx=e.touches[0].clientX-startX, dy=e.touches[0].clientY-startY;
+    if(Math.abs(dx)>12) moved=true;
+  }, {passive:true});
+  document.addEventListener('touchend', function(e){
+    if(startX==null||!moved) { startX=null; return; }
+    var dx=e.changedTouches[0].clientX-startX;
+    var dy=e.changedTouches[0].clientY-startY;
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>40){
+      var p=getPanel(); if(!p||!p.classList.contains('on')){startX=null;return;}
+      if(dx<0) { if(typeof storyNext==='function') storyNext(); }
+      else { if(typeof storyPrev==='function') storyPrev(); }
+    }
+    startX=null;
+  }, {passive:true});
+})();

@@ -237,6 +237,18 @@ const PERSONALITY_ROUTES = {
       { name: '永不分离', check: (p) => p.love >= 80 && p.dependency >= 80 && p.sanity < 25 && p.broken >= 50 },
     ],
   },
+  lust: {
+    name: '色欲路线',
+    icon: '🔥',
+    desc: '沉溺情欲，自我迷失',
+    check: (p) => p.shame >= 65 && p.pride < 35 && p.broken >= 25,
+    stages: [
+      { name: '隐秘渴望', check: (p) => p.shame >= 35 },
+      { name: '羞耻快感', check: (p) => p.shame >= 50 && p.pride < 50 },
+      { name: '沉溺其中', check: (p) => p.shame >= 65 && p.pride < 35 && p.broken >= 25 },
+      { name: '淫乱堕落', check: (p) => p.shame >= 85 && p.pride < 20 && p.broken >= 45 },
+    ],
+  },
 };
 
 // ── 人格状态标签 (自动获得的被动标签) ────────────────────────

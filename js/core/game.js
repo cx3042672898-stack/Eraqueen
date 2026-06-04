@@ -427,8 +427,30 @@ async function doAction(name, cat) {
                  }),
         cat:     cat,
         effects: charStoryResult.effects || {},
-        _charFile: true,  // 标记来自角色文件，供调试
+        _charFile: true,
       };
+      // ★ 读取角色文件里的 expChanges，应用并存入story供显示
+      if (charStoryResult.expChanges) {
+        var _ec = charStoryResult.expChanges;
+        var _slaveExp = _ec.slave || (_ec.player ? {} : _ec);
+        var _playerExp = _ec.player || {};
+        // 应用奴隶经验
+        for (var _ek in _slaveExp) {
+          var _rk = (typeof _expCnToKey === 'function') ? _expCnToKey(_ek) : _ek;
+          if (_slaveExp[_ek] && State.currentChar && _rk) {
+            State.currentChar[_rk] = (State.currentChar[_rk] || 0) + _slaveExp[_ek];
+          }
+        }
+        // 应用玩家经验
+        for (var _pk in _playerExp) {
+          var _rpk = (typeof _expCnToKey === 'function') ? _expCnToKey(_pk) : _pk;
+          if (_playerExp[_pk] && _rpk && typeof addPlayerExp === 'function') {
+            addPlayerExp(_rpk, _playerExp[_pk]);
+          }
+        }
+        story._slaveExpChanges = _slaveExp;
+        story._playerExpChanges = _playerExp;
+      }
     }
   }
 
@@ -856,6 +878,7 @@ var _EXP_CN_MAP = {
   '肛射经验':'expAnal','U经验':'expU','M经验':'expM','自慰经验':'expSolo',
   '爱抚经验':'expCaress','接吻经验':'expKiss','道具经验':'expToy',
   '露出经验':'expExhibit','束缚经验':'expBondage',
+  '舔肛经验':'expAnalLick',  // ★ 新增：舔肛专属经验
 };
 // 反向映射（英文→中文显示名）
 var _EXP_KEY_CN = {};
@@ -884,6 +907,7 @@ function applyStoryPlaceholders(text) {
   if (!text || typeof text !== 'string') return text;
   var c = State.currentChar;
   var slaveName = c ? c.name : '对方';
+  var slaveD = slaveName + '的'; // ★ 新增：定义 {slaveD} 为 奴隶名字+的
   var slaveGender = c ? c.gender : '';
   var ta = slaveGender === '女' ? '她' : '他';
   var tade = ta + '的';
@@ -903,8 +927,11 @@ function applyStoryPlaceholders(text) {
 
   return text
     .replace(/\{slave\}/g, slaveName)
+    .replace(/\{slaveD\}/g, slaveD)   // ★ 新增：替换 {slaveD} 占位符
     .replace(/\{master\}/g, master)
     .replace(/\{masterD\}/g, masterD)
     .replace(/\{ta\}/g, ta)
     .replace(/\{tade\}/g, tade);
 }
+
+

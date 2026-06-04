@@ -107,12 +107,22 @@ function doAuction(charId,price,c){
       }
     }
   });
-  // 拍卖剧情
+  // 拍卖剧情（优先使用角色专属 auctionEnding，否则用默认）
   var story=['拍卖师一锤定音，'+esc(c.name)+'被买走了。','在离开的那一刻，'+esc(c.name)+'回头看了你最后一眼——','那个眼神里有太多说不清的东西。然后，人群将你们隔开了。','获得了 $'+price.toLocaleString()+' 金币。'];
+  var auctionTitle='🔨 拍卖·'+c.name;
+  if(typeof CharRegistry!=='undefined'){
+    var charData=CharRegistry.get(charId);
+    if(charData&&charData.auctionEnding&&charData.auctionEnding.story){
+      var ae=charData.auctionEnding;
+      story=(Array.isArray(ae.story)?ae.story:[String(ae.story)]).concat(['','获得了 $'+price.toLocaleString()+' 金币。']);
+      if(typeof applyStoryPlaceholders==='function')story=story.map(function(p){return applyStoryPlaceholders(p);});
+      auctionTitle=ae.title||auctionTitle;
+    }
+  }
   if(affectedNames.length){story.push('');story.push('消息传开后，'+affectedNames.join('、')+'的情绪明显低落了。');story.push('「……为什么？」有人低声自语。也许需要一些时间来抚平这道伤痕。');}
   if(typeof pushStoryLog==='function')pushStoryLog('daily',{title:'拍卖·'+c.name,date:typeof getDateStr==='function'?getDateStr():'',char:c.name,story:story});
   closeOv('ov-auction');
-  if(typeof openStoryModal==='function')setTimeout(function(){openStoryModal({title:'🔨 拍卖·'+c.name,story:story,cat:'special'},'拍卖',{});},100);
+  if(typeof openStoryModal==='function')setTimeout(function(){openStoryModal({title:auctionTitle,story:story,cat:'special',noSplit:true},'拍卖',{});},100);
   if(typeof renderManor==='function')renderManor();
 }
 

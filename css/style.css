@@ -222,26 +222,99 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 .log-txt{color:var(--txt);font-style:italic}
 
 /* ── Story modal ─────────────────────────────────────────── */
-.story-banner{background:var(--grad);border-radius:12px;padding:14px 16px;color:#fff;
-  margin-bottom:14px;position:relative;overflow:hidden}
-.story-banner::after{content:'';position:absolute;right:-15px;bottom:-20px;
-  width:90px;height:90px;border-radius:50%;background:rgba(255,255,255,.08)}
-.story-tag-lbl{font-size:.65rem;opacity:.8;letter-spacing:1px;margin-bottom:4px}
-.story-title-txt{font-family:'ZCOOL XiaoWei',serif;font-size:1.1rem;letter-spacing:2px}
-.story-body{font-size:.85rem;line-height:2;color:var(--txt);min-height:100px}
-.story-body p{margin-bottom:10px}
+/* ── 剧情弹窗：全面美化 ───────────────────────────────── */
+/* banner 标题区 */
+.story-banner{
+  background:var(--grad);border-radius:14px;padding:16px 18px;color:#fff;
+  margin-bottom:16px;position:relative;overflow:hidden;
+  box-shadow:0 4px 20px rgba(0,0,0,.18)
+}
+.story-banner::before{
+  content:'';position:absolute;right:-20px;top:-20px;
+  width:110px;height:110px;border-radius:50%;background:rgba(255,255,255,.07)
+}
+.story-banner::after{
+  content:'';position:absolute;right:30px;bottom:-30px;
+  width:80px;height:80px;border-radius:50%;background:rgba(255,255,255,.05)
+}
+.story-tag-lbl{
+  font-size:.6rem;opacity:.82;letter-spacing:2px;margin-bottom:5px;
+  text-transform:uppercase
+}
+.story-title-txt{
+  font-family:'ZCOOL XiaoWei',serif;font-size:1.15rem;letter-spacing:3px;
+  text-shadow:0 2px 8px rgba(0,0,0,.2)
+}
+
+/* 正文区 */
+.story-body{
+  font-size:.9rem;line-height:1.95;color:var(--txt);
+  min-height:80px;padding:4px 2px
+}
+.story-body p{margin-bottom:12px}
 .story-body p:last-child{margin-bottom:0}
-.story-quote{font-style:italic;color:var(--acc2);padding-left:10px;
-  border-left:2px solid var(--acc);margin:8px 0}
-.story-pages{display:flex;align-items:center;justify-content:center;gap:7px;padding:10px 0 4px}
-.story-dot{width:7px;height:7px;border-radius:50%;background:var(--bdr);
-  transition:all .2s;cursor:pointer}
-.story-dot.on{background:var(--acc);transform:scale(1.3)}
-.story-eff{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;
-  background:var(--card2);border-radius:10px}
+
+/* ★ 旁白叙事：正常颜色，不变色 */
+.story-narr{
+  color:var(--txt);font-style:normal;line-height:2
+}
+
+/* ★ 对话：仅高亮变色，无左边框 */
+.story-quote{
+  font-style:normal;
+  color:var(--acc2);
+  background:linear-gradient(90deg,rgba(180,100,220,.09) 0%,transparent 100%);
+  border-radius:8px;
+  padding:5px 10px;
+  margin:6px 0;
+  border-left:none !important;
+  display:block
+}
+/* 说话者标注 */
+.story-speaker{
+  font-weight:800;color:var(--acc);
+  margin-right:3px;font-size:.9em
+}
+
+/* ★ 心理/场景独白：斜体灰色 */
+.story-aside{
+  font-style:italic;color:var(--muted);
+  font-size:.82rem;padding:2px 8px;
+  opacity:.82;line-height:1.8
+}
+
+/* 分页点 */
+.story-pages{
+  display:flex;align-items:center;justify-content:center;
+  gap:8px;padding:12px 0 6px
+}
+.story-dot{
+  width:6px;height:6px;border-radius:50%;background:var(--bdr);
+  transition:all .25s;cursor:pointer
+}
+.story-dot.on{
+  background:var(--acc);transform:scale(1.5);
+  box-shadow:0 0 6px var(--acc)
+}
+
+/* 效果结算 */
+.story-eff{
+  display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 4px;padding:10px 12px;
+  background:var(--card2);border-radius:12px;
+  border:1px solid var(--bdr2)
+}
 .eff-item{font-size:.72rem;display:flex;align-items:center;gap:3px;font-weight:600}
 .eff-pos{color:var(--sg)}.eff-neg{color:var(--sr)}
-.story-nav{display:flex;gap:8px;margin-top:12px}
+
+/* 导航按钮 */
+.story-nav{display:flex;gap:8px;margin-top:14px}
+.story-nav .btn{border-radius:12px;font-size:.82rem;transition:all .2s}
+
+/* 新建相册弹窗动画 */
+@keyframes albumPop{
+  from{opacity:0;transform:scale(.92) translateY(8px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
 
 /* ── Daily event list ────────────────────────────────────── */
 .daily-ev-card{background:var(--card);border:1px solid var(--bdr2);border-radius:12px;
@@ -699,3 +772,65 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 .eff-row-pos .eff-item { color:#4caf50; }
 .eff-row-neg .eff-item { color:#e53935; }
 .eff-item.eff-exp { color:var(--acc3); font-size:.72rem; }
+
+/* ══ 剧情弹窗：滚动条美化 ════════════════════════════════════ */
+.story-body::-webkit-scrollbar{width:3px}
+.story-body::-webkit-scrollbar-track{background:transparent}
+.story-body::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:3px}
+
+/* ══ 宠物房间：精灵 z-index 确保在家具上方 ══════════════════ */
+.pet-sprite{z-index:4 !important}
+.pet-sprite.pet-sel{z-index:8 !important}
+
+/* ══ 新建相册弹窗动画（若之前未定义）══════════════════════ */
+@keyframes albumPop{
+  from{opacity:0;transform:scale(.9) translateY(12px)}
+  to{opacity:1;transform:scale(1) translateY(0)}
+}
+
+/* ══ 补充样式：本次更新 ══════════════════════════════════════ */
+
+/* 只高亮""内部文字，行外叙事不变色 */
+.story-quote-inline {
+  color: var(--acc2);
+  font-style: normal;
+}
+/* 去掉整行 story-quote 的背景色（改为只有 inline 高亮） */
+.story-quote {
+  background: none !important;
+  padding: 0 !important;
+  border-left: none !important;
+  color: inherit !important;
+}
+
+/* 动画暂停：通过 #pet-room.anim-paused 控制，CSS已在pets.js注入 */
+
+/* 宠物名字标签：去掉text-shadow，改为半透明背景 */
+.pet-sprite .pet-name-tag {
+  font-size: .55rem;
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 1px 5px;
+  margin-top: 1px;
+  backdrop-filter: blur(2px);
+}
+
+/* 进化按钮发光动画 */
+@keyframes evolveGlow {
+  0%,100% { box-shadow: 0 0 6px rgba(255,215,0,.4); }
+  50%      { box-shadow: 0 0 14px rgba(255,215,0,.9), 0 0 28px rgba(255,180,0,.5); }
+}
+
+/* 房间编辑弹窗 slide up */
+@keyframes slideUp {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* 宠物气泡：去掉 box-shadow */
+.pet-bubble { box-shadow: none !important; }
+
+/* 选中宠物的光晕只在精灵上，不在气泡上 */
+.pet-sel .pet-bubble { animation: none !important; filter: none !important; }
+.pet-bubble { animation: bubbleIn .22s ease forwards !important; }
+

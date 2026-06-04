@@ -2416,13 +2416,6 @@ function renderManor(){
     var badges='';
     if(typeof getHeatBadge==='function')badges+=getHeatBadge(char);
     if(typeof getPregnancyData==='function'){var _pd2=getPregnancyData();var _pi2=_pd2[String(c.id)];if(_pi2&&_pi2.pregnant&&!_pi2.born)badges+='<span style="background:#ffb74d;color:#fff;padding:1px 5px;border-radius:8px;font-size:.55rem;font-weight:700;margin-left:3px">🤰</span>';}
-    // ★ 路线标签徽章
-    if (char.tags && char.tags.length) {
-      char.tags.forEach(function(tag) {
-        var route = SLAVE_ROUTES.find(function(r){return r.tag===tag;}) || {};
-        badges += '<span style="background:' + (route.color||'#888') + ';color:#fff;padding:1px 5px;border-radius:8px;font-size:.55rem;font-weight:700;margin-left:3px">' + (route.icon||'🏷️') + tag + '</span>';
-      });
-    }
     // 属性条紧凑版
     var sta=Math.round(char.stamina||0);var maxSta=(typeof getMaxStamina==='function')?getMaxStamina(char):100;
     var staPct=maxSta>0?Math.round(sta/maxSta*100):0;

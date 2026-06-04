@@ -12,6 +12,8 @@
     '@keyframes petFloat{0%,100%{transform:translateY(0)rotate(-1deg)}50%{transform:translateY(-7px)rotate(1deg)}}',
     '@keyframes petWag{0%,100%{transform:rotate(0deg)}30%{transform:rotate(-8deg)}70%{transform:rotate(8deg)}}',
     '@keyframes petGlowPulse{0%,100%{filter:drop-shadow(0 0 5px rgba(255,210,60,.6))drop-shadow(0 0 10px rgba(255,180,0,.3))}50%{filter:drop-shadow(0 0 12px rgba(255,220,80,1))drop-shadow(0 0 20px rgba(255,200,0,.5))}}',
+    '@keyframes evolveGlow{0%,100%{box-shadow:0 0 6px rgba(255,215,0,.4)}50%{box-shadow:0 0 14px rgba(255,215,0,.9),0 0 28px rgba(255,180,0,.5)}}',
+    '#pet-room.anim-paused .pa-bounce,#pet-room.anim-paused .pa-float,#pet-room.anim-paused .pa-wag{animation-play-state:paused}',
     '@keyframes bubbleIn{0%{opacity:0;transform:scale(.5)translateY(6px)}100%{opacity:1;transform:scale(1)translateY(0)}}',
     '@keyframes bubbleOut{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-10px)}}',
     '@keyframes albumPop{0%{opacity:0;transform:scale(.9)}100%{opacity:1;transform:scale(1)}}',
@@ -23,7 +25,7 @@
     '.pa-wag{animation:petWag .9s ease-in-out infinite}',
     '.pa-walk-r>div{animation:petStepR .4s ease-in-out infinite!important}',
     '.pa-walk-l>div{animation:petStepL .4s ease-in-out infinite!important}',
-    '.pet-bubble{position:absolute;background:rgba(255,255,255,.96);border:1.5px solid rgba(200,170,130,.35);border-radius:14px;padding:5px 12px;font-size:.62rem;color:#5d4037;line-height:1.5;text-align:center;pointer-events:none;animation:bubbleIn .22s ease forwards;z-index:20;box-shadow:0 3px 12px rgba(0,0,0,.18);max-width:200px;min-width:60px;white-space:nowrap}',
+    '.pet-bubble{position:absolute;background:rgba(255,255,255,.96);border:1.5px solid rgba(200,170,130,.35);border-radius:14px;padding:5px 12px;font-size:.62rem;color:#5d4037;line-height:1.5;text-align:center;pointer-events:none;animation:bubbleIn .22s ease forwards;z-index:20;box-shadow:none;max-width:200px;min-width:60px;white-space:nowrap}',
     '.pet-bubble::after{content:"";position:absolute;bottom:-7px;left:50%;transform:translateX(-50%);border:7px solid transparent;border-top-color:rgba(255,255,255,.96);border-bottom:0}',
     '.album-card{cursor:pointer;transition:transform .18s,box-shadow .18s;border-radius:12px;overflow:hidden;position:relative}',
     '.album-card:hover,.album-card:active{transform:scale(1.05)translateY(-3px);box-shadow:0 10px 28px rgba(0,0,0,.22)}',
@@ -35,6 +37,59 @@
   ].join('');
   document.head.appendChild(s);
 })();
+
+// ══ IDB背景存储系统（支持最大20MB背景图）══════════════════
+var _roomBgDb = null;
+var _roomBgCache = {}; // roomId -> dataUrl | null
+var _bgPrevPosX = 50, _bgPrevPosY = 50, _bgPrevSizeVal = 'cover';
+var _bgPrevDragging = false, _bgPrevDragSt = {x:0,y:0,px:0,py:0};
+var _bgPrevCurrentDataUrl = null;
+var _pinchStartDist2 = 0, _pinchStartZoom2 = 100;
+
+function _openRoomBgDb(cb){
+  if(_roomBgDb){cb(_roomBgDb);return;}
+  var req=indexedDB.open('eraqueen_room_bg',1);
+  req.onupgradeneeded=function(e){e.target.result.createObjectStore('bgs');};
+  req.onsuccess=function(e){_roomBgDb=e.target.result;cb(_roomBgDb);};
+  req.onerror=function(){cb(null);};
+}
+function _saveRoomBgIdb(roomId,dataUrl,cb){
+  _openRoomBgDb(function(db){
+    if(!db){cb&&cb(false);return;}
+    var tx=db.transaction('bgs','readwrite');
+    tx.objectStore('bgs').put(dataUrl,roomId);
+    tx.oncomplete=function(){_roomBgCache[roomId]=dataUrl;cb&&cb(true);};
+    tx.onerror=function(){cb&&cb(false);};
+  });
+}
+function _loadRoomBgIdb(roomId,cb){
+  if(_roomBgCache[roomId]!==undefined){cb(_roomBgCache[roomId]);return;}
+  _openRoomBgDb(function(db){
+    if(!db){cb(null);return;}
+    var req=db.transaction('bgs','readonly').objectStore('bgs').get(roomId);
+    req.onsuccess=function(){_roomBgCache[roomId]=req.result||null;cb(_roomBgCache[roomId]);};
+    req.onerror=function(){cb(null);};
+  });
+}
+function _deleteRoomBgIdb(roomId,cb){
+  _roomBgCache[roomId]=null;
+  _openRoomBgDb(function(db){
+    if(!db){cb&&cb();return;}
+    var tx=db.transaction('bgs','readwrite');
+    tx.objectStore('bgs').delete(roomId);
+    tx.oncomplete=cb||function(){};
+    tx.onerror=cb||function(){};
+  });
+}
+function _preloadRoomBg(roomId){
+  if(_roomBgCache[roomId]!==undefined)return;
+  _roomBgCache[roomId]=null; // 标记加载中，防止重复请求
+  _loadRoomBgIdb(roomId,function(url){
+    _roomBgCache[roomId]=url;
+    _renderPetMain();
+  });
+}
+
 
 // ══ 宠物物种定义 ═══════════════════════════════════════════
 var PET_SPECIES = {
@@ -53,11 +108,11 @@ var PET_SPECIES = {
     restStories:[['{petName}打了个大大的哈欠，懒洋洋地蜷缩成一团。','你轻轻抚摸着它的背，它的呼吸渐渐均匀起来。','阳光透过窗户照在{petName}身上，一幅岁月静好的画面。']],
     evolveStories:[['一道柔和的光芒笼罩了{petName}的全身！','「嗷呜——」{petName}发出悠长的叫声，身体开始缓缓变化……','光芒散去，{petName}变得更加灵动美丽了。它用全新的姿态看着你，眼中满是信任。']]
   },
-  gemini_cat:{id:'gemini_cat',name:'Gemini猫',icon:'🐱',price:3000,desc:'一只通体雪白的猫咪，双眼闪烁着智慧的光芒。据说是AI实验室的镇馆神兽。',
+  gemini_cat:{id:'gemini_cat',name:'Gemini猫',icon:'🐱',price:3000,desc:'一只通体雪白的小猫咪，毛色如雪，圆圆的眼睛闪着柔和的光，软绵绵的脚步几乎没有声音。',
     anim:'pa-wag',
     speechPool:['喵~','……你在看什么。','咕噜咕噜♪','要摸我吗？','这样不对。','（打了个哈欠）'],
     stages:[
-      {name:'小白猫',icon:'🐱',desc:'软绵绵的白色猫咪，好奇心很强。',minLevel:1},
+      {name:'小白猫',icon:'🐱',desc:'雪白柔软的小猫咪，好奇心旺盛，总爱用圆眼睛盯着你。',minLevel:1},
       {name:'智慧猫',icon:'😺',desc:'毛色渐变为星空色，瞳孔中倒映着代码。',minLevel:10},
       {name:'猫灵',icon:'🧙',desc:'化为人形的猫灵，保留猫耳和猫尾，优雅高冷。',minLevel:25}
     ],
@@ -68,12 +123,12 @@ var PET_SPECIES = {
     restStories:[['{petName}找到了一束阳光，就地躺下开始打盹。','猫咪的睡姿千变万化，但每一种都很可爱。']],
     evolveStories:[['✨ {petName}的身上泛起星光！猫咪优雅地转了一圈，全身散发出柔和的白光……','光芒散去，一只更加美丽聪慧的猫咪出现在你面前。']]
   },
-  gpt_dog:{id:'gpt_dog',name:'GPT狗',icon:'🐕',price:3000,desc:'忠诚又聪明的金毛犬，似乎能听懂人类的每一句话。',
+  gpt_dog:{id:'gpt_dog',name:'GPT狗',icon:'🐶',price:3000,desc:'一只圆滚滚的黑色小奶狗，毛色漆黑发亮，眼睛乌溜溜的，忠诚得令人心疼。',
     anim:'pa-bounce',
     speechPool:['汪！主人！！','要出去玩吗！','球球球球！！','我爱你！','汪汪~','找我了吗？！'],
     stages:[
-      {name:'小金毛',icon:'🐕',desc:'活泼好动的小狗，摇着尾巴到处跑。',minLevel:1},
-      {name:'智犬',icon:'🐩',desc:'目光深邃的大犬，理解力惊人。',minLevel:10},
+      {name:'小黑狗',icon:'🐶',desc:'圆滚滚的黑色小奶狗，毛茸茸的，走路一摇一晃。',minLevel:1},
+      {name:'黑犬',icon:'🦴',desc:'目光深邃的黑色大犬，毛色如墨，神态沉稳。',minLevel:10},
       {name:'犬神',icon:'🧑‍🦰',desc:'化为人形，忠厚老实，永远守护主人。',minLevel:25}
     ],
     feedStories:[['{petName}看到食物就疯狂摇尾巴，整个身体都在晃动。','「汪汪！」它一口就把食物吃完了，然后用期待的眼神看着你。']],
@@ -185,6 +240,59 @@ function _updatePet(pet){
   savePetData(data);
 }
 
+
+// ══ 宠物物种专属房间主题 ══════════════════════════════════════
+var PET_ROOM_THEMES = {
+  fox:{
+    bg:'linear-gradient(180deg,#2d1b3d 0%,#4a2c5a 45%,#3d2244 100%)',
+    floor:'background:#3d2244;border-top:2px solid #7b5ba1',
+    label:'🌙 灵狐居所',
+    accent:'rgba(180,120,255,0.28)'
+  },
+  gemini_cat:{
+    bg:'linear-gradient(180deg,#f0f8ff 0%,#ddeeff 55%,#c8dff0 100%)',
+    floor:'background:#c8dff0;border-top:2px solid #b0c8e4',
+    label:'☁️ 白猫阁楼',
+    accent:'rgba(100,180,255,0.18)'
+  },
+  gpt_dog:{
+    bg:'linear-gradient(180deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%)',
+    floor:'background:#1a2a40;border-top:2px solid #0f3460',
+    label:'🔵 数字犬舍',
+    accent:'rgba(0,120,255,0.18)'
+  },
+  claude_fox:{
+    bg:'linear-gradient(180deg,#2d1f0e 0%,#3d2a10 55%,#4a3315 100%)',
+    floor:'background:#3d2a10;border-top:2px solid #8b6914',
+    label:'📚 智慧书房',
+    accent:'rgba(200,140,20,0.18)'
+  },
+  crab:{
+    bg:'linear-gradient(180deg,#001f3f 0%,#003366 55%,#004080 100%)',
+    floor:'background:#003366;border-top:2px solid #005599',
+    label:'🌊 深海礁岩',
+    accent:'rgba(0,100,200,0.25)'
+  },
+  ds_whale:{
+    bg:'linear-gradient(180deg,#000814 0%,#001d3d 55%,#003566 100%)',
+    floor:'background:#001d3d;border-top:2px solid #003566',
+    label:'🌌 深渊海域',
+    accent:'rgba(0,80,160,0.28)'
+  }
+};
+function _getRoomTheme(petsInRoom, room){
+  // 优先用房间手动设置的主题
+  if(room&&room._themeId&&PET_ROOM_THEMES[room._themeId])return PET_ROOM_THEMES[room._themeId];
+  // 自定义背景图时不应用颜色主题
+  if(room&&room.bg)return null;
+  // 否则根据第一只宠物物种
+  if(petsInRoom&&petsInRoom.length){
+    var sid=petsInRoom[0].speciesId;
+    return PET_ROOM_THEMES[sid]||null;
+  }
+  return null;
+}
+
 // ══ 房间家具定义 ═══════════════════════════════════════════
 var ROOM_FURNITURE={
   default:[
@@ -259,25 +367,39 @@ function _renderPetMain(){
 
   // ── 房间面板 ──────────────────────────────────────────
   var roomBg=room.bg||'';
+  var hasIdbBg=room.hasBg;
+  var idbBgUrl=hasIdbBg?(_roomBgCache[room.id]):''; // undefined=未加载, null=加载中/失败, str=已加载
+  if(hasIdbBg&&idbBgUrl===undefined){_preloadRoomBg(room.id);}
+  var effectiveBg=hasIdbBg&&idbBgUrl?idbBgUrl:(roomBg||'');
+  var theme=_getRoomTheme(petsInRoom, room);
   var roomStyle='position:relative;width:100%;height:210px;border-radius:14px;margin-bottom:4px;overflow:hidden;border:1px solid var(--bdr2);cursor:crosshair;user-select:none;';
-  if(roomBg)roomStyle+='background:url('+roomBg+') center/cover;';
+  if(effectiveBg){
+    var posX=room.bgPosX!==undefined?room.bgPosX:50;
+    var posY=room.bgPosY!==undefined?room.bgPosY:50;
+    var szv=room.bgSizeVal||'cover';
+    roomStyle+='background-image:url('+effectiveBg+');background-position:'+posX+'% '+posY+'%;background-size:'+szv+';background-repeat:no-repeat;';
+  }else if(theme)roomStyle+='background:'+theme.bg+';';
   else roomStyle+='background:linear-gradient(180deg,#e8f5e9 0%,#fff9c4 55%,#efebe9 100%);';
 
   html+='<div id="pet-room" style="'+roomStyle+'" onclick="_petRoomClick(event)" ontouchstart="_petTouchStart(event)" ontouchmove="_petTouchMove(event)" ontouchend="_petTouchEnd(event)">';
+  if(!effectiveBg&&theme&&theme.accent){
+    html+='<div style="position:absolute;inset:0;background:radial-gradient(ellipse at 70% 30%,'+theme.accent+',transparent 70%);pointer-events:none;z-index:1"></div>';
+  }
 
   // 家具
-  if(!roomBg){
-    var fs=room.furnitureState||{};
+  if(!effectiveBg){
+    var furState=room.furnitureState||{};
     ROOM_FURNITURE.default.forEach(function(def){
       var stateKeys=Object.keys(def.states);
-      var cur=fs[def.id]||stateKeys[0];
+      var cur=furState[def.id]||stateKeys[0];
       var st=def.states[cur]||def.states[stateKeys[0]];
       var pos='';
       for(var k in def.pos)pos+=k+':'+def.pos[k]+';';
-      html+='<div class="furniture" style="position:absolute;'+pos+'" onclick="event.stopPropagation();_toggleFurniture(\''+room.id+'\',\''+def.id+'\')" title="'+st.title+'">'+st.html+'</div>';
+      html+='<div class="furniture" style="position:absolute;z-index:2;'+pos+'" onclick="event.stopPropagation();_toggleFurniture(\''+room.id+'\',\''+def.id+'\')" title="'+st.title+'">'+st.html+'</div>';
     });
-    // 地板
-    html+='<div style="position:absolute;bottom:0;width:100%;height:38px;background:#d7ccc8;border-top:2px solid #bcaaa4"></div>';
+    // 地板（物种专属颜色）
+    var floorStyle=theme?theme.floor:'background:#d7ccc8;border-top:2px solid #bcaaa4';
+    html+='<div style="position:absolute;bottom:0;width:100%;height:38px;z-index:2;'+floorStyle+'"></div>';
   }
 
   // 房间切换按钮
@@ -286,8 +408,9 @@ function _renderPetMain(){
     if(ri<rooms.length-1) html+='<button class="room-nav" style="right:4px" onclick="event.stopPropagation();_switchRoom(1)">›</button>';
   }
 
-  // 房间名标签
-  html+='<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.32);color:#fff;font-size:.6rem;padding:2px 10px;border-radius:12px;pointer-events:none">'+esc(room.name)+' ('+(ri+1)+'/'+rooms.length+')</div>';
+  // 房间名标签（显示物种主题标签）
+  var themeLabel=theme?(' '+theme.label):'';
+  html+='<div style="position:absolute;top:5px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.45);color:#fff;font-size:.6rem;padding:2px 10px;border-radius:12px;pointer-events:none;z-index:5;white-space:nowrap">'+esc(room.name)+themeLabel+' ('+(ri+1)+'/'+rooms.length+')</div>';
 
   // 宠物
   petsInRoom.forEach(function(pet){
@@ -308,17 +431,16 @@ function _renderPetMain(){
       html+='<div style="font-size:2rem;line-height:1">'+stg.icon+'</div>';
     }
     html+='</div>';
-    html+='<div style="font-size:.55rem;color:#5d4037;font-weight:600;text-shadow:0 1px 3px #fff" ondblclick="event.stopPropagation();renamePet(\''+pet.id+'\')">'+esc(pet.name)+'</div></div>';
+    html+='<div style="font-size:.55rem;color:'+(theme?'rgba(255,255,255,0.92)':'#5d4037')+';font-weight:600;background:'+(theme?'rgba(0,0,0,0.38)':'rgba(255,255,255,0.6)')+';border-radius:6px;padding:1px 5px;margin-top:1px;backdrop-filter:blur(2px)" ondblclick="event.stopPropagation();renamePet(\''+pet.id+'\')">'+esc(pet.name)+'</div></div>';
   });
 
   html+='</div>';
 
-  // 房间操作栏
-  html+='<div style="display:flex;align-items:center;gap:5px;margin:-2px 0 6px;flex-wrap:wrap">';
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.58rem;padding:2px 6px" onclick="_uploadRoomBg()">🖼️ 背景</button>';
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.58rem;padding:2px 6px" onclick="_renameRoom(\''+room.id+'\')">✏️ 改名</button>';
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.58rem;padding:2px 6px" onclick="_addRoom()">＋ 新房间</button>';
-  if(rooms.length>1) html+='<button class="btn btn-sm btn-ghost" style="font-size:.58rem;padding:2px 6px;color:#e53935" onclick="_deleteRoom(\''+room.id+'\')">🗑️ 删房间</button>';
+  // 房间 + 动画行
+  html+='<div style="display:flex;align-items:center;gap:4px;margin:-2px 0 6px;flex-wrap:wrap">';
+  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="_openRoomEditModal(\''+room.id+'\')">🏠 房间编辑</button>';
+  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="togglePetWalk()">'+(_petWalkPaused?'▶️行走':'⏸行走')+'</button>';
+  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="togglePetBounce()">'+(_petBouncePaused?'▶️动画':'⏸动画')+'</button>';
   html+='</div>';
 
   // ── 宠物卡片 ──────────────────────────────────────────
@@ -370,24 +492,22 @@ function _renderPetMain(){
     html+='<button class="btn btn-sm" style="font-size:.6rem;padding:3px 7px;background:rgba(66,165,245,.1);color:#42a5f5;border:1px solid rgba(66,165,245,.2)" onclick="petAction(\''+selPet.id+'\',\'wash\')">🛁洗澡</button>';
     html+='<button class="btn btn-sm" style="font-size:.6rem;padding:3px 7px;background:rgba(121,85,72,.08);color:#795548;border:1px solid rgba(121,85,72,.15)" onclick="petAction(\''+selPet.id+'\',\'rest\')">😴休息</button>';
     html+='<button class="btn btn-sm" style="font-size:.6rem;padding:3px 7px;background:rgba(233,30,99,.1);color:#e91e63;border:1px solid rgba(233,30,99,.2)" onclick="petAction(\''+selPet.id+'\',\'pet\')">🤗亲密</button>';
-    if(canEvolve) html+='<button class="btn btn-sm" style="font-size:.6rem;padding:3px 7px;background:rgba(255,215,0,.15);color:#f9a825;border:1px solid rgba(255,215,0,.3);font-weight:700" onclick="petEvolve(\''+selPet.id+'\')">✨进化</button>';
-    else html+='<button class="btn btn-sm" disabled style="font-size:.6rem;padding:3px 7px;opacity:.3">🔒进化</button>';
+
     html+='</div></div>';
     html+='</div></div>';
   }else{
-    html+='<div style="text-align:center;padding:14px;font-size:.75rem;color:var(--muted)">点击房间里的宠物来互动 · 双击头像或名字自定义 🐾</div>';
+    html+='<div style="text-align:center;padding:14px 10px;font-size:.72rem;color:var(--muted)">点一下房间里的宠物 🐾<br><span style="font-size:.6rem;opacity:.7">双击头像或名字可自定义</span></div>';
   }
   html+='</div>';
 
-  // ── 宠物卡片下方小按钮行 ─────────────────────────────
-  html+='<div class="pet-action-bar" style="display:flex;gap:5px;margin-bottom:6px;flex-wrap:wrap">';
-  // 背包按钮（点击弹出背包弹窗）
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="_openBagModal(\''+room.id+'\')">🎒 背包'+(petsInBag.length?'<span style="background:var(--acc);color:#fff;border-radius:8px;font-size:.5rem;padding:0 4px;margin-left:2px">'+petsInBag.length+'</span>':'')+'</button>';
-  // 行走/跳跃暂停控制
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="togglePetWalk()">'+(_petWalkPaused?'▶️行走':'⏸行走')+'</button>';
-  html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="togglePetBounce()">'+(_petBouncePaused?'▶️动画':'⏸动画')+'</button>';
-  // 编辑自定义（当有选中宠物时显示）
-  if(selPet) html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="_openPetEditModal(\''+selPet.id+'\')">✏️ 自定义</button>';
+  // ── 宠物操作行（自定义 + 进化）──────────────────────
+  html+='<div class="pet-action-bar" style="display:flex;gap:4px;margin-bottom:6px;flex-wrap:wrap;align-items:center">';
+  if(selPet){
+    var canEvolve2=selPet.stage<((PET_SPECIES[selPet.speciesId]||{stages:[]}).stages.length-1)&&selPet.level>=((PET_SPECIES[selPet.speciesId]||{stages:[]}).stages[selPet.stage+1]||{minLevel:999}).minLevel;
+    html+='<button class="btn btn-sm btn-ghost" style="font-size:.6rem;padding:3px 8px" onclick="_openPetEditModal(\''+selPet.id+'\')">✏️ 宠物自定义</button>';
+    if(canEvolve2) html+='<button class="btn btn-sm" style="font-size:.6rem;padding:3px 8px;background:rgba(255,215,0,.18);color:#f9a825;border:1px solid rgba(255,215,0,.4);font-weight:700;animation:evolveGlow 1.5s ease-in-out infinite" onclick="petEvolve(\''+selPet.id+'\')">✨ 进化</button>';
+    else html+='<button class="btn btn-sm" disabled style="font-size:.6rem;padding:3px 8px;opacity:.28;cursor:not-allowed">🔒 进化</button>';
+  }
   html+='</div>';
 
   // ── 背包弹窗（改为弹出式，不再常驻列表）──────────────
@@ -395,8 +515,8 @@ function _renderPetMain(){
   // ── 功能按钮 ──────────────────────────────────────────
   html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px">';
   html+='<button class="btn btn-ghost" style="font-size:.68rem" onclick="openPetShop()">🏪 商店</button>';
+  html+='<button class="btn btn-ghost" style="font-size:.68rem" onclick="_openBagModal(\''+room.id+'\')">🎒 背包'+(petsInBag.length?'('+petsInBag.length+')':'')+'</button>';
   html+='<button class="btn btn-ghost" style="font-size:.68rem" onclick="openPetGuidebook()">📖 图鉴</button>';
-  html+='<button class="btn btn-ghost" style="font-size:.68rem" onclick="openPetUploadAvatar()">📷 形象</button>';
   html+='</div>';
   html+='<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-exp-detail\')" style="font-size:.72rem">关闭</button>';
 
@@ -426,10 +546,12 @@ function _editLvName(petId,stageIdx){
   var sp=PET_SPECIES[pet.speciesId]||{stages:[]};
   var stg=sp.stages[stageIdx]||{name:'未知'};
   var cur=_getLvName(pet)||stg.name;
-  var nv=prompt('编辑等级名称（当前：'+cur+'）',cur);
-  if(nv===null)return;
-  _setLvName(petId,stageIdx,nv.trim()||stg.name);
-  _renderPetMain();
+  _showInputModal('✏️ 编辑等级名','名称（留空恢复默认）',cur,function(nv){
+    if(nv===null||nv===undefined)return;
+    _setLvName(petId,stageIdx,nv.trim()||stg.name);
+    _renderPetMain();
+  });
+  return;
 }
 
 // ── 房间管理 ─────────────────────────────────────────────
@@ -441,21 +563,51 @@ function _switchRoom(dir){
   savePetData(data);
   _selectedPetId=null;_renderPetMain();
 }
+
+// ══ 通用可视化输入弹窗（替代所有 prompt()）══════════════════
+function _showInputModal(title, label, defaultVal, cb){
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:9800;display:flex;align-items:center;justify-content:center;padding:24px;backdrop-filter:blur(10px)';
+  ov.onclick=function(e){if(e.target===ov){ov.remove();}};
+  var sheet=document.createElement('div');
+  sheet.style.cssText='background:var(--card);border-radius:20px;padding:22px;max-width:280px;width:100%;animation:albumPop .2s ease;box-shadow:0 20px 60px rgba(0,0,0,.5)';
+  sheet.innerHTML=
+    '<div style="font-size:.92rem;font-weight:800;color:var(--txt);margin-bottom:4px;text-align:center">'+title+'</div>'+
+    '<div style="font-size:.68rem;color:var(--muted);text-align:center;margin-bottom:16px">'+label+'</div>'+
+    '<input id="_sim_inp" maxlength="16" value="'+defaultVal.replace(/"/g,'&quot;')+'" style="width:100%;padding:10px 12px;font-size:.88rem;border:2px solid var(--bdr2);border-radius:11px;background:var(--card2);color:var(--txt);box-sizing:border-box;outline:none;text-align:center">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px">'+
+    '<button id="_sim_cancel" style="padding:9px;border-radius:11px;border:1.5px solid var(--bdr2);background:transparent;color:var(--txt2);font-size:.82rem;cursor:pointer">取消</button>'+
+    '<button id="_sim_ok" style="padding:9px;border-radius:11px;border:none;background:var(--acc);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer">确定</button>'+
+    '</div>';
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+  var inp=sheet.querySelector('#_sim_inp');
+  if(inp){inp.focus();inp.select();}
+  sheet.querySelector('#_sim_cancel').onclick=function(){ov.remove();};
+  sheet.querySelector('#_sim_ok').onclick=function(){
+    var v=inp?inp.value.trim():'';
+    ov.remove();
+    if(cb)cb(v||null);
+  };
+  if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter')sheet.querySelector('#_sim_ok').click();});
+}
 function _addRoom(){
-  var n=prompt('新房间名称','房间'+(getPetData().rooms.length+1));
-  if(!n)return;
-  var data=getPetData();_ensureRooms(data);
-  data.rooms.push({id:'room_'+Date.now(),name:n.trim().slice(0,10),bg:'',furnitureState:{window:'closed',lamp:'off'}});
-  data.currentRoomIdx=data.rooms.length-1;
-  savePetData(data);_renderPetMain();
+  _showInputModal('🏠 新建房间','房间名称','房间'+(getPetData().rooms.length+1),function(n){
+    if(!n)return;
+    var data=getPetData();_ensureRooms(data);
+    data.rooms.push({id:'room_'+Date.now(),name:n.trim().slice(0,10),bg:'',furnitureState:{window:'closed',lamp:'off'}});
+    data.currentRoomIdx=data.rooms.length-1;
+    savePetData(data);_renderPetMain();
+  });
 }
 function _renameRoom(roomId){
   var data=getPetData();var room=data.rooms&&data.rooms.find(function(r){return r.id===roomId;});
   if(!room)return;
-  var n=prompt('房间新名称',room.name);
-  if(!n)return;
-  room.name=n.trim().slice(0,10);
-  savePetData(data);_renderPetMain();
+  _showInputModal('✏️ 房间改名','新名称',room.name,function(n){
+    if(!n)return;
+    room.name=n.trim().slice(0,10);
+    savePetData(data);_renderPetMain();
+  });
 }
 function _deleteRoom(roomId){
   var data=getPetData();_ensureRooms(data);
@@ -573,7 +725,8 @@ function _openPetEditModal(petId){
     '<div style="display:flex;gap:8px;margin-top:14px">'+
     '<button onclick="_sendPetToBag(\''+petId+'\',\''+pet.roomId+'\');this.closest(\'div[style*=fixed]\').remove()" style="flex:1;padding:8px;background:rgba(255,152,0,.1);color:#ff9800;border:1px solid rgba(255,152,0,.3);border-radius:10px;font-size:.7rem;cursor:pointer">📦 收入背包</button>'+
     '<button id="_edit_save_btn" onclick="_savePetEdit(\''+petId+'\')" style="flex:1;padding:8px;background:var(--acc);color:#fff;border:none;border-radius:10px;font-size:.7rem;cursor:pointer;font-weight:600">保存</button>'+
-    '</div>';
+    '</div>'+
+    (pet.avatarImg?'<button onclick="_resetPetAvatar(\''+petId+'\')" style="width:100%;margin-top:6px;padding:7px;border-radius:10px;border:1px solid var(--bdr2);background:transparent;color:var(--muted);font-size:.65rem;cursor:pointer">🔄 恢复默认图标</button>':'');
   ov.appendChild(box);
   document.body.appendChild(ov);
   // 图片上传预览
@@ -606,6 +759,18 @@ function _savePetEdit(petId){
   if(ov)ov.remove();
   _renderPetMain();
   toast('已保存~','ok');
+}
+function _resetPetAvatar(petId){
+  var data=getPetData();
+  var pet=(data.pets||[]).find(function(p){return p.id===petId;});
+  if(!pet)return;
+  pet.avatarImg=null;
+  savePetData(data);
+  var ov=document.querySelector('div[style*="z-index: 9000"],div[style*="z-index:9000"]');
+  if(ov)ov.remove();
+  _renderPetMain();
+  openPetGuidebook();
+  toast('已恢复默认图标','ok');
 }
 
 // ── 宠物点击气泡 ─────────────────────────────────────────
@@ -722,10 +887,18 @@ function togglePetWalk(){
 }
 function togglePetBounce(){
   _petBouncePaused=!_petBouncePaused;
-  document.querySelectorAll('.pa-bounce,.pa-float,.pa-wag').forEach(function(el){
-    el.style.animationPlayState=_petBouncePaused?'paused':'';
-  });
+  // 用 class 控制，re-render 后仍有效
+  var room=document.getElementById('pet-room');
+  if(room){
+    if(_petBouncePaused) room.classList.add('anim-paused');
+    else room.classList.remove('anim-paused');
+  }
   _renderPetMain();
+  // 渲染后重新应用 class（因为 innerHTML 重建了）
+  setTimeout(function(){
+    var r=document.getElementById('pet-room');
+    if(r){ if(_petBouncePaused) r.classList.add('anim-paused'); else r.classList.remove('anim-paused'); }
+  },30);
 }
 function _petPointerDown(e,petId){
   e.preventDefault();e.stopPropagation();
@@ -836,13 +1009,230 @@ function openPetUploadAvatar(){
     if(pet){pet.avatarImg=url;_updatePet(pet);toast('形象已更新！','ok');_renderPetMain();}};img.src=ev.target.result;};r.readAsDataURL(f);};inp.click();
 }
 function _uploadRoomBg(){
+  var data=getPetData();_ensureRooms(data);
+  var ri=data.currentRoomIdx||0;
+  var room=data.rooms[ri];
+  if(room) _uploadRoomBgWithPreview(room.id,null);
+}
+
+
+// ══ 房间编辑弹窗 ════════════════════════════════════════════
+function _openRoomEditModal(roomId){
+  var data=getPetData();_ensureRooms(data);
+  var room=data.rooms.find(function(r){return r.id===roomId;})||data.rooms[0];
+  if(!room)return;
+  var r2=room;
+  var ov=document.createElement('div');
+  ov.id='_room_edit_ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:9700;display:flex;align-items:flex-end;padding:0;backdrop-filter:blur(10px)';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+
+  var themes=[
+    {id:'',label:'默认自然',icon:'🌿'},
+    {id:'fox',label:'灵狐居所',icon:'🌙'},
+    {id:'gemini_cat',label:'白猫阁楼',icon:'☁️'},
+    {id:'gpt_dog',label:'数字犬舍',icon:'🔵'},
+    {id:'claude_fox',label:'智慧书房',icon:'📚'},
+    {id:'crab',label:'深海礁岩',icon:'🌊'},
+    {id:'ds_whale',label:'深渊海域',icon:'🌌'},
+  ];
+  var curThemeId=r2._themeId||'';
+
+  var sheet=document.createElement('div');
+  sheet.style.cssText='background:var(--card);border-radius:20px 20px 0 0;padding:18px 16px 32px;width:100%;max-height:82vh;overflow-y:auto;animation:slideUp .22s ease';
+  
+  // Build theme grid
+  var themeGrid='';
+  themes.forEach(function(t){
+    var isSel=curThemeId===t.id;
+    var prevBg=t.id&&PET_ROOM_THEMES[t.id]?PET_ROOM_THEMES[t.id].bg:'linear-gradient(180deg,#e8f5e9,#fff9c4)';
+    themeGrid+='<div id="rt_'+t.id+'" style="cursor:pointer;border-radius:10px;overflow:hidden;border:2px solid '+(isSel?'var(--acc)':'var(--bdr2)')+'">'+
+      '<div style="height:36px;background:'+prevBg+'"></div>'+
+      '<div style="padding:3px 2px;text-align:center;font-size:.52rem;color:var(--txt2)">'+t.icon+'<br>'+t.label+'</div>'+
+    '</div>';
+  });
+
+  var _hasCusBg=r2.hasBg||r2.bg;
+  var _cusBgUrl=r2.hasBg?(_roomBgCache[roomId]||''):r2.bg;
+  var bgPreview=_hasCusBg
+    ?('<div id="_rp" style="height:90px;border-radius:12px;background:'+((_cusBgUrl)?'url('+_cusBgUrl+') center/cover':'var(--card2)')+';border:2px solid var(--bdr2);cursor:pointer;overflow:hidden;position:relative"><div style=\"position:absolute;inset:0;background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center\"><span style=\"color:#fff;font-size:.8rem\">点击更换</span></div></div>')
+    :'<div id="_rp" style="height:90px;border-radius:12px;background:var(--card2);border:2px dashed var(--bdr2);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:.78rem;color:var(--muted)">📷 点击上传自定义背景</div>';
+
+  sheet.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">'+
+      '<div style="font-size:.95rem;font-weight:800;color:var(--txt)">🏠 房间编辑</div>'+
+      '<button id="_redit_x" style="background:var(--card2);border:none;border-radius:50%;width:28px;height:28px;cursor:pointer;color:var(--muted);font-size:14px">✕</button>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px">'+
+      '<button id="_redit_rename" style="padding:11px 8px;border-radius:12px;border:1.5px solid var(--bdr2);background:var(--card2);color:var(--txt);font-size:.76rem;cursor:pointer">✏️ 改名</button>'+
+      '<button id="_redit_add" style="padding:11px 8px;border-radius:12px;border:1.5px solid var(--bdr2);background:var(--card2);color:var(--txt);font-size:.76rem;cursor:pointer">＋ 新房间</button>'+
+    '</div>'+
+    '<div style="font-size:.72rem;font-weight:700;color:var(--txt2);margin-bottom:8px">🎨 选择背景主题</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:14px">'+themeGrid+'</div>'+
+    '<div style="font-size:.72rem;font-weight:700;color:var(--txt2);margin-bottom:8px">📸 自定义背景</div>'+
+    bgPreview+
+    (_hasCusBg?'<button id="_redit_clearbg" style="width:100%;padding:7px;border-radius:10px;border:1px solid var(--bdr2);background:transparent;color:var(--muted);font-size:.68rem;cursor:pointer;margin-top:8px">🗑️ 清除自定义背景</button>':'')+
+    (data.rooms.length>1?'<button id="_redit_del" style="width:100%;padding:9px;border-radius:12px;border:1px solid rgba(229,57,53,.3);background:rgba(229,57,53,.06);color:#e53935;font-size:.72rem;cursor:pointer;margin-top:12px">🗑️ 删除此房间</button>':'');
+
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+
+  // Bind events
+  sheet.querySelector('#_redit_x').onclick=function(){ov.remove();};
+  sheet.querySelector('#_redit_rename').onclick=function(){ov.remove();_renameRoom(roomId);};
+  sheet.querySelector('#_redit_add').onclick=function(){ov.remove();_addRoom();};
+  var delBtn=sheet.querySelector('#_redit_del');
+  if(delBtn)delBtn.onclick=function(){ov.remove();_deleteRoom(roomId);};
+  var clearBtn=sheet.querySelector('#_redit_clearbg');
+  if(clearBtn)clearBtn.onclick=function(){_clearRoomBg(roomId);ov.remove();};
+  
+  // Theme click handlers
+  themes.forEach(function(t){
+    var el=sheet.querySelector('#rt_'+t.id);
+    if(el)el.onclick=function(){_setRoomTheme(roomId,t.id);ov.remove();};
+  });
+
+  // Upload preview
+  var rp=sheet.querySelector('#_rp');
+  if(rp)rp.onclick=function(){_uploadRoomBgWithPreview(roomId,function(){ov.remove();});};
+}
+
+function _setRoomTheme(roomId,themeId){
+  var data=getPetData();_ensureRooms(data);
+  var room=data.rooms.find(function(r){return r.id===roomId;});
+  if(!room)return;
+  room._themeId=themeId;
+  // ★ 不再自动清除自定义背景；用户需主动点击"清除"才会清除
+  savePetData(data);_renderPetMain();
+  toast('主题已切换','ok');
+}
+
+function _clearRoomBg(roomId){
+  var data=getPetData();_ensureRooms(data);
+  var room=data.rooms.find(function(r){return r.id===roomId;});
+  if(!room)return;
+  room.bg='';room.hasBg=false;room.bgPosX=50;room.bgPosY=50;room.bgSizeVal='cover';
+  // 删除IDB里的数据
+  _deleteRoomBgIdb(roomId);
+  savePetData(data);_renderPetMain();toast('背景已清除','ok');
+}
+
+function _uploadRoomBgWithPreview(roomId,doneCb){
   var inp=document.createElement('input');inp.type='file';inp.accept='image/*';
-  inp.onchange=function(){var f=inp.files&&inp.files[0];if(!f)return;var r=new FileReader();r.onload=function(ev){
-    var data=getPetData();_ensureRooms(data);
-    var ri=data.currentRoomIdx||0;
-    var room=data.rooms[ri];if(!room)return;
-    room.bg=ev.target.result;
-    savePetData(data);toast('背景已更新！','ok');_renderPetMain();};r.readAsDataURL(f);};inp.click();
+  inp.onchange=function(){
+    var f=inp.files&&inp.files[0];if(!f)return;
+    if(f.size>20*1024*1024){toast('图片超过20MB限制','err');return;}
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      _bgPrevCurrentDataUrl=ev.target.result;
+      _bgPrevPosX=50;_bgPrevPosY=50;_bgPrevSizeVal='cover';
+      _showBgPreviewModal(roomId,doneCb);
+    };
+    reader.readAsDataURL(f);
+  };
+  inp.click();
+}
+
+function _showBgPreviewModal(roomId,doneCb){
+  var ex=document.getElementById('_bgprev_ov');if(ex)ex.remove();
+  var ov=document.createElement('div');
+  ov.id='_bgprev_ov';
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.93);z-index:10000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:16px;box-sizing:border-box';
+  ov.innerHTML=
+    '<div style="color:#fff;font-size:.9rem;font-weight:700;flex-shrink:0">🖼️ 调整背景位置与大小</div>'+
+    '<div id="_bgprev_box" style="width:100%;max-width:360px;aspect-ratio:3/2;border-radius:12px;overflow:hidden;border:2px solid rgba(255,255,255,.3);cursor:grab;touch-action:none;position:relative;background:#111;flex-shrink:0">'+
+      '<div id="_bgprev_img" style="position:absolute;inset:0;background-image:url(\''+_bgPrevCurrentDataUrl+'\');background-position:50% 50%;background-size:cover;background-repeat:no-repeat;will-change:background-position,background-size"></div>'+
+      '<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"><div style="border:1px dashed rgba(255,255,255,.25);width:55%;height:55%;border-radius:8px"></div></div>'+
+    '</div>'+
+    '<div style="color:rgba(255,255,255,.45);font-size:.58rem;flex-shrink:0">拖拽移动 · 滑条或双指捏合缩放</div>'+
+    '<div style="width:100%;max-width:360px;display:flex;align-items:center;gap:8px;flex-shrink:0">'+
+      '<span style="color:#fff;font-size:.72rem">🔍</span>'+
+      '<input id="_bgprev_zoom" type="range" min="30" max="400" step="5" value="100" style="flex:1;accent-color:#e91e63">'+
+      '<span id="_bgprev_zv" style="color:#fff;font-size:.68rem;width:36px;text-align:right">100%</span>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:360px;flex-shrink:0">'+
+      '<button id="_bgprev_cancel" style="padding:12px;border-radius:12px;border:1.5px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-size:.82rem;cursor:pointer">取消</button>'+
+      '<button id="_bgprev_ok" style="padding:12px;border-radius:12px;border:none;background:#e91e63;color:#fff;font-size:.82rem;font-weight:700;cursor:pointer">确认保存</button>'+
+    '</div>';
+  document.body.appendChild(ov);
+
+  var imgDiv=document.getElementById('_bgprev_img');
+  var box=document.getElementById('_bgprev_box');
+  var zSlider=document.getElementById('_bgprev_zoom');
+  var zLabel=document.getElementById('_bgprev_zv');
+
+  function applyBg(){
+    if(!imgDiv)return;
+    imgDiv.style.backgroundPosition=_bgPrevPosX+'% '+_bgPrevPosY+'%';
+    imgDiv.style.backgroundSize=_bgPrevSizeVal;
+  }
+
+  // 拖拽
+  box.onpointerdown=function(e){
+    if(e.pointerId!==undefined&&e.touches&&e.touches.length>1)return;
+    _bgPrevDragging=true;
+    _bgPrevDragSt={x:e.clientX,y:e.clientY,px:_bgPrevPosX,py:_bgPrevPosY};
+    box.style.cursor='grabbing';
+    try{box.setPointerCapture(e.pointerId);}catch(er){}
+    e.preventDefault();
+  };
+  box.onpointermove=function(e){
+    if(!_bgPrevDragging)return;
+    var rect=box.getBoundingClientRect();
+    var dx=(e.clientX-_bgPrevDragSt.x)/rect.width*100;
+    var dy=(e.clientY-_bgPrevDragSt.y)/rect.height*100;
+    _bgPrevPosX=Math.max(0,Math.min(100,_bgPrevDragSt.px-dx));
+    _bgPrevPosY=Math.max(0,Math.min(100,_bgPrevDragSt.py-dy));
+    applyBg();
+  };
+  box.onpointerup=box.onpointercancel=function(){_bgPrevDragging=false;box.style.cursor='grab';};
+
+  // 双指缩放
+  box.addEventListener('touchstart',function(e){
+    if(e.touches.length===2){
+      var dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+      _pinchStartDist2=Math.sqrt(dx*dx+dy*dy);
+      _pinchStartZoom2=parseInt(zSlider.value)||100;
+      e.preventDefault();
+    }
+  },{passive:false});
+  box.addEventListener('touchmove',function(e){
+    if(e.touches.length===2){
+      var dx=e.touches[0].clientX-e.touches[1].clientX,dy=e.touches[0].clientY-e.touches[1].clientY;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      var nz=Math.max(30,Math.min(400,Math.round(_pinchStartZoom2*dist/_pinchStartDist2)));
+      zSlider.value=nz;zLabel.textContent=nz+'%';
+      _bgPrevSizeVal=nz+'%';applyBg();
+      e.preventDefault();
+    }
+  },{passive:false});
+
+  // 滑条缩放
+  zSlider.oninput=function(){
+    var z=parseInt(zSlider.value);
+    zLabel.textContent=z+'%';
+    _bgPrevSizeVal=z+'%';
+    applyBg();
+  };
+
+  document.getElementById('_bgprev_cancel').onclick=function(){ov.remove();};
+  document.getElementById('_bgprev_ok').onclick=function(){
+    var pX=_bgPrevPosX,pY=_bgPrevPosY,sz=_bgPrevSizeVal,du=_bgPrevCurrentDataUrl;
+    ov.remove();
+    toast('保存中…','');
+    _saveRoomBgIdb(roomId,du,function(ok){
+      if(!ok){toast('保存失败，图片可能过大','err');return;}
+      var data=getPetData();_ensureRooms(data);
+      var room=data.rooms.find(function(r){return r.id===roomId;});
+      if(!room)return;
+      room.hasBg=true;room.bgPosX=pX;room.bgPosY=pY;room.bgSizeVal=sz;
+      room.bg=''; // 清空旧字段
+      savePetData(data);
+      toast('背景已保存！','ok');
+      _renderPetMain();
+      if(doneCb)setTimeout(doneCb,100);
+    });
+  };
 }
 
 // ══ 宠物商店 ═════════════════════════════════════════════
@@ -885,7 +1275,7 @@ function openPetGuidebook(){
     var pet=has?(data.pets||[]).find(function(p){return p.speciesId===sid;}):null;
     html+='<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:12px;padding:10px 12px;margin-bottom:8px;'+(has?'':'opacity:.5')+'">';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">'+
-      '<div style="font-size:1.8rem">'+sp.stages[0].icon+'</div>'+
+      (pet&&pet.avatarImg?'<div style="width:36px;height:36px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+pet.avatarImg+'" style="width:100%;height:100%;object-fit:cover"></div>':'<div style="font-size:1.8rem">'+sp.stages[0].icon+'</div>')+
       '<div><div style="font-weight:700;color:var(--txt)">'+sp.name+(has?' ✓':'')+'</div>'+
       '<div style="font-size:.62rem;color:var(--muted)">'+sp.stages.length+'阶进化'+(sp.price?' · $'+sp.price:' · 免费')+'</div></div></div>';
     html+='<div style="font-size:.72rem;color:var(--txt2);line-height:1.4;margin-bottom:8px">'+sp.desc+'</div>';
@@ -896,7 +1286,7 @@ function openPetGuidebook(){
       var customInfo=_getStageCustomInfo(sid,i);
       var displayName=customInfo.name||stg.name;
       var displayDesc=customInfo.desc||stg.desc;
-      html+='<div style="flex:1;text-align:center;padding:7px 4px;background:var(--card2);border-radius:10px;cursor:'+(unlocked?'pointer':'default')+';opacity:'+(unlocked?'1':'.4')+';position:relative;border:1.5px solid '+(unlocked?'var(--acc)':'var(--bdr2)')+';" '+(unlocked?'onclick="_openStagePopup(\''+sid+'\','+i+')"':'')+' title="'+(unlocked?'点击查看/编辑':'Lv.'+stg.minLevel+' 解锁')+'">';
+      html+='<div style="flex:1;text-align:center;padding:7px 4px;background:var(--card2);border-radius:10px;cursor:pointer;opacity:'+(unlocked?'1':'.55')+';position:relative;border:1.5px solid '+(unlocked?'var(--acc)':'var(--bdr2)')+';" onclick="_openStagePopup(\''+sid+'\','+i+','+(!unlocked)+')" title="'+(unlocked?'点击查看/编辑':'Lv.'+stg.minLevel+' 解锁（可提前上传图片）')+'">';
       if(stageAva){
         html+='<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;margin:0 auto 3px;border:2px solid var(--acc)"><img src="'+stageAva+'" style="width:100%;height:100%;object-fit:cover"></div>';
       }else{
@@ -920,7 +1310,7 @@ function _saveStageCustomInfo(sid,stageIdx,obj){
   try{var d=JSON.parse(localStorage.getItem('era_stage_info')||'{}');d[sid+'_'+stageIdx]=obj;localStorage.setItem('era_stage_info',JSON.stringify(d));}catch(e){}
 }
 
-function _openStagePopup(sid,stageIdx){
+function _openStagePopup(sid,stageIdx,lockedOnly){
   var data=getPetData();var pet=(data.pets||[]).find(function(p){return p.speciesId===sid;});
   if(!pet)return;
   var sp=PET_SPECIES[sid];var stg=(sp.stages||[])[stageIdx]||{};
@@ -940,7 +1330,7 @@ function _openStagePopup(sid,stageIdx){
       '<div style="font-size:.62rem;color:var(--acc);margin-top:4px">点击图像上传自定义形象</div>'+
     '</div>'+
     '<div style="margin-bottom:10px">'+
-      '<div style="font-size:.7rem;color:var(--txt2);margin-bottom:4px">等级：Lv.'+stg.minLevel+' 解锁 · 当前 Lv.'+pet.level+'</div>'+
+      '<div style="font-size:.7rem;color:var(--txt2);margin-bottom:4px">等级：Lv.'+stg.minLevel+' 解锁 · 当前 Lv.'+pet.level+(lockedOnly?' <span style="color:#ff9800">[未解锁·可预设图片]</span>':'')+'</div>'+
       '<label style="font-size:.7rem;color:var(--muted);display:block;margin-bottom:3px">阶段名称</label>'+
       '<input id="stage-popup-name" value="'+esc(lvName)+'" maxlength="12" style="width:100%;padding:7px;font-size:.82rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box">'+
     '</div>'+
@@ -1210,11 +1600,48 @@ function openCharCGAlbums(charKey){
   html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
   html+='<button class="btn btn-ghost btn-full" onclick="openCGGallery()" style="font-size:.72rem">← 返回</button>';
   html+='</div>';
-  body.innerHTML=html;
+  
+  // ★ 内置图库区块（制作者预设图片）
+  if (charKey !== 'general' && typeof CharRegistry !== 'undefined') {
+    var _crCG = CharRegistry.get(charKey) || CharRegistry.get(parseInt(charKey));
+    if (_crCG && _crCG._presetImages && _crCG._presetImages.length) {
+      html += '<div style="margin-top:16px;padding:10px 12px;background:var(--card2);border-radius:12px;border:1px solid var(--bdr2)">';
+      html += '<div style="font-size:.75rem;font-weight:700;color:var(--acc);margin-bottom:8px">✨ 内置图库（制作者预设）</div>';
+      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">';
+      _crCG._presetImages.forEach(function(pi, idx) {
+        var ratioObj = CG_RATIOS.find(function(r){return r.id===pi.ratio;}) || CG_RATIOS[3];
+        html += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;overflow:hidden;cursor:pointer" onclick="_viewPresetImage(' + JSON.stringify(charKey) + ',' + idx + ')">';
+        html += '<div style="' + ratioObj.style + ';background:var(--card2);overflow:hidden"><img src="' + pi.file + '" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div style=text-align:center;padding:8px;font-size:.6rem;color:var(--muted)>无法加载</div>\'"></div>';
+        html += '<div style="padding:4px 6px;font-size:.6rem;color:var(--muted)">' + esc(pi.album || '内置') + '</div>';
+        html += '</div>';
+      });
+      html += '</div></div>';
+    }
+  }
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+  html += '<button class="btn btn-ghost btn-full" onclick="openCGGallery()" style="font-size:.72rem">← 返回</button>';
+  html += '</div>';
+  body.innerHTML = html;
 
   // 异步加载封面图
-  _loadAlbumCovers(cd,charKey);
+  _loadAlbumCovers(cd, charKey);
 }
+
+function _viewPresetImage(charKey, idx) {
+  var _cr = typeof CharRegistry !== 'undefined' ? (CharRegistry.get(charKey) || CharRegistry.get(parseInt(charKey))) : null;
+  if (!_cr || !_cr._presetImages || !_cr._presetImages[idx]) return;
+  var pi = _cr._presetImages[idx];
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(8px)';
+  ov.onclick = function(e) { if (e.target === ov) ov.remove(); };
+  ov.innerHTML = '<img src="' + pi.file + '" style="max-width:94vw;max-height:80vh;border-radius:8px;object-fit:contain">' +
+    '<div style="color:rgba(255,255,255,.55);font-size:.65rem;margin-top:10px">' + esc(pi.album || '内置') + '</div>' +
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="margin-top:12px;padding:8px 24px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font-size:.8rem;cursor:pointer">关闭</button>';
+  document.body.appendChild(ov);
+}
+
+
 
 function _loadAlbumCovers(cd,charKey){
   var albums=cd.albums||[];
@@ -1233,19 +1660,51 @@ function _loadAlbumCovers(cd,charKey){
 }
 
 function _createAlbum(charKey,ratioId){
-  var n=prompt('相册名称','新相册');
-  if(!n)return;
-  var cgData=getCGData();if(!cgData[String(charKey)])cgData[String(charKey)]={albums:[],primaryImgId:null};
-  if(!cgData[String(charKey)].albums)cgData[String(charKey)].albums=[];
-  cgData[String(charKey)].albums.push({id:'alb_'+Date.now(),name:n.trim().slice(0,16),ratio:ratioId,images:[],primaryIndex:0});
-  saveCGData(cgData);
-  openCharCGAlbums(charKey);
+  var ratio=CG_RATIOS.find(function(r){return r.id===ratioId;})||{label:ratioId,icon:'🖼️'};
+  var ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:9500;display:flex;align-items:center;justify-content:center;padding:20px;backdrop-filter:blur(8px)';
+  ov.onclick=function(e){if(e.target===ov)ov.remove();};
+  var sheet=document.createElement('div');
+  sheet.style.cssText='background:var(--card);border-radius:20px;padding:24px;max-width:300px;width:100%;animation:albumPop .22s ease;box-shadow:0 20px 60px rgba(0,0,0,.5)';
+  sheet.innerHTML=
+    '<div style="text-align:center;margin-bottom:18px">'+
+      '<div style="font-size:2rem;margin-bottom:6px">'+ratio.icon+'</div>'+
+      '<div style="font-size:.95rem;font-weight:800;color:var(--txt)">新建相册</div>'+
+      '<div style="font-size:.68rem;color:var(--muted);margin-top:2px">'+ratio.label+'</div>'+
+    '</div>'+
+    '<div style="margin-bottom:16px">'+
+      '<label style="font-size:.7rem;color:var(--txt2);display:block;margin-bottom:6px">📝 相册名称</label>'+
+      '<input id="_alb_inp" maxlength="16" value="新相册" placeholder="输入相册名称…" '+
+        'style="width:100%;padding:10px 12px;font-size:.88rem;border:2px solid var(--bdr2);border-radius:10px;background:var(--card2);color:var(--txt);box-sizing:border-box;outline:none">'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
+      '<button id="_alb_cancel" style="padding:10px;border-radius:10px;border:1.5px solid var(--bdr2);background:transparent;color:var(--txt2);font-size:.82rem;cursor:pointer">取消</button>'+
+      '<button id="_alb_ok" style="padding:10px;border-radius:10px;border:none;background:var(--acc);color:#fff;font-size:.82rem;font-weight:700;cursor:pointer">创建</button>'+
+    '</div>';
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+  var inp=sheet.querySelector('#_alb_inp');
+  if(inp){inp.focus();inp.select();}
+  sheet.querySelector('#_alb_cancel').onclick=function(){ov.remove();};
+  sheet.querySelector('#_alb_ok').onclick=function(){
+    var name=inp?inp.value.trim():'';
+    if(!name){if(inp)inp.style.border='2px solid #e53935';return;}
+    ov.remove();
+    var cgData=getCGData();
+    if(!cgData[String(charKey)])cgData[String(charKey)]={albums:[],primaryImgId:null};
+    if(!cgData[String(charKey)].albums)cgData[String(charKey)].albums=[];
+    cgData[String(charKey)].albums.push({id:'alb_'+Date.now(),name:name.slice(0,16),ratio:ratioId,images:[],primaryIndex:0});
+    saveCGData(cgData);
+    toast('相册「'+name+'」已创建','ok');
+    openCharCGAlbums(charKey);
+  };
+  if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter')sheet.querySelector('#_alb_ok').click();});
 }
 function _renameAlbum(charKey,albId){
   var cgData=getCGData();var cd=cgData[String(charKey)];if(!cd)return;
   var alb=cd.albums&&cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
-  var n=prompt('相册新名称',alb.name);if(!n)return;
-  alb.name=n.trim().slice(0,16);saveCGData(cgData);openCharCGAlbums(charKey);
+  _showInputModal('✏️ 相册改名','新名称',alb.name,function(n){if(!n)return;
+  alb.name=n.trim().slice(0,16);saveCGData(cgData);openCharCGAlbums(charKey);});
 }
 
 // ── 相册查看器（左右切换 + 上传 + 设主形象）──────────

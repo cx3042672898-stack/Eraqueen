@@ -440,21 +440,32 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 <div class="ov" id="ov-story" style="z-index:500">
   <div class="sheet">
     <div class="s-hdl"></div>
+    <!-- 顶部标题横幅 -->
     <div style="padding:14px 18px 0">
       <div class="story-banner">
-        <div class="story-tag-lbl" id="story-tag">指令事件</div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+          <div class="story-tag-lbl" id="story-tag" style="margin:0;background:rgba(255,255,255,.18);padding:2px 8px;border-radius:20px;backdrop-filter:blur(4px)">指令事件</div>
+        </div>
         <div class="story-title-txt" id="story-title">剧情</div>
+        <!-- 页码显示 -->
+        <div id="story-page-info" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:.62rem;opacity:.72;letter-spacing:1px"></div>
       </div>
     </div>
-    <div class="s-body">
-      <div class="story-body" id="story-body"></div>
+    <!-- 正文区域 -->
+    <div class="s-body" style="padding-top:4px">
+      <!-- 正文滚动区 -->
+      <div class="story-body" id="story-body" style="max-height:52vh;overflow-y:auto;padding:4px 6px 4px 2px;scroll-behavior:smooth"></div>
+      <!-- 分页点 -->
       <div class="story-pages" id="story-dots"></div>
+      <!-- 效果结算 -->
       <div class="story-eff" id="story-eff" style="display:none"></div>
+      <!-- 导航按钮 -->
       <div class="story-nav">
-        <button class="btn btn-full btn-ghost" id="story-prev" onclick="storyPrev()" style="display:none">← 上一页</button>
-        <button class="btn btn-full"           id="story-next" onclick="storyNext()">下一页 →</button>
-        <button class="btn btn-full btn-p"     id="story-fin"  onclick="finishStory()" style="display:none">✓ 完成</button>
+        <button class="btn btn-ghost" id="story-prev" onclick="storyPrev()" style="display:none;min-width:72px">← 上页</button>
+        <button class="btn btn-full"  id="story-next" onclick="storyNext()">继续阅读 →</button>
+        <button class="btn btn-full btn-p" id="story-fin" onclick="finishStory()" style="display:none">✓ 完成</button>
       </div>
+
     </div>
   </div>
 </div>
