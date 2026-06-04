@@ -10,6 +10,13 @@
 <meta name="apple-mobile-web-app-title" content="EraQueenA+">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
+<script>
+// file:// 协议下移除 manifest link，避免 CORS 阻塞页面渲染
+if (location.protocol === 'file:') {
+  document.querySelector('link[rel="manifest"]')?.remove();
+  document.querySelector('link[rel="apple-touch-icon"]')?.remove();
+}
+</script>
 <title>eraQueenA+ 调教版</title>
 <link rel="stylesheet" href="css/themes.css">
 <link rel="stylesheet" href="css/style.css">
