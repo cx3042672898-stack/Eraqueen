@@ -7,7 +7,7 @@
 const ITEMS_DATA = [
 
   // ── 通常道具（一次购买永久拥有）──────────────────────────
-  { id:0,  name:'跳蛋',        price:1000,  category:'standard',
+  { id:0,  name:'跳蛋',        price:1000,  category:'standard', equippable:true,
     desc:'小巧的振动玩具，可插入体内持续刺激，遥控操作，令对方无处遁形。',
     npcSay: [
       '别看它小，塞进去以后可由不得他了……遥控器一按，整个人都会抖起来。',
@@ -52,7 +52,7 @@ const ITEMS_DATA = [
       '简单却有效，让他亲手把自己玩到崩溃。'
     ]},
 
-  { id:5,  name:'肛塞',        price:1500,  category:'standard',
+  { id:5,  name:'肛塞',        price:1500,  category:'standard', equippable:true,
     desc:'后庭专用塞子，用于开发最隐秘的地方，让对方时刻感受到存在。',
     npcSay: [
       '塞进去以后，就让他带着它过一天……每一次坐下都忘不了。',
@@ -97,7 +97,7 @@ const ITEMS_DATA = [
       '灌完以后让他憋着……那副难受又隐忍的样子特别好看。'
     ]},
 
-  { id:10, name:'振动乳头夹',  price:1000,  category:'standard',
+  { id:10, name:'振动乳头夹',  price:1000,  category:'standard', equippable:true,
     desc:'夹住胸前的敏感点同时振动，双重刺激令对方无法集中精神。',
     npcSay: [
       '夹上去一震，他整个人都会弓起来……反应特别可爱。',
@@ -142,7 +142,7 @@ const ITEMS_DATA = [
       '一点点刺痛，能让他在痛和爽之间反复徘徊。'
     ]},
 
-  { id:15, name:'眼罩',        price:1500,  category:'standard',
+  { id:15, name:'眼罩',        price:1500,  category:'standard', equippable:true,
     desc:'剥夺视觉之后，其他的感官会变得异常敏锐，恐惧与期待同时放大。',
     npcSay: [
       '什么都看不见的时候，每一次触碰都会让他吓一跳。',
@@ -160,7 +160,7 @@ const ITEMS_DATA = [
       '看着他徒劳地扭动身体，那种无力感特别迷人。'
     ]},
 
-  { id:17, name:'口塞球',      price:1000,  category:'standard',
+  { id:17, name:'口塞球',      price:1000,  category:'standard', equippable:true,
     desc:'堵住那喋喋不休的嘴，只留下鼻息和压抑的呻吟，反而更令人着迷。',
     npcSay: [
       '塞住嘴以后，只能听到他从鼻子里发出的呜咽……特别色。',
@@ -205,7 +205,7 @@ const ITEMS_DATA = [
       '镜子从不说谎……他会因此彻底崩溃的。'
     ]},
 
-  { id:22, name:'项圈',        price:2000,  category:'standard',
+  { id:22, name:'项圈',        price:2000,  category:'standard', equippable:true,
     desc:'套上这个，就可以牵着到处走了……无论是庭院，还是更远的地方。',
     npcSay: [
       '挂上铃铛以后，走路都会发出清脆的声音……提醒他自己的身份。',
@@ -214,7 +214,7 @@ const ITEMS_DATA = [
       '最基础却最有效的支配标志。'
     ]},
 
-  { id:23, name:'围裙',        price:5000,  category:'standard',
+  { id:23, name:'围裙',        price:5000,  category:'standard', equippable:true,
     desc:'新妻PLAY的标配，穿上围裙的对象，会显得格外温驯可人。',
     npcSay: [
       '只穿一件围裙在家里做家务……那种反差特别诱人。',
@@ -277,7 +277,7 @@ const ITEMS_DATA = [
       '笼中之物，才最清楚谁才是主人。'
     ]},
 
-  { id:30, name:'贞操带',      price:8000,  category:'standard',
+  { id:30, name:'贞操带',      price:8000,  category:'standard', equippable:true,
     desc:'贞洁，是可以被锁上的东西。钥匙在你手中，那才是真正的支配。',
     npcSay: [
       '锁上以后，他就连自慰的资格都没有了……只能求你。',
@@ -286,7 +286,7 @@ const ITEMS_DATA = [
       '最完美的贞操控制道具……客人懂的。'
     ]},
 
-  { id:31, name:'猫耳',        price:10000, category:'standard',
+  { id:31, name:'猫耳',        price:10000, category:'standard', equippable:true,
     desc:'偶尔，也想听听猫叫。戴上猫耳的对象，会变得出乎意料地娇憨。',
     npcSay: [
       '戴上猫耳以后，他会不自觉地发出“喵”的声音……很可爱。',
@@ -295,7 +295,7 @@ const ITEMS_DATA = [
       '戴上去以后，整个人都变得娇憨许多。'
     ]},
 
-  { id:32, name:'犬耳',        price:10000, category:'standard',
+  { id:32, name:'犬耳',        price:10000, category:'standard', equippable:true,
     desc:'忠诚的狗狗，需要最好的配饰。戴上犬耳，连眼神都会变得温顺。',
     npcSay: [
       '戴上狗耳以后，让他学狗爬……特别有驯服感。',
@@ -304,7 +304,7 @@ const ITEMS_DATA = [
       '忠诚的狗狗，就该配上最好的饰品。'
     ]},
 
-  { id:33, name:'兔耳',        price:12000, category:'standard',
+  { id:33, name:'兔耳',        price:12000, category:'standard', equippable:true,
     desc:'可爱的兔子，总是让人忍不住想欺负。柔软的兔耳，令人怜爱又心动。',
     npcSay: [
       '兔子耳朵一抖一抖的……欺负起来特别有意思。',
@@ -313,7 +313,7 @@ const ITEMS_DATA = [
       '可爱的兔子，最适合被好好欺负了。'
     ]},
 
-  { id:34, name:'三角巾',      price:5000,  category:'standard',
+  { id:34, name:'三角巾',      price:5000,  category:'standard', equippable:true,
     desc:'女仆的标配，套上三角巾的对象，举手投足间自然流露出服侍的气质。',
     npcSay: [
       '穿上女仆装以后，他会自然而然地低头说“主人，请吩咐”。',
@@ -322,7 +322,7 @@ const ITEMS_DATA = [
       '女仆装加三角巾，侍奉起来特别有感觉。'
     ]},
 
-  { id:35, name:'耳机',        price:8000,  category:'standard',
+  { id:35, name:'耳机',        price:8000,  category:'standard', equippable:true,
     desc:'隔绝了声音，就只能专心感受身体的刺激，听觉封闭让其他感官更为敏感。',
     npcSay: [
       '戴上耳机以后，他只能听到自己心跳和喘息……特别脆弱。',
@@ -653,6 +653,16 @@ const ITEMS_DATA = [
       '「这东西谁会给自己喝啊……不过客人要买，我就卖呗。」',
       '「迷迷糊糊的感觉也有它的好处？我不懂，但客人肯定懂。」',
       '「小心别喝太多……精力太低，走路都走不动了。」',
+    ]},
+  // ── 禁止射精环（贞操笼，用于雄性边缘控制）────────────────────
+  { id:95, name:'禁止射精环',  price:6000, category:'standard', equippable:true,
+    desc:'精心设计的贞操笼，佩戴后完全封闭射精通道。钥匙由主人保管，戴上的那一刻起，他的释放就由你决定。',
+    npcSay: [
+      '「戴上去以后，他想射也射不出来……一切都由主人说了算，这才叫真正的控制。」',
+      '「最有效的边缘控制道具。配合长时间调教，能让他在崩溃边缘徘徊很久。」',
+      '「钥匙不给他，他就永远处于那种快要到却到不了的状态……客人懂这种感觉的妙处吗？」',
+      '「雄性专用。佩戴后无法自行高潮，想要释放只能乖乖请求主人。」',
+      '「长期佩戴效果更好。他会越来越依赖你，越来越渴望你的"恩赐"。」',
     ]},
 
 ];

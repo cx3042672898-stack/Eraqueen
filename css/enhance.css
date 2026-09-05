@@ -467,7 +467,7 @@
 
   /* 工作/约会格子2列 */
   .work-loc-grid { grid-template-columns: repeat(2, 1fr) !important; }
-  .date-loc-grid { grid-template-columns: 1fr !important; }
+  .date-loc-grid { grid-template-columns: repeat(2, 1fr) !important; }
 }
 
 /* ── 中等屏幕(380-420px)微调 ─────────────────── */
@@ -786,6 +786,9 @@
   #app { padding: 0 24px; }
   #con { max-width: 100% !important; }
   .scr { padding: 0 12px; }
+
+  /* 约会地点桌面端四栏 */
+  .date-loc-grid { grid-template-columns: repeat(4, 1fr) !important; }
 }
 
 /* ── 指令解说悬浮提示 ── */

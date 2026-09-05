@@ -12,7 +12,7 @@ function getRelationStageLabel(val){
   if(val>=60)return{name:'恋慕',icon:'💗',color:'#f06292'};
   if(val>=40)return{name:'好友',icon:'😊',color:'#81c784'};
   if(val>=20)return{name:'熟识',icon:'🤝',color:'#64b5f6'};
-  if(val>=0)return{name:'普通',icon:'👋',color:'var(--muted)'};
+  if(val>=0)return{name:'普通',icon:'',color:'var(--muted)'};
   return{name:'不和',icon:'😒',color:'#ffb74d'};
 }
 function afterDateRelationBoost(idA,idB,gain){
@@ -60,7 +60,7 @@ function openAuctionPanel(){
     var price=_calcAuctionPrice(c);
     var cid=typeof baseC.id==='number'?baseC.id:JSON.stringify(baseC.id);
     html+='<div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;margin-bottom:8px">';
-    html+='<div style="font-size:1.5rem">'+cEmoji(c)+'</div>';
+    html+=(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(baseC.id,44,false):'<div style="font-size:1.5rem">'+cEmoji(c)+'</div>');
     html+='<div style="flex:1;min-width:0"><div style="font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>';
     html+='<div style="font-size:.68rem;color:var(--muted)">训练'+Math.round(c.total_training_count||0)+'次 · 好感'+Math.round(c.affection||0)+' · 服从'+Math.round(c.obedience||0)+'</div></div>';
     html+='<button class="btn btn-sm" style="background:rgba(240,192,80,.15);color:#f0c050;border:1px solid rgba(240,192,80,.3);white-space:nowrap" onclick="confirmAuction('+cid+','+price+')">💰$'+price.toLocaleString()+'</button>';
@@ -79,7 +79,7 @@ function _calcAuctionPrice(c){
 }
 function confirmAuction(charId,price){
   var sv=loadSave(charId);if(!sv||!sv.char)return;var c=sv.char;
-  openCustomConfirm('🔨 确认拍卖','<div style="text-align:center;padding:8px 0"><div style="font-size:2rem;margin-bottom:8px">'+cEmoji(c)+'</div><div style="font-weight:700;font-size:1rem;margin-bottom:6px">'+esc(c.name)+'</div><div style="color:#f0c050;font-size:1.2rem;font-weight:800;margin-bottom:10px">💰 $'+price.toLocaleString()+'</div><div style="font-size:.78rem;color:#e53935;line-height:1.7">拍卖后此奴隶将永久消失！<br>与其关系好的奴隶可能产生失落情绪。</div></div>','确认拍卖',function(){
+  openCustomConfirm('🔨 确认拍卖','<div style="text-align:center;padding:8px 0"><div style="display:flex;justify-content:center;margin-bottom:8px">'+(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(charId,56,false):'<div style="font-size:2rem">'+cEmoji(c)+'</div>')+'</div><div style="font-weight:700;font-size:1rem;margin-bottom:6px">'+esc(c.name)+'</div><div style="color:#f0c050;font-size:1.2rem;font-weight:800;margin-bottom:10px">💰 $'+price.toLocaleString()+'</div><div style="font-size:.78rem;color:#e53935;line-height:1.7">拍卖后此奴隶将永久消失！<br>与其关系好的奴隶可能产生失落情绪。</div></div>','确认拍卖',function(){
     doAuction(charId,price,c);
   });
 }
@@ -143,12 +143,12 @@ function openRelationshipPanel(){
     else pairs.forEach(function(p){
       var stage=getRelationStageLabel(p.val);var pct=Math.max(0,Math.min(100,(p.val+100)/2));
       html+='<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:8px;cursor:pointer" onclick="openRelDiary(\''+p.a.id+'\',\''+p.b.id+'\')">';
-      html+='<div style="font-size:1.1rem">'+cEmoji(p.a)+'</div><div style="flex:1;min-width:0">';
+      html+=(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(p.a.id,32,false):'<div style="font-size:1.1rem">'+cEmoji(p.a)+'</div>')+'<div style="flex:1;min-width:0">';
       html+='<div style="font-size:.82rem;font-weight:700;color:var(--txt)">'+esc(p.a.name)+' × '+esc(p.b.name)+'</div>';
       html+='<div style="display:flex;align-items:center;gap:6px;margin-top:3px"><span style="font-size:.68rem;color:'+stage.color+';font-weight:600">'+stage.icon+' '+stage.name+'</span>';
       html+='<div style="flex:1;height:4px;background:var(--bdr);border-radius:2px;overflow:hidden"><div style="height:100%;width:'+pct+'%;background:'+stage.color+';border-radius:2px"></div></div>';
       html+='<span style="font-size:.68rem;color:var(--muted)">'+p.val+'</span></div></div>';
-      html+='<div style="font-size:1.1rem">'+cEmoji(p.b)+'</div></div>';
+      html+=(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(p.b.id,32,false):'<div style="font-size:1.1rem">'+cEmoji(p.b)+'</div>')+'</div>';
     });
   }
   html+='<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-relationship\')" style="margin-top:10px">关闭</button>';
@@ -165,7 +165,7 @@ function openRelDiary(idA,idB){
   var stage=getRelationStageLabel(rel);
   var diary=_genRelDiary(a,b,rel,stage);
   var html='<div style="text-align:center;margin-bottom:14px">';
-  html+='<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px"><div style="font-size:2rem">'+cEmoji(a)+'</div><div style="font-size:1.5rem;color:'+stage.color+'">'+stage.icon+'</div><div style="font-size:2rem">'+cEmoji(b)+'</div></div>';
+  html+='<div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:8px">'+(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(idA,48,false):'<div style="font-size:2rem">'+cEmoji(a)+'</div>')+'<div style="font-size:1.5rem;color:'+stage.color+'">'+stage.icon+'</div>'+(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(idB,48,false):'<div style="font-size:2rem">'+cEmoji(b)+'</div>')+'</div>';
   html+='<div style="font-weight:800;font-size:1rem;color:var(--txt)">'+esc(a.name)+' × '+esc(b.name)+'</div>';
   html+='<div style="font-size:.72rem;color:'+stage.color+';margin-top:2px">'+stage.icon+' '+stage.name+' · 好感度 '+rel+'</div>';
   html+='</div>';
@@ -239,3 +239,4 @@ function _genDateComment(a,b,gain){
   if(/冷漠/.test(pA))comments.push(a.name+'话不多，但偶尔投来的目光很认真。');
   return comments[Math.floor(Math.random()*comments.length)];
 }
+

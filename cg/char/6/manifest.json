@@ -1,0 +1,14 @@
+{
+  "images": [
+    {
+      "file": "normal.jpg",
+      "ratio": "3-4",
+      "album": "高专时光"
+    },
+    {
+      "file": "avatar.jpg",
+      "ratio": "1-1",
+      "album": "头像"
+    }
+  ]
+}

@@ -118,10 +118,16 @@ function renderHome() {
   if (recentEl) {
     if (recentSave) {
       const c = recentSave.char;
+      // ★ 读取已保存的自定义头像，而非仅凭种族/性别推断默认 emoji
+      const _rProf = recentSave.charProfile || {};
+      const _rAvaImg = _rProf.avaImg || _rProf._presetAvaUrl || '';
+      const _rAvaHtml = _rAvaImg
+        ? `<div style="width:40px;height:40px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="${_rAvaImg}" style="width:100%;height:100%;object-fit:cover"></div>`
+        : `<div style="font-size:1.8rem;width:40px;height:40px;background:var(--card2);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">${_rProf.ava || cEmoji(c)}</div>`;
       recentEl.innerHTML = `
         <div class="card card-tap card-b" onclick="selectChar(${c.id})"
              style="display:flex;align-items:center;gap:11px">
-          <div style="font-size:1.8rem">${cEmoji(c)}</div>
+          ${_rAvaHtml}
           <div style="flex:1">
             <div style="font-family:'ZCOOL XiaoWei',serif;font-size:.96rem;
                         color:var(--acc2);letter-spacing:1px">${esc(c.name)}</div>
@@ -154,7 +160,7 @@ function renderHome() {
           <div class="stat-box-l">角色</div>
         </div>
         <div class="stat-box">
-          <div class="stat-box-v">${DAILY_EVENTS.length}</div>
+          <div class="stat-box-v">${typeof PLAYER_DAILY!=='undefined'?PLAYER_DAILY.length:0}</div>
           <div class="stat-box-l">日常剧情</div>
         </div>
         <div class="stat-box">
@@ -371,7 +377,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof autoRestoreLastChar === 'function') autoRestoreLastChar();
 });
 window.addEventListener('beforeunload', () => {
-  if (State.currentChar && typeof writeSave === 'function') writeSave();
+  
 });
 
 // ── 外出页：nav 同步处理 ─────────────────────────────────

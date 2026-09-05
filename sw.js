@@ -27,6 +27,8 @@ self.addEventListener('fetch', function(e) {
   // 只处理 GET 请求；跳过 API 调用（Anthropic API 等）
   if (e.request.method !== 'GET') return;
   var url = e.request.url;
+  // ★ 修复：file:// 协议下跳过所有拦截，避免 Chrome "Unsafe attempt to load URL" 报错
+  if (url.startsWith('file:')) return;
   if (url.includes('anthropic.com') || url.includes('api.')) return;
 
   e.respondWith(

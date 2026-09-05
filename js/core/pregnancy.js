@@ -59,21 +59,21 @@ function _renderPregPanel(body){
     allChars.forEach(function(bc){var sv=loadSave(bc.id);if(!sv||!sv.char)return;var c=sv.char;if(!canGetPregnant(c))return;var key=String(bc.id);if(pData[key]&&pData[key].pregnant)return;any=true;
       var isHeat=isHeatDay(c,State.day||1);var chance=Math.round(getPregnancyChance(c,State.day||1)*100);
       html+='<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;cursor:pointer" onclick="_pregInteract(\'notpreg\','+bc.id+')">';
-      html+='<div style="font-size:1.3rem">'+cEmoji(c)+'</div><div style="flex:1"><div style="font-weight:700;font-size:.82rem;color:var(--txt)">'+esc(c.name)+'</div>';
+      html+=(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(bc.id,36,false):'<div style="font-size:1.3rem">'+cEmoji(c)+'</div>')+'<div style="flex:1"><div style="font-weight:700;font-size:.82rem;color:var(--txt)">'+esc(c.name)+'</div>';
       html+='<div style="font-size:.65rem;color:var(--muted)">内射：'+(c.expCreampie||0)+' · 概率：'+chance+'%'+(isHeat?' <span style="color:#e57373">🔥发情</span>':'')+'</div></div><span style="color:var(--muted)">›</span></div>';
     });if(!any)html+='<div style="text-align:center;padding:20px 0;color:var(--muted)">🌸 无未孕的可孕奴隶</div>';
   }else if(_pregTab==='pregnant'){var any2=false;
     allChars.forEach(function(bc){var sv=loadSave(bc.id);if(!sv||!sv.char)return;var c=sv.char;var key=String(bc.id);var p=pData[key];if(!p||!p.pregnant||p.born)return;any2=true;
       var pct=Math.min(100,Math.round(p.progress/p.duration*100));
       html+='<div style="background:var(--card);border:1px solid #e57373;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="_pregInteract(\'pregnant\','+bc.id+')">';
-      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px"><div style="font-size:1.3rem">'+cEmoji(c)+'</div><div style="flex:1"><div style="font-weight:700;color:var(--txt)">'+esc(c.name)+'</div><div style="font-size:.65rem;color:var(--muted)">父亲：'+esc(p.fatherName)+'</div></div><span style="color:#e57373;font-weight:700">'+pct+'%</span></div>';
+      html+='<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(bc.id,36,false):'<div style="font-size:1.3rem">'+cEmoji(c)+'</div>')+'<div style="flex:1"><div style="font-weight:700;color:var(--txt)">'+esc(c.name)+'</div><div style="font-size:.65rem;color:var(--muted)">父亲：'+esc(p.fatherName)+'</div></div><span style="color:#e57373;font-weight:700">'+pct+'%</span></div>';
       html+='<div style="height:6px;background:var(--bdr);border-radius:3px"><div style="height:100%;width:'+pct+'%;background:#e57373;border-radius:3px"></div></div>';
       html+='<div style="font-size:.62rem;color:var(--muted);margin-top:3px">'+p.progress+'/'+p.duration+'天</div></div>';
     });if(!any2)html+='<div style="text-align:center;padding:20px 0;color:var(--muted)">🤰 无怀孕中奴隶</div>';
   }else if(_pregTab==='nursing'){var any3=false;
     allChars.forEach(function(bc){var sv=loadSave(bc.id);if(!sv||!sv.char)return;var c=sv.char;var key=String(bc.id);var p=pData[key];if(!p||!p.nursing)return;any3=true;
       html+='<div style="background:var(--card);border:1px solid #ffb74d;border-radius:10px;padding:12px;margin-bottom:8px;cursor:pointer" onclick="_pregInteract(\'nursing\','+bc.id+')">';
-      html+='<div style="display:flex;align-items:center;gap:10px"><div style="font-size:1.3rem">'+cEmoji(c)+'</div><div style="flex:1"><div style="font-weight:700;color:var(--txt)">'+esc(c.name)+'</div><div style="font-size:.65rem;color:#ffb74d">🍼 坐月子 第'+(p.postpartumDays||1)+'/7天</div></div><span style="color:var(--muted)">›</span></div></div>';
+      html+='<div style="display:flex;align-items:center;gap:10px">'+(typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(bc.id,36,false):'<div style="font-size:1.3rem">'+cEmoji(c)+'</div>')+'<div style="flex:1"><div style="font-weight:700;color:var(--txt)">'+esc(c.name)+'</div><div style="font-size:.65rem;color:#ffb74d">🍼 坐月子 第'+(p.postpartumDays||1)+'/7天</div></div><span style="color:var(--muted)">›</span></div></div>';
     });if(!any3)html+='<div style="text-align:center;padding:20px 0;color:var(--muted)">🍼 无在育儿的奴隶</div>';
   }else{
     if(!children.length)html+='<div style="text-align:center;padding:20px 0;color:var(--muted)">👶 还没有子嗣</div>';

@@ -3,6 +3,28 @@
 // 依赖加载顺序：state.js → game.js → shop.js → story.js → outing.js → api.js → nav.js → achieve.js → item_self_stories.js → features.js
 // ================================================================
 
+// ── 通用奴隶头像渲染函数 ──────────────────────────────────────────
+// size: 显示尺寸px, clickable: 是否可点击更换, forceCharId: 已知charId时直传
+function _buildSlaveAvaHtml(charId, size, clickable) {
+  size = size || 52;
+  var c = CHARS_DATA.find(function(x){ return x.id === charId; });
+  var sv = typeof loadSave === 'function' ? loadSave(charId) : null;
+  var profile = (sv && sv.charProfile) || {};
+  // 优先级：用户上传 > charProfile预设 > CharRegistry预设 > emoji
+  var avaImgSrc = profile.avaImg || profile._presetAvaUrl || '';
+  if (!avaImgSrc && typeof CharRegistry !== 'undefined') {
+    var _cr = CharRegistry.get(charId);
+    if (_cr && _cr._presetAvaUrl) avaImgSrc = _cr._presetAvaUrl;
+  }
+  var fs = Math.round(size * 0.55);
+  var clickAttr = clickable ? ' onclick="openSlaveAvaModal(' + charId + ')" title="更换头像" style="cursor:pointer"' : '';
+  if (avaImgSrc) {
+    return '<div' + clickAttr + ' style="width:' + size + 'px;height:' + size + 'px;background:var(--card2);border-radius:50%;overflow:hidden;flex-shrink:0' + (clickable ? ';cursor:pointer' : '') + '"><img src="' + avaImgSrc + '" style="width:100%;height:100%;object-fit:cover"></div>';
+  }
+  var emoji = profile.ava || (c ? (typeof cEmoji === 'function' ? cEmoji(c) : '✨') : '✨');
+  return '<div' + clickAttr + ' style="font-size:' + fs + 'px;width:' + size + 'px;height:' + size + 'px;background:var(--card2);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0' + (clickable ? ';cursor:pointer' : '') + '">' + emoji + '</div>';
+}
+
 // ── 金币流水记录 ──────────────────────────────────────────────
 var _moneyLog = JSON.parse(localStorage.getItem('era_money_log')||'[]');
 function _logMoney(desc, delta){
@@ -41,6 +63,13 @@ function dayToDate(day) {
   return (mo+1)+'月'+(d+1)+'日';
 }
 function getDateStr(){ return dayToDate(State.day||1); }
+// 天数→{month,day} 对象（供节日/生日检测使用）
+function _dayToMD(day){
+  var m=[31,28,31,30,31,30,31,31,30,31,30,31];
+  var d=Math.max(0,(Math.max(1,day)-1))%365,mo=0;
+  while(d>=m[mo]){d-=m[mo];mo++;}
+  return {month:mo+1,day:d+1};
+}
 
 // ── 修复旧存档性别默认值 ─────────────────────────────────────
 function ensureProfileDefaults(){
@@ -53,6 +82,93 @@ function ensureProfileDefaults(){
   if(changed) localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
   var gEl=document.getElementById('pc-gender');
   if(gEl) gEl.textContent='性别：'+_playerProfile.gender;
+}
+
+// ── 新天提示卡片系统 ──────────────────────────────────────────
+function getNewDayCardEnabled(){
+  return localStorage.getItem('era_newday_card')!=='0';
+}
+function setNewDayCardEnabled(val){
+  localStorage.setItem('era_newday_card',val?'1':'0');
+  var sub=document.getElementById('newday-card-sub');
+  if(sub) sub.textContent=val?'每天显示':'已关闭';
+  toast(val?'✅ 新天提示已开启':'🔕 新天提示已关闭（特殊日期将在日历旁显示红点）','');
+  _checkNewDayAlert(State.day||1);
+}
+// 检查是否需要在日历按钮旁显示红色感叹号
+function _dismissAlertDot(){
+  localStorage.setItem('era_alert_dot_seen',String(State.day||1));
+  var dot=document.getElementById('calendar-alert-dot');
+  if(dot) dot.style.display='none';
+}
+function _checkNewDayAlert(day){
+  var dot=document.getElementById('calendar-alert-dot');
+  if(!dot) return;
+  if(getNewDayCardEnabled()){dot.style.display='none';return;}
+  var _curDay=day||State.day||1;
+  var _seenDay=parseInt(localStorage.getItem('era_alert_dot_seen')||'0');
+  if(_seenDay>=_curDay){dot.style.display='none';return;}
+  var dm=_dayToMD(_curDay);
+  var isSpecial=false;
+  if(typeof FESTIVALS!=='undefined')
+    isSpecial=FESTIVALS.some(function(f){return f.month===dm.month&&f.day===dm.day;});
+  if(!isSpecial&&typeof _getSlaveBirthdays==='function'){
+    var bds=_getSlaveBirthdays().filter(function(b){return b.month===dm.month&&b.day===dm.day;});
+    if(bds.length>0) isSpecial=true;
+  }
+  dot.style.display=isSpecial?'inline-block':'none';
+}
+// 统一新天提示卡片（所有进入下一天的路径都调用此函数）
+function showNewDayCard(day,delay){
+  day=day||State.day||1;
+  delay=(typeof delay==='number')?delay:500;
+  _checkNewDayAlert(day);
+  if(!getNewDayCardEnabled()) return;
+  setTimeout(function(){
+    var _dm=_dayToMD(day);
+    var _ds=typeof getDateStr==='function'?getDateStr():'';
+    var _festInfo=null,_bdayInfo=null;
+    // 检测节日
+    if(typeof FESTIVALS!=='undefined')
+      _festInfo=FESTIVALS.find(function(f){return f.month===_dm.month&&f.day===_dm.day;})||null;
+    // 检测生日
+    if(!_festInfo&&typeof _getSlaveBirthdays==='function'){
+      var _bds=_getSlaveBirthdays().filter(function(b){return b.month===_dm.month&&b.day===_dm.day;});
+      if(_bds.length) _bdayInfo=_bds[0];
+    }
+    var _topIcon=_festInfo?(_festInfo.icon||'🎉'):(_bdayInfo?'🎂':'🌅');
+    // ── 构建卡片 HTML ──
+    var _html='<div style="text-align:center;padding:28px 16px 10px">'
+      +'<div style="font-size:3rem;line-height:1;margin-bottom:14px">'+_topIcon+'</div>'
+      +'<div style="font-size:1.6rem;font-weight:700;color:var(--acc);letter-spacing:5px;margin-bottom:4px">第 '+day+' 天</div>';
+    // 节日信息块（可点击查看详情）
+    if(_festInfo){
+      var _fName=esc((_festInfo.icon?_festInfo.icon+' ':'')+_festInfo.name);
+      var _fMsg=_festInfo.msg?esc(_festInfo.msg):'';
+      _html+='<div onclick="if(typeof _calDayClick===\'function\')_calDayClick('+_dm.month+','+_dm.day+')" '
+        +'style="cursor:pointer;margin:16px auto 0;padding:10px 18px;max-width:88%;'
+        +'background:linear-gradient(135deg,rgba(240,192,80,.13),rgba(200,140,220,.13));'
+        +'border:1px solid rgba(240,192,80,.4);border-radius:12px;display:inline-block">'
+        +'<div style="font-size:.9rem;font-weight:700;color:var(--txt)">'+_fName+'</div>'
+        +(_fMsg?'<div style="font-size:.72rem;color:var(--muted);margin-top:3px">'+_fMsg+'</div>':'')
+        +'<div style="font-size:.62rem;color:var(--acc2);margin-top:5px;opacity:.85">点击查看节日详情 ›</div></div>';
+    } else if(_bdayInfo){
+      _html+='<div style="margin:16px auto 0;padding:10px 18px;max-width:88%;'
+        +'background:linear-gradient(135deg,rgba(255,120,180,.13),rgba(255,200,80,.13));'
+        +'border:1px solid rgba(255,120,180,.4);border-radius:12px;display:inline-block">'
+        +'<div style="font-size:.9rem;font-weight:700;color:var(--txt)">🎉 '+esc(_bdayInfo.name)+'的生日</div>'
+        +'<div style="font-size:.72rem;color:var(--muted);margin-top:3px">今天是特别的日子，记得送上祝福~</div></div>';
+    } else {
+      _html+='<div style="margin-top:16px;font-size:.82rem;color:var(--muted);opacity:.8;line-height:1.9">新的一天，新的开始。</div>';
+    }
+    // 庄园提示
+    _html+='<div style="margin-top:18px;font-size:.72rem;color:var(--txt2);line-height:2">'
+      +'不知道庄园里今天有没有什么新动向……<br>'
+      +'<span onclick="finishStory();setTimeout(function(){navTo(\'manor\');},150)" style="color:var(--acc2);font-size:.7rem;cursor:pointer">要不要去看看？✨</span></div>';
+    _html+='</div>';
+    if(typeof openStoryModal==='function')
+      openStoryModal({title:'☀️ 新的一天',story:[_html],noSplit:true,cat:'basic',dateSub:_ds},'日程',{});
+  },delay);
 }
 
 // ── 时间推进 ─────────────────────────────────────────────────
@@ -75,6 +191,17 @@ function consumeTime(period){
   if(typeof dailyPregnancyCheck==='function') try{dailyPregnancyCheck();}catch(e){}
   // ★ 每日节日检测
   if(typeof checkFestivalWarning==='function') try{checkFestivalWarning();}catch(e){}
+  // ★ 修复：天数变化后立即持久化，防止刷新丢失
+  if(typeof _saveDay==='function') _saveDay();
+  // ★ 同步天数到角色存档，防止刷新后天数倒退
+  if(State.currentChar){
+    try{
+      var _sv=typeof loadSave==='function'?loadSave(State.currentChar.id):null;
+      if(_sv){_sv.day=State.day;localStorage.setItem('era_sv_'+State.currentChar.id,JSON.stringify(_sv));}
+    }catch(e){}
+  }
+  // ★ 新天提示卡片（统一入口）
+  showNewDayCard(State.day,500);
 }
 
 // ── 体力消耗记录 & 查看 ─────────────────────────────────────────
@@ -131,67 +258,63 @@ function openStaminaDetail(){
 var EXP_ICONS = {
   'expV': '🌺', 'expA': '🍑', 'expPeak': '🎆', 'expEjac': '💦', 'expSex': '🛏️', 
   'expCreampie': '🤍', 'expAnal': '🤎', 'expU': '💧', 'expM': '🍈', 'expSolo': '🪞', 
-  'expTeachSolo': '📸', 'expFluid': '🥛', 'expSemenDrinkPeak': '🤤', 'expPee': '⛲', 
-  'expScat': '💩', 'expService': '🙇', 'expOral': '👅', 'expCunnilingus': '🐚', 
+  'expTeachSolo': '📸', 'expFluid': '🥛', 'expSemenDrinkPeak': '🤤', 'expPee': '⛲',  'expService': '🙇', 'expOral': '👅', 'expCunnilingus': '🐚', 
   'expLove': '💖', 'expWeird': '⚠️', 'expSuffer': '⛓️', 'expBite': '😈', 
   'expYuri': '🌸', 'expRose': '⚔️', 'expBind': '🎀', 'expVExpand': '🏵️', 
   'expAExpand': '⭕', 'expUExpand': '💉', 'expMilk': '🍼', 'expTentacle': '🦑', 
   'expVampire': '🦇', 'expEgg': '🥚', 'expBirth': '👶', 'expHouse': '🍳', 
   'expPhoto': '📷', 'expModel': '🎞️', 'expSing': '🎤', 'expTrain': '👑',
-  'expAnalLick': '🌙',  // ★ 新增：舔肛经验
+  'expKiss': '💋',      // 接吻经验（奴隶）
+  'expDate': '🌹',      // 约会经验
+  'expAnalLick': '🌙',  //舔肛经验
 };
 
 var EXP_FIELDS = [
   // 【基础类】
-  {key:'expV', label:'Ｖ经验', group:'基础', desc:'接纳粗暴入侵的证明。累积越多，花壶就会变得愈发柔软湿润，渴求着被填满。'},
-  {key:'expA', label:'Ａ经验', group:'基础', desc:'后庭被强行开发的履历。从最初的抗拒到食髓知味，肉体正一步步走向堕落。'},
-  {key:'expPeak', label:'绝顶经验', group:'基础', desc:'攀上极乐巅峰的次数。每一次大脑空白的颤栗，都在将身体改造成离不开快感的模样。'},
+  {key:'expKiss', label:'接吻经验', group:'基础', desc:'唇瓣轻触的瞬间积累的亲密经验。从羞赧地轻啄到贪婪地纠缠，每一次接触都在拉近彼此的距离——或者，彻底模糊了主从的界限。'},
+  {key:'expLove', label:'爱情经验', group:'基础', desc:'在肌肤相亲中感受到浓浓爱意的瞬间。不仅仅是肉欲，连灵魂都交织在一起了。'},
+    {key:'expV', label:'Ｖ经验', group:'基础', desc:'接纳粗暴入侵的证明。累积越多，花穴就会变得愈发柔软湿润，渴求着被填满。'},
+  {key:'expA', label:'Ａ经验', group:'基础', desc:'后庭被进入占有的履历，从最初的抗拒到食髓知味，肉体正一步步走向堕落。'},
   {key:'expEjac', label:'射精经验', group:'基础', desc:'宣泄欲望的里程碑。射得越多，积攒的量越惊人，敏感度也会变得越来越无可救药。'},
   {key:'expSex', label:'性交经验', group:'基础', desc:'最原始的欲望交融。身经百战的肉体，总能在纠缠中轻易勾起对方的欲火。'},
+  {key:'expM', label:'Ｍ经验', group:'基础', desc:'胸部被反复揉捏、吸吮的证明。原本纯洁的双峰，正被慢慢调教成敏感的淫囊。'},
+  {key:'expU', label:'Ｕ经验', group:'基础', desc:'那条纤细敏感的尿道被侵犯的禁忌体验。稍微的刺激，就能带来触电般的疯狂战栗。'},
+  {key:'expOral', label:'口交经验', group:'基础', desc:'用唇舌殷勤侍奉的次数。技巧越纯熟，越能用口腔轻易让对方缴械投降。'},
+  {key:'expFluid', label:'吞精经验', group:'基础', desc:'光是咽下浓浊的精液就能爽到高潮的，大脑已经被这白色的琼浆彻底烧坏了呢。'},
+  {key:'expCunnilingus', label:'舔阴经验', group:'基础', desc:'品尝秘密花园甘露，灵活的舌头能带来如同水乳交融般的极致享受。'},
+  {key:'expAnalLick', label:'舔肛经验', group:'基础', desc:'用唇舌侍奉最隐秘禁忌之处，那种难以启齿的酥麻感，正在一点点瓦解高傲的防线。'},  
   {key:'expCreampie', label:'内射经验', group:'基础', desc:'最深处被滚烫白浊灌满的次数。贪婪地吞咽着精华，身体结构都在为之改变。'},
   {key:'expAnal', label:'肛射经验', group:'基础', desc:'后庭被当做精液便器的耻辱印记。温热的浊液在肠道内流淌的感觉，真是让人着迷。'},
-  {key:'expU', label:'Ｕ经验', group:'基础', desc:'那条纤细敏感的尿道被侵犯的禁忌体验。稍微的刺激，就能带来触电般的疯狂战栗。'},
-  {key:'expM', label:'Ｍ经验', group:'基础', desc:'胸部被反复揉捏、吸吮的证明。原本纯洁的双峰，正被慢慢调教成敏感的淫囊。'},
   {key:'expSolo', label:'自慰经验', group:'基础', desc:'深夜里难耐空虚、独自抚慰的次数。指尖的魔术，是会上瘾的毒药哦。'},
   {key:'expTeachSolo', label:'调教自慰经验', group:'基础', desc:'在他人注视下强迫玩弄自己的羞耻Play。每一次含泪的展示，都在摧毁仅存的底线。'},
-  {key:'expFluid', label:'精液经验', group:'基础', desc:'品尝、吞咽雄性精华的次数。那股特有的腥甜，渐渐成了令人安心的绝佳“补品”。'},
-  {key:'expSemenDrinkPeak', label:'精饮绝顶经验', group:'基础', desc:'光是咽下浓浊的精液就能爽到高潮的变态体质。大脑已经被这白色的琼浆彻底烧坏了。'},
+  {key:'expPeak', label:'绝顶经验', group:'基础', desc:'攀上极乐巅峰的次数。每一次大脑空白的颤栗，都在将身体改造成离不开快感的模样。'},
   {key:'expPee', label:'放尿经验', group:'基础', desc:'在极度刺激下失控绝顶、水花四溅的失态记录。理智随着淡黄色的水流一同决堤。'},
-  {key:'expScat', label:'排便经验', group:'基础', desc:'后庭承受重口灌肠后失控排泄的屈辱证明。连排泄的尊严都被彻底剥夺。'},
 
-  // 【性癖类】
-  {key:'expService', label:'侍奉快乐经验', group:'性癖', desc:'抛弃尊严讨好他人并获得快感的次数。“只要您舒服，我就开心”的完美奴隶。'},
-  {key:'expOral', label:'口交经验', group:'性癖', desc:'用唇舌殷勤侍奉的次数。技巧越纯熟，越能用口腔轻易让对方缴械投降。'},
-  {key:'expCunnilingus', label:'舔阴经验', group:'性癖', desc:'品尝秘密花园甘露的经验。灵活的舌头能带来如同水乳交融般的极致享受。'},
-  {key:'expAnalLick', label:'舔肛经验', group:'性癖', desc:'用唇舌侍奉最隐秘禁忌之处的耻辱履历。那种难以启齿的酥麻感，正在一点点瓦解高傲的防线。'},  // ★ 新增
-  {key:'expLove', label:'爱情经验', group:'性癖', desc:'在肌肤相亲中感受到浓浓爱意的瞬间。不仅仅是肉欲，连灵魂都交织在一起了。'},
-  {key:'expSuffer', label:'痛苦快乐经验', group:'性癖', desc:'痛楚与快感神经发生短路的证明。比起温柔的爱抚，现在的身体更渴望粗暴的鞭挞。'},
-  {key:'expBite', label:'嗜虐快乐经验', group:'性癖', desc:'看着猎物在自己手下哭泣求饶而感到兴奋。骨子里的施虐欲正在渐渐苏醒呢。'},
-  {key:'expYuri', label:'百合经验', group:'性癖', desc:'女孩子之间柔软芳香的秘密纠缠。没有粗暴的侵犯，只有水乳交融的甜美。'},
-  {key:'expRose', label:'蔷薇经验', group:'性癖', desc:'男男之间充满力量感与雄性荷尔蒙的冲撞。一旦陷入这泥潭，就再也无法自拔了。'},
-  {key:'expBind', label:'紧缚经验', group:'性癖', desc:'被粗暴捆绑、悬吊的次数。从最初的挣扎，到后来甚至会期待绳索勒进肉里的快感。'},
-
-  // 【极堕类】
-  {key:'expVExpand', label:'Ｖ扩张经验', group:'极堕', desc:'花壶被难以想象的异物强行撑开的恐怖记录。极限在哪里呢？早就没有极限了。'},
-  {key:'expAExpand', label:'Ａ扩张经验', group:'极堕', desc:'后庭被粗暴扩张到不可思议程度的履历。肠道已经被彻底玩坏，变成黑洞了。'},
-  {key:'expUExpand', label:'Ｕ扩张经验', group:'极堕', desc:'最脆弱的通道被强行扩充的禁忌惩罚。连排泄的机能都被彻底玩弄于股掌之间。'},
-  {key:'expMilk', label:'喷乳经验', group:'极堕', desc:'受到刺激后，乳汁如泉水般喷涌的次数。身体已经完全记住了作为“产奶工具”的职责。'},
-  {key:'expTentacle', label:'触手经验', group:'极堕', desc:'被湿滑黏腻的异形生物缠绕、侵犯的噩梦。理智被触手的粘液一点点溶解。'},
-  {key:'expVampire', label:'吸血经验', group:'极堕', desc:'颈侧被獠牙刺破、生命力随血液流失的迷乱体验。痛苦伴随着诡异的销魂快感。'},
-  {key:'expEgg', label:'产卵经验', group:'极堕', desc:'腹部被异物塞满，随后像生育般将卵排出的离奇经历。母性本能在奇怪的地方觉醒了。'},
-  {key:'expBirth', label:'生育经验', group:'极堕', desc:'十月怀胎、诞下子嗣的伟大且艰辛的经历。作为“母亲”的属性正在不断攀升。'},
-  {key:'expWeird', label:'异常经验', group:'极堕', desc:'经历了超出常理的严酷调教。每一次精神的崩坏与重组，都在把人推向不可挽回的深渊。'},
+  // 【沉沦类】
+  {key:'expBite', label:'嗜虐快乐', group:'沉沦', desc:'看着猎物在自己手下哭泣求饶而感到兴奋。骨子里的施虐欲正在渐渐苏醒呢。'},
+  {key:'expSuffer', label:'痛苦快乐', group:'沉沦', desc:'痛楚与快感神经发生短路，两者交织的混沌，早已辨认不清。越是被伤害，越是渴望更多——这条路，没有尽头。'},
+  {key:'expTrain', label:'调教经验', group:'沉沦', desc:'作为支配者挥下皮鞭、下达指令的经验。看着高傲的人在自己脚下臣服，真是无与伦比的享受。'},
+{key:'expService', label:'侍奉快乐', group:'沉沦', desc:'甘愿将自己的全部献出、只求对方满足时涌现的扭曲幸福感。不需要理由，不需要回报，『您的快乐，就是我存在的意义』——这句话，已经从表演变成了发自骨髓的信仰。'},
+  {key:'expYuri', label:'百合经验', group:'沉沦', desc:'女孩子之间柔软芳香的秘密纠缠。没有粗暴的侵犯，只有水乳交融的甜美。'},
+  {key:'expRose', label:'蔷薇经验', group:'沉沦', desc:'男男之间充满力量感与雄性荷尔蒙的冲撞。一旦陷入这泥潭，就再也无法自拔了。'},
+  {key:'expTentacle', label:'触手经验', group:'沉沦', desc:'被湿滑黏腻的异形生物缠绕、侵犯的噩梦。理智被触手的粘液一点点溶解。'},
+  {key:'expEgg', label:'产卵经验', group:'沉沦', desc:'腹部被异物塞满，随后像生育般将卵排出的离奇经历。母性本能在奇怪的地方觉醒了。'},
+  {key:'expVExpand', label:'Ｖ扩张经验', group:'沉沦', desc:'花壶被难以想象的异物强行撑开的恐怖记录。极限在哪里呢？早就没有极限了。'},
+  {key:'expAExpand', label:'Ａ扩张经验', group:'沉沦', desc:'后庭被粗暴扩张到不可思议程度的履历。肠道已经被彻底玩坏，变成黑洞了。'},
+  {key:'expUExpand', label:'Ｕ扩张经验', group:'沉沦', desc:'最脆弱的通道被强行扩充的禁忌惩罚。连排泄的机能都被彻底玩弄于股掌之间。'},
+  {key:'expMilk', label:'喷乳经验', group:'沉沦', desc:'受到刺激后，乳汁如泉水般喷涌，身体已经完全记住了作为“产奶工具”的职责。'},
+  {key:'expVampire', label:'吸血经验', group:'沉沦', desc:'颈侧被獠牙刺破、生命力随血液流失的迷乱体验，痛苦伴随着诡异的销魂快感。'},
+  {key:'expBirth', label:'生育经验', group:'沉沦', desc:'十月怀胎、诞下子嗣的伟大且艰辛的经历。作为“母亲”的属性正在不断攀升。'},
+  {key:'expBind', label:'紧缚经验', group:'沉沦', desc:'被粗暴捆绑、悬吊的次数。从最初的挣扎，到后来甚至会期待绳索勒进肉里的快感。'},
+  {key:'expWeird', label:'异常经验', group:'沉沦', desc:'经历了超出常理的严酷调教，每一次精神的崩坏与重组，都在把人推向不可挽回的深渊。'},
 
   // 【日常类】
+  {key:'expDate', label:'约会经验', group:'日常', desc:'与对方共赴约会、并肩游走于人间烟火的经验。那些笑声、那些回眸、那些不经意的肌肤相触——比任何调教都更难以消除的，是被人珍视过的记忆。'},
   {key:'expHouse', label:'家务经验', group:'日常', desc:'洗手作羹汤、打扫卫生的居家日常。想抓住一个人的心，先抓住他的胃！'},
   {key:'expPhoto', label:'摄影经验', group:'日常', desc:'举起相机，将羞耻、淫靡的瞬间定格。镜头的背后，藏着怎样贪婪的目光呢？'},
   {key:'expModel', label:'被拍经验', group:'日常', desc:'在镜头前被迫摆出各种下流姿势的耻辱。就算哭着求饶，快门声也不会停止哦。'},
-  {key:'expSing', label:'歌唱经验', group:'日常', desc:'用歌声传递情感的次数。清脆的嗓音，不仅能在舞台上闪耀，也能在床上唱出动听的呻吟。'},
-  {key:'expTrain', label:'调教经验', group:'日常', desc:'作为支配者挥下皮鞭、下达指令的经验。看着高傲的人在自己脚下臣服，真是无与伦比的享受。'}
+  {key:'expSing', label:'歌唱经验', group:'日常', desc:'用歌声传递情感的次数。清脆的嗓音，不仅能在舞台上闪耀，也能在床上唱出动听的呻吟。'}
 ];
-
-
-
 
 function getPlayerExpData() { try { return JSON.parse(localStorage.getItem('era_player_exp') || '{}'); } catch (e) { return {}; } }
 function savePlayerExpData(o) { localStorage.setItem('era_player_exp', JSON.stringify(o)); }
@@ -200,17 +323,16 @@ var EXP_LABEL_TO_KEY = {
   'V经验':'expV','A经验':'expA','绝顶经验':'expPeak','射精经验':'expEjac',
   '性交经验':'expSex','内射经验':'expCreampie','肛射经验':'expAnal',
   'U经验':'expU','M经验':'expM','自慰经验':'expSolo','调教自慰经验':'expTeachSolo',
-  '精液经验':'expFluid','精饮绝顶经验':'expSemenDrinkPeak','放尿经验':'expPee',
-  '排便经验':'expScat','侍奉快乐经验':'expService','口交经验':'expOral',
-  '舔阴经验':'expCunnilingus','爱情经验':'expLove','痛苦快乐经验':'expSuffer',
-  '嗜虐快乐经验':'expBite','百合经验':'expYuri','蔷薇经验':'expRose',
+  '吞液经验':'expFluid','放尿经验':'expPee','侍奉快乐':'expService','口交经验':'expOral',
+  '舔阴经验':'expCunnilingus','爱情经验':'expLove','痛苦快乐':'expSuffer',
+  '嗜虐快乐':'expBite','百合经验':'expYuri','蔷薇经验':'expRose',
   '紧缚经验':'expBind','V扩张经验':'expVExpand','A扩张经验':'expAExpand',
   'U扩张经验':'expUExpand','喷乳经验':'expMilk','触手经验':'expTentacle',
   '吸血经验':'expVampire','产卵经验':'expEgg','生育经验':'expBirth',
   '异常经验':'expWeird','家务经验':'expHouse','摄影经验':'expPhoto',
-  '被拍经验':'expModel','歌唱经验':'expSing','调教经验':'expTrain',
-  '前列腺经验':'expAnal','露出经验':'expPhoto',
-  '舔肛经验':'expAnalLick',  // ★ 新增
+  '被拍经验':'expModel','歌唱经验':'expSing','调教经验':'expTrain','露出经验':'expPhoto','约会经验':'expDate',
+  '接吻经验':'expKiss',
+  '舔肛经验':'expAnalLick',  
 };
 function addPlayerExp(key, amt) {
   // 若key是中文label，转换成短key
@@ -218,7 +340,7 @@ function addPlayerExp(key, amt) {
   var e = getPlayerExpData();
   e[realKey] = (e[realKey] || 0) + amt;
   savePlayerExpData(e);
-  State.playerExp = (State.playerExp || 0) + amt;
+  State.playerExp = (parseInt(State.playerExp) || 0) + (parseFloat(amt) || 0);
   if (typeof saveMiniState === 'function') saveMiniState();
 }
 
@@ -237,14 +359,14 @@ function openExpDetail() {
   if (!body) return;
   var exp = getPlayerExpData();
   
-  var groups = { '基础': [], '性癖': [], '极堕': [], '日常': [] };
+  var groups = { '基础': [], '沉沦': [], '日常': [] };
   EXP_FIELDS.forEach(function (f) { if (groups[f.group]) groups[f.group].push(f); });
 
   // CSS 核心改动：采用 auto-fill minmax(145px)，确保手机端能塞下2列，大幅缩减高度
   var html = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div style="font-size:.82rem;color:var(--muted)">各项经验详情</div>
-      <div style="font-size:.78rem;color:var(--acc);font-weight:700">总计：${State.playerExp || 0}</div>
+      <div style="font-size:.78rem;color:var(--acc);font-weight:700">总计：${parseInt(State.playerExp)||0}</div>
     </div>
     <style>
       .exp-grid-v4 { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px, 1fr)); gap: 10px; margin-bottom: 20px; }
@@ -277,8 +399,7 @@ function openExpDetail() {
     </style>
   `;
 
-  var groupThemes = { '基础': 'theme-base', '性癖': 'theme-skill', '极堕': 'theme-hardcore', '日常': 'theme-daily' };
-
+var groupThemes = { '基础': 'theme-base', '沉沦': 'theme-hardcore', '日常': 'theme-daily' };
   for (var gn in groups) {
     if (groups[gn].length === 0) continue;
 
@@ -372,9 +493,13 @@ function openStatusPanel(){
   var expHtml = '<div style="font-size:.82rem;font-weight:700;color:var(--txt);margin:16px 0 10px">📜 经历</div>';
   expHtml += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px">';
   expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">陷落人数</div><div style="font-weight:700;color:var(--txt)">'+ fallen.length +' 人</div></div>';
-  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">交予童贞的对象</div><div style="font-weight:700;color:var(--txt)">'+ esc(det.firstVirginity||'——') +'</div></div>';
-  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">交予后庭处子的对象</div><div style="font-weight:700;color:var(--txt)">'+ esc(det.firstAnal||'——') +'</div></div>';
-  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">经验总计</div><div style="font-weight:700;color:var(--txt)">'+ (State.playerExp||0) +'</div></div>';
+  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">处子</div><div style="font-weight:700;color:var(--txt)">'+ esc(det.firstVirginity||'——') +'</div></div>';
+  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">后庭处子</div><div style="font-weight:700;color:var(--txt)">'+ esc(det.firstAnal||'——') +'</div></div>';
+  var _plExp = getPlayerExpData();
+  var _tzVal = det.firstSex || '童贞';
+  expHtml += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:8px;padding:8px 10px"><div style="font-size:.65rem;color:var(--muted)">童贞</div><div style="font-weight:700;color:var(--txt)">'+ _tzVal +'</div></div>';
+  
+      
   expHtml += '</div>';
   if(fallen.length) {
     expHtml += '<div style="font-size:.72rem;color:var(--muted);margin-bottom:10px">已陷落：' + fallen.map(function(n){return esc(n);}).join('、') + '</div>';
@@ -600,7 +725,7 @@ function _doPersonalityChange(newPersonality, cost){
   State.money -= cost;
   _logMoney('洗脑·性格转换', -cost);
   c.personality = newPersonality;
-  if(typeof writeSave==='function') writeSave();
+  if(typeof manualWriteSave==='function') manualWriteSave('洗脑操作'); // 付费操作触发存档
 
   var storyLines = [
     '「好的，已经确认完毕了，马上为您的奴隶进行深度而优质的洗脑～」',
@@ -654,7 +779,7 @@ function _doRankUp(typeId, typeName, cost){
   c.rank_type = typeId;
   c.hypno_rank_up = true;
   if(c.obedience) c.obedience = Math.min(100, c.obedience + 10);
-  if(typeof writeSave==='function') writeSave();
+  if(typeof manualWriteSave==='function') manualWriteSave('洗脑操作'); // 付费操作触发存档
   var story = [c.name+'获得了「'+typeName+'」属性。','被洗脑完的'+c.name+'扶着脑袋，一副昏昏沉沉的样子……','花费了 $'+(cost/10000)+'万'];
   pushStoryLog('hypno',{title:'上级陷落·'+typeName,date:getDateStr(),char:c.name,story:story});
   toast('✓ '+c.name+'获得了「'+typeName+'」','ok');
@@ -688,7 +813,7 @@ function _doOmega(apply, cost){
   State.money -= cost; _logMoney('洗脑·'+(apply?'Omega':'清除Omega'), -cost);
   c.hypno_omega = !!apply;
   if(apply){ c.lust = Math.min(100, (c.lust||0)+15); }
-  if(typeof writeSave==='function') writeSave();
+  if(typeof manualWriteSave==='function') manualWriteSave('洗脑操作'); // 付费操作触发存档
   var msg = apply ? c.name+'成为了Omega！' : c.name+'已恢复正常。';
   pushStoryLog('hypno',{title:(apply?'Omega化':'清除Omega'),date:getDateStr(),char:c.name,story:[msg,'花费了 $'+(cost/10000)+'万']});
   toast('✓ '+msg,'ok');
@@ -725,7 +850,7 @@ function _doYandere(apply, cost){
     c.obedience = Math.min(100, (c.obedience||0)+15);
     if(c.persona) c.persona.broken = Math.min(100, (c.persona.broken||0)+30);
   }
-  if(typeof writeSave==='function') writeSave();
+  if(typeof manualWriteSave==='function') manualWriteSave('洗脑操作'); // 付费操作触发存档
   var storyLines = apply
     ? [c.name+'的眼神变得空洞而疯狂……','「……只要有主人在……其他的，都不需要了……」',c.name+'成为了病娇。','花费了 $'+(cost/10000)+'万']
     : [c.name+'的眼神逐渐恢复了些许清明。','「……我……这是……？」',c.name+'的病娇属性已被消除。','花费了 $'+(cost/10000)+'万'];
@@ -790,7 +915,7 @@ function _renderMMStep1(body,allChars,voucherCount){
       var aff=sv&&sv.char?Math.round(sv.char.affection||0):0;
       var badge=aff<30?'<span style="color:#f06;font-size:.62rem">冷淡</span>':aff>=70?'<span style="color:#f8c;font-size:.62rem">亲密</span>':'<span style="color:var(--muted);font-size:.62rem">普通</span>';
       return '<div class="mm-char-card" data-id="'+c.id+'" onclick="mm'+prefix+'('+c.id+',this)">'+
-        '<div style="font-size:1.3rem">'+cEmoji(c)+'</div>'+
+        (typeof _buildSlaveAvaHtml==='function'?_buildSlaveAvaHtml(c.id,36,false):'<div style="font-size:1.3rem">'+cEmoji(c)+'</div>')+
         '<div style="font-size:.8rem;font-weight:600;margin:2px 0">'+esc(c.name)+'</div>'+
         '<div style="display:flex;gap:4px;align-items:center;justify-content:center">'+
           '<span style="font-size:.65rem;color:var(--muted)">好感'+aff+'</span>'+badge+
@@ -842,7 +967,7 @@ function _doQuickBuyVoucher(){
   State.inventory=State.inventory||{};
   State.inventory['date_voucher']=(State.inventory['date_voucher']||0)+qty;
   if(typeof _logMoney==='function')_logMoney('购买·约会券x'+qty,-cost);
-  writeSave();closeOv('ov-exp-detail');
+  manualWriteSave("购买操作");closeOv('ov-exp-detail');
   toast('购买成功！约会券 +'+qty,'ok');
   openMatchmaking();
 }
@@ -1057,7 +1182,8 @@ function openStoryLogModal(type){
       html+='<div class="log-group-body" id="'+gid+'" style="margin-top:6px">';
       items.forEach(function(item){
         var e=item.entry;
-        var preview=(e.story&&e.story[0])?e.story[0].slice(0,60):'';
+
+        var preview=((e.story||[]).find(function(p){return p&&!p.trim().startsWith('<');})||'').slice(0,60);
         html+='<div class="log-record" style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:var(--card);border:1px solid var(--bdr2);border-radius:8px;margin-bottom:6px;cursor:pointer;position:relative" onclick="readStoryLog('+item.index+',\''+type+'\')" oncontextmenu="event.preventDefault();_longPressDeleteStory('+item.index+',\''+type+'\')">';
         html+='<input type="checkbox" class="story-del-cb" data-idx="'+item.index+'" style="display:none;flex-shrink:0;margin-top:3px;width:18px;height:18px;accent-color:var(--sr)">';
         html+='<div style="flex:1;min-width:0">';
@@ -1131,12 +1257,16 @@ function readStoryLog(index,type){
   bodyHtml+='</div>';
   bodyHtml+='<div style="padding:8px 4px;line-height:2;font-size:.88rem;color:var(--txt);letter-spacing:.3px">';
   (entry.story||[]).forEach(function(p){
-    if(p.startsWith('「')||p.startsWith('"'))
+    if(typeof p==='string'&&p.trim().startsWith('<')){
+      // HTML 内容直接渲染，不转义（奴隶经验/玩家经验等提示块）
+      bodyHtml+=p;
+    } else if(p.startsWith('「')||p.startsWith('"')){
       bodyHtml+='<p style="margin-bottom:10px;padding:6px 12px;background:var(--card2);border-radius:8px;border-left:3px solid var(--acc3);font-style:italic;color:var(--acc2)">'+esc(p)+'</p>';
-    else if(p.trim()==='')
+    } else if(p.trim()===''){
       bodyHtml+='<div style="height:8px"></div>';
-    else
+    } else {
       bodyHtml+='<p style="margin-bottom:10px;text-indent:2em">'+esc(p)+'</p>';
+    }
   });
   bodyHtml+='</div>';
   if(entry.choiceText) bodyHtml+='<div style="margin-top:12px;padding:12px;background:var(--card2);border-radius:10px"><div style="font-size:.75rem;color:var(--acc3);margin-bottom:6px;font-weight:600">▶ 你的选择：'+esc(entry.choiceText)+'</div><div style="font-size:.82rem;color:var(--txt2);line-height:1.8">'+esc(entry.choiceResult||'').replace(/\n/g,'<br>')+'</div></div>';
@@ -1174,43 +1304,12 @@ async function aiGenForStory(type,index){
   btn.disabled=false;btn.textContent='🤖 AI续写';
 }
 
-// ── 玩家日常事件（PLAYER_DAILY，与stories.js的DAILY_EVENTS不同）───
+// ── 玩家日常事件（PLAYER_DAILY，与stories.js的DAILY_EVENTS不同）───排序顺序，可以随意改描述。
 var PLAYER_DAILY=[
-  {id:'pd_morning',title:'清晨的日常',period:'day',energyCost:15,
-   stories:[
-    ['清晨，阳光透过窗帘的缝隙洒进来，整个居所安静得只有鸟叫声。','泡了一壶茶，坐在窗边发了一会儿呆。','这种平静的早晨，让人感觉一切都在掌握之中。'],
-    ['起得很早，比平时早了一个多时辰。','四下里安静，连风声都不明显，只有自己的呼吸。','把昨天没做完的事情想了想，列了个清单——今天，可以做完的。'],
-   ]},
-  {id:'pd_market',title:'集市采购',period:'day',energyCost:20,moneyCost:500,
-   stories:[
-    ['带着购物的心情走进集市，人声鼎沸，热闹非凡。','采购了一些日用物品，顺便打听了城里的消息。','满载而归，花了一些钱，但感觉还是值得的。'],
-    ['集市今天比平时还要热闹，连平时清冷的北巷都多了几个摊位。','挑了半天，买了几样有用的和几样纯粹好看的。','回来的路上，手里拎着东西，步子比来时轻快了一些。'],
-   ]},
-  {id:'pd_train',title:'修炼催眠技艺',period:'day',energyCost:25,
-   effect:function(){var d=getPlayerDetail();d.hypnosPts=(d.hypnosPts||0)+50;savePlayerDetail(d);},
-   stories:[
-    ['找了一处僻静的地方，练习催眠技能，将意识集中，感知他人内心的波动。','练习了整整半天，虽然疲惫，但感觉催眠的技能又精进了一分。','催眠点数悄悄增加了。'],
-    ['今天的修炼重点放在了"语气控制"上——同样的话，用不同的节奏说出来，效果截然不同。','反复练习了几十遍，说到嗓子有点干，但感觉找到了某种韵律。','催眠点数有所提升。下次，可以试试实战了。'],
-   ]},
-  {id:'pd_tavern',title:'夜间酒馆',period:'night',energyCost:20,
-   stories:[
-    ['夜色降临，难得放松一下，去城里的酒馆坐了坐。','喝了两杯，听了些奇奇怪怪的传言，认识了几个有意思的人。','离开时，月亮已经挂得很高了，夜风带着些微醉意。'],
-    ['今晚的酒馆出乎意料地安静，只有角落里一个人在拨弦，调子很低。','喝了一壶，没有聊天，只是坐着，听着，看着。','不知不觉过了两个时辰，起身离开，感觉心里什么东西松动了一些。'],
-   ]},
-  {id:'pd_read',title:'研读典籍',period:'night',energyCost:10,
-   effect:function(){addPlayerExp('expTrain',30);},
-   stories:[
-    ['夜深了，翻出了一本关于调教心理的古籍，仔细研读。','字里行间藏着许多前人的智慧，合上书的时候，天色已经有些泛白。','调教经验有所增长。'],
-    ['这本书上次只读了前三章，今晚把后半段也补完了。','有些段落反复看了两三遍——不是看不懂，而是太懂了，需要停下来消化一下。','读完之后，脑子里有些东西重新排列了位置，说不清好不好，但确实不同了。'],
-   ]},
-  {id:'pd_deal',title:'秘密交易',period:'day',energyCost:20,moneyGain:2000,
-   stories:[
-    ['城里有人捎来消息，说有一批货需要中间人牵线，报酬不低。','去了约定的地点，交换了信息，完成了这笔小生意。','来路不明的钱，揣在怀里感觉有点烫，但数了数，还是满意地回去了。'],
-    ['消息传来的时候，刚好没有其他安排。','见了面，谈得很快，对方是个爽快人，不废话，只谈数字。','钱拿到手，对方先走，各不相干。今天多了两千金币，挺好的。'],
-   ]},
-  {id:'pd_care',title:'观察奴隶',period:'day',energyCost:15,
+
+  {id:'pd_care',title:'观察奴隶',desc:'嘘，如果看到什么奇怪的事情不要声张哦，说不定有“惊喜”呢。',period:'day',energyCost:15,
    effect:function(){
-     if(State.currentChar){State.currentChar.affection=clamp((State.currentChar.affection||0)+3);if(typeof writeSave==='function')writeSave();}
+     if(State.currentChar){State.currentChar.affection=clamp((State.currentChar.affection||0)+3);}
      // 观察可能触发奴隶自己做事的剧情或偷情剧情
      setTimeout(function(){
        if(typeof checkAffairEvent==='function'){
@@ -1222,37 +1321,177 @@ var PLAYER_DAILY=[
        }
      },300);
    },
+   storyFn: getObserveSlaveStory,
    stories:[
-    ['你悄悄躲在走廊的暗处，观察着奴隶们的一举一动。','有的在整理房间，有的在低声交谈，有的则独自发呆。','这些不经意的瞬间，往往能看到他们最真实的一面。'],
-    ['今天没有安排训练，你选择远远地观察。','一个奴隶在窗边看着远方出神，另一个则偷偷翻看着什么东西。','「……」你默默记下了这些细节，也许日后会派上用场。'],
     ['你在二楼的阳台上，俯瞰着庭院里的奴隶们。','有两个似乎在窃窃私语，看到你的目光后立刻分开了。','有意思……看来他们之间，并不像表面上那么简单。'],
    ]},
-  // 随机日常（对应旧的DAILY_EVENTS）
-  {id:'pd_random',title:'随机日常',period:'day',energyCost:10,isRandom:true,
-   stories:null // 运行时从DAILY_EVENTS随机取
+    
+    {id:'pd_joy',   title:'欢愉之影',   period:'day', energyCost:15, desc:'谁不会为至高无上的主所沉迷？包括主在内。',
+    get stories(){ return typeof JOY_STORIES!=='undefined'?JOY_STORIES:[['今天没有发生什么特别的事。']]; },
+  },                    
+
+   
+   {
+    id: 'pd_teatime',
+    title: '午后茶歇',
+    desc: '焙香四溢，茶烟袅袅，在甜点与嬉闹中消磨半日清闲。',
+    period: 'day', // 或 afternoon，根据你的时间段系统决定
+    energyCost: 15,
+    stories: [
+    ['起得很早，比平时早了一个多时辰。','四下里安静，连风声都不明显，只有自己的呼吸。','把昨天没做完的事情想了想，列了个清单——今天，可以做完的。'],
+    ]
   },
+
+
+{
+  id: 'pd_music',
+  title: '听曲消遣',
+  desc: '琴房那边总有些动静，有人练得有模有样，也有人吹得不成调子。过去瞧个热闹，顺便打发时间。',
+  period: 'day',
+  energyCost: 10,
+  effect: function() {
+    if (typeof addPlayerExp === 'function') addPlayerExp('expSing', 30);
+  },
+  get stories() {
+    return typeof MUSIC_DAILY_STORIES !== 'undefined'
+      ? MUSIC_DAILY_STORIES
+      : [['今天听到了一段动人的旋律。']];
+  },
+},
+
+
+   {id:'pd_manor', title:'庄园琐事',   period:'day',   energyCost:10, desc:'庄园里总有些说大不大、说小不小的事。散散步，说不定有意外发现。',
+    get stories(){ return typeof MANOR_STORIES!=='undefined'?MANOR_STORIES:[['庄园里平静如常，什么都没发生。']]; },
+    },
+    
+  {id:'pd_market',title:'集市采购',desc:'人声鼎沸，热闹非凡。钱会少一些，但说不定能捡到意外的收获。',period:'day',energyCost:20,moneyCost:500,
+   stories:[
+    ['带着购物的心情走进集市，人声鼎沸，热闹非凡。','采购了一些日用物品，顺便打听了城里的消息。','满载而归，花了一些钱，但感觉还是值得的。'],
+    ['集市今天比平时还要热闹，连平时清冷的北巷都多了几个摊位。','挑了半天，买了几样有用的和几样纯粹好看的。','回来的路上，手里拎着东西，步子比来时轻快了一些。'],
+   ]},
+   
+{id:'pd_read', title:'书卷微凉', desc:'书香浮动，时光静止。翻开一册，忘了窗外是何时辰。',
+ period:'day', energyCost:10,
+ get stories(){ return typeof READING_STORIES!=='undefined'?READING_STORIES:[['在书房翻了几页书，午后就这样悄悄过去了。']]; },
+},
+
+
+
+
+{id:'pd_intimate', title:'亲密时光', desc:'不是调教，只是……相处。有时候，这种感觉反而更让人沉溺。',
+ period:'day', energyCost:15, 
+ effect:function(){ if(typeof addPlayerExp==='function') addPlayerExp('expDate',30); },
+ get stories(){ return typeof INTIMATE_DAILY_STORIES!=='undefined'?INTIMATE_DAILY_STORIES:[['和她们度过了一段轻松的时光。']]; },
+},
+   
+  {id:'pd_train',title:'修炼催眠技艺',desc:'催眠，对于调教者来说，是一件非常有用的技能哦。',period:'day',energyCost:25,
+   effect:function(){var d=getPlayerDetail();d.hypnosPts=(d.hypnosPts||0)+50;savePlayerDetail(d);},
+   stories:[
+    ['找了一处僻静的地方，练习催眠技能，将意识集中，感知他人内心的波动。','练习了整整半天，虽然疲惫，但感觉催眠的技能又精进了一分。','催眠点数悄悄增加了。'],
+    ['今天的修炼重点放在了"语气控制"上——同样的话，用不同的节奏说出来，效果截然不同。','反复练习了几十遍，说到嗓子有点干，但感觉找到了某种韵律。','催眠点数有所提升。下次，可以试试实战了。'],
+   ]},
+   
+   {id:'pd_bath', title:'浴场时光', desc:'热水与蒸汽，是最好的放松方式。带上奴隶，一起去浴场吧。',
+ period:'night', energyCost:15, 
+ get stories(){ return typeof BATH_DAILY_STORIES!=='undefined'?BATH_DAILY_STORIES:[['在浴场与奴隶共度了一段惬意的时光。']]; },
+},
+
+{id:'pd_tavern', title:'月色微醺', desc:'廊下备酒，月华如练。清风、明月、与一壶好酒——今夜，不谈明日事。',
+ period:'night', energyCost:20,
+ get stories(){ return typeof MOONLIT_STORIES!=='undefined'?MOONLIT_STORIES:[['月色正好，对月小酌，难得清闲。']]; },
+},   
+
+
+   {id:'pd_touch', title:'与触手共舞',  period:'night', energyCost:20, desc:'它们等了很久了。饿着的触手，比任何人都要殷勤。',
+    get stories(){ return typeof TOUCH_STORIES!=='undefined'?TOUCH_STORIES:[['触手们今夜格外安静。']]; },
+    },
+
+{id:'pd_lab',   title:'神秘实验室',  period:'night',   energyCost:20, desc:'工坊深处，新的\"作品\"正在成形——只是不知道这次，谁会是那块原料。',
+    get stories(){ return typeof LAB_STORIES!=='undefined'?LAB_STORIES:[['实验室今天没有新发现。']]; },
+    },
+      
+   
+  {id:'pd_deal',title:'地下温室',desc:'庄园深处有一间隐秘的温室，常年不见天日，却生长着一些来历不明的奇异植物。',period:'night',energyCost:20,
+   get stories(){ return typeof GREENHOUSE_STORIES!=='undefined'?GREENHOUSE_STORIES:[['在地下温室待了一会儿，安静极了。']]; },
+  },
+
+
+
 ];
 
 function openDailyEventList(){
   var body=document.getElementById('daily-ev-body');if(!body)return;
+
+  var _evStyle={
+    'pd_teatime': {icon:'🌅', color:'#e0884a'},
+    'pd_market':  {icon:'🛒', color:'#c09020'},
+    'pd_train':   {icon:'🌀', color:'#8050c0'},
+    'pd_tavern':  {icon:'🌕', color:'#7a6030'},
+    'pd_read':    {icon:'📜', color:'#5a9040'},
+    'pd_deal':    {icon:'🌿', color:'#2d7a4a'},
+    'pd_care':    {icon:'👁️', color:'#2a9088'},
+    'pd_joy':     {icon:'✨', color:'#6838a8'},
+    'pd_lab':     {icon:'⚗️', color:'#2888a0'},
+    'pd_touch':   {icon:'🦑', color:'#287848'},
+    'pd_manor':   {icon:'🏰', color:'#708060'},
+    'pd_music':   {icon:'🎵', color:'#a84870'},
+    'pd_intimate':{icon:'💕', color:'#b83868'},
+    'pd_bath':    {icon:'🛁', color:'#4a8ab8'},
+  };
+
   var cards=PLAYER_DAILY.map(function(ev){
     var cost=[];
     if(ev.energyCost)cost.push('体力 -'+ev.energyCost);
     if(ev.moneyCost)cost.push('金币 -'+ev.moneyCost);
     if(ev.moneyGain)cost.push('金币 +'+ev.moneyGain);
-    var icon=ev.isRandom?'🎲':'📖';
-    return '<div class="daily-ev-card" onclick="triggerPlayerDaily(\''+ev.id+'\')">'+
-      '<div style="display:flex;justify-content:space-between;align-items:flex-start">'+
-      '<span class="daily-ev-name">'+icon+' '+ev.title+'</span>'+
-      '<span class="daily-ev-period '+(ev.period==='night'?'period-night':'period-day')+'">'+(ev.period==='night'?'🌙 夜晚':'☀️ 白天')+'</span></div>'+
-      '<div class="daily-ev-preview">'+(ev.isRandom?'随机触发日常剧情，内容各异':ev.stories[0][0].slice(0,40))+'…</div>'+
-      '<div class="daily-ev-cost">'+(cost.join(' · ')||'无特殊消耗')+'</div>'+
-      '<div style="margin-top:5px"><button class="ai-gen-btn" onclick="event.stopPropagation();aiGenDailyEvent(\''+ev.id+'\')">🤖 AI生成剧情</button></div>'+
-      '</div>';
+    if(ev.expNote)cost.push(ev.expNote);
+
+    var _st=_evStyle[ev.id]||{};
+    var icon=_st.icon||(ev.isRandom?'🎲':'📖');
+    var _col=_st.color||'';
+
+    var _dsc=ev.desc||(ev.isRandom?'随机触发日常剧情，内容各异':
+      ev.dailyEventId?(function(){
+        var _de=typeof DAILY_EVENTS!=='undefined'?DAILY_EVENTS.filter(function(x){return x.id===ev.dailyEventId;})[0]:null;
+        return _de&&_de.desc?_de.desc:'查看专题剧情';
+      })():
+      (ev.stories&&ev.stories[0]&&ev.stories[0][0]?ev.stories[0][0].slice(0,40)+'…':'查看剧情'));
+
+    return '<div class="daily-ev-card" onclick="triggerPlayerDaily(\''+ev.id+'\')"'
+      +(_col?' style="border-color:'+_col+'"':'')+'>'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start">'
+      +'<span class="daily-ev-name"'+(_col?' style="color:'+_col+'"':'')+'>'+icon+' '+ev.title+'</span>'
+      +'<span class="daily-ev-period '+(ev.period==='night'?'period-night':'period-day')+'">'+(ev.period==='night'?'🌙 夜晚':'☀️ 白天')+'</span>'
+      +'</div>'
+      +'<div class="daily-ev-preview">'+_dsc+'</div>'
+      +'<div class="daily-ev-cost">'+(cost.join(' · ')||'无特殊消耗')+'</div>'
+      +'</div>';
   }).join('');
+
   body.innerHTML='<div style="font-size:.78rem;color:var(--muted);margin-bottom:12px;line-height:1.6">选择一项日常活动，消耗白天或夜晚的时间及精力。</div><div style="display:grid;gap:8px">'+cards+'</div>';
   openOv('ov-daily-event');
 }
+
+
+
+
+function _resolveDailyStoryNames(lines, forcedNameA, forcedNameB) {
+  var purchased = (typeof CHARS_DATA !== 'undefined' ? CHARS_DATA : [])
+    .filter(function(c){ return loadSave(c.id) && loadSave(c.id).char; });
+  var shuffled = purchased.slice().sort(function(){ return Math.random() - 0.5; });
+  var nameA = forcedNameA || (shuffled[0] ? shuffled[0].name : '她');
+  var nameB = forcedNameB || (shuffled[1] ? shuffled[1].name : nameA);
+  var masterName = (_playerProfile && _playerProfile.name) || '主人';
+
+  return lines.map(function(line) {
+    return String(line)
+      .replace(/\{A\}/g, nameA)
+      .replace(/\{B\}/g, nameB)
+      .replace(/\{master\}/g, masterName);
+  });
+}
+
+
 
 function triggerPlayerDaily(id){
   var ev=null;
@@ -1269,6 +1508,65 @@ function triggerPlayerDaily(id){
   if(ev.moneyGain) _logMoney(ev.name||'事件收入', ev.moneyGain);
   if(ev.effect)ev.effect();
   consumeTime(ev.period||'day');
+  if(ev.storyFn){
+  var _r=ev.storyFn();
+  if(_r){
+    pushStoryLog('daily',{title:_r.title||ev.title,date:getDateStr(),story:_r.story});
+    closeOv('ov-daily-event');
+    // ★ 观察奴隶：计算关系变化，将结果内嵌至剧情末尾
+    if (_r._charIdA && _r._charIdB && typeof addSlaveRelation === 'function') {
+      var _oldRel    = getSlaveRelation(_r._charIdA, _r._charIdB);
+      var _newRel    = addSlaveRelation(_r._charIdA, _r._charIdB, _r._relDelta || 2);
+      var _oldStage  = getRelationStageLabel(_oldRel);
+      var _newStage  = getRelationStageLabel(_newRel);
+      var _stageUp   = _oldStage.name !== _newStage.name;
+      var _nameA     = _r._nameA || '奴隶A';
+      var _nameB     = _r._nameB || '奴隶B';
+      var _delta     = _r._relDelta || 2;
+
+      // ── 关系卡片（单行紧凑样式）──────────────────────────────
+      var _stagePart = _stageUp
+        ? ('<span style="color:var(--muted);font-size:.72rem">' + _oldStage.name + '</span>'
+           + '<span style="color:var(--muted);margin:0 4px;font-size:.7rem">→</span>'
+           + '<span style="color:' + _newStage.color + ';font-weight:700;font-size:.78rem">' + _newStage.name + ' ✨</span>')
+        : '<span style="color:' + _newStage.color + ';font-weight:600;font-size:.78rem">' + _newStage.name + '</span>';
+      var _relCard = '<div style="margin-top:14px;padding:8px 12px;background:var(--card2);'
+        + 'border-radius:8px;border-left:2px solid ' + _newStage.color + ';'
+        + 'display:flex;align-items:center;gap:0;line-height:1.4">'
+        + '<span style="font-size:.75rem;color:var(--txt2)">' + _nameA + ' × ' + _nameB + '</span>'
+        + '<span style="color:var(--muted);margin:0 8px;opacity:.5;font-size:.8rem">·</span>'
+        + _stagePart
+        + '<span style="font-size:.68rem;color:var(--muted);margin-left:auto;white-space:nowrap">+' + _delta + '分 · 共' + Math.round(_newRel) + '分</span>'
+        + '</div>';
+      _r.story = _r.story.concat([_relCard]);
+
+      // ── 关系升级时，准备弹窗数据（故事结束后单独弹出）──────────
+      window._pendingRelUpgrade = null;
+      if (_stageUp) {
+        var _upComments = {
+          '熟识':   '看来两人之间的陌生感，已经悄悄消散了不少。也许是共处一室久了，人与人的距离总在不知不觉间缩短——当然，也可能只是因为你的宅邸实在太小，想保持距离都没地方躲。',
+          '好友':   '两人之间的气氛，隐隐有些说不清道不明了……主人大人，你打算继续假装视而不见，还是找个时机安排点什么？能在这种地方培养出真正的友情，无论如何，倒也算是一件难得的事。',
+          '恋慕':   '这就有些微妙了呢。主人大人，您的两位奴隶之间，已经悄悄升腾起某种"不只是朋友"的情感了哦。是继续假装没看见，还是打算来点什么特别的安排？请尽早做决定——毕竟到了这一步，当事人可未必等得了您。',
+          '亲密无间':'好吧，主人大人，坦白讲——您买来的两位奴隶，现在的感情已经好到了一个令人咋舌的程度。说不定在您高枕无忧的某些夜晚，他们早已把很多事情自行解决了。恭喜您，宅邸里多了一对"自给自足"的存在——要不要悄悄送份礼物庆祝一下？毕竟促成这份缘分的，可是您呢。',
+        };
+        var _cmt = _upComments[_newStage.name];
+        if (_cmt) {
+          window._pendingRelUpgrade = {
+            nameA:      _nameA,
+            nameB:      _nameB,
+            oldStage:   _oldStage,
+            newStage:   _newStage,
+            commentary: _cmt,
+            newRel:     Math.round(_newRel),
+          };
+        }
+      }
+    }
+    setTimeout(function(){openStoryModal({title:_r.title||ev.title,story:_r.story,choices:_r.choices},'日常剧情',{});},80);
+    if(typeof renderPlayerCard==='function')renderPlayerCard();
+    return;
+  }
+}
   // pick story
   var story;
   if(ev.isRandom&&typeof DAILY_EVENTS!=='undefined'&&DAILY_EVENTS.length){
@@ -1280,14 +1578,115 @@ function triggerPlayerDaily(id){
     setTimeout(() => {
       openStoryModal({title:randTitle,story:story},'日常剧情',{});
     }, 80);
+    
+    } else if(ev.dailyEventId && typeof DAILY_EVENTS!=='undefined') {
+    // 按 dailyEventId 找对应专题，触发其 get story() 随机抽取
+    var _targetEv=null;
+    for(var i=0;i<DAILY_EVENTS.length;i++){
+      if(DAILY_EVENTS[i].id===ev.dailyEventId){_targetEv=DAILY_EVENTS[i];break;}
+    }
+    if(_targetEv){
+      story=_targetEv.story; // 调用 get story() → pickVariant 随机抽
+      story=_resolveDailyStoryNames(story);
+      pushStoryLog('daily',{title:ev.title,date:getDateStr(),story:story});
+      closeOv('ov-daily-event');
+      setTimeout(()=>{ openStoryModal({title:ev.title,story:story},'日常剧情',{}); },80);
+    }
   } else {
-    var idx=Math.floor(Math.random()*(ev.stories||[['今天的日常。']]).length);
-    story=ev.stories[idx];
+    // ── 先随机选定奴隶A，再决定用哪个故事池 ──────────────────
+    var _purchased = (typeof CHARS_DATA!=='undefined'?CHARS_DATA:[])
+      .filter(function(c){return loadSave(c.id)&&loadSave(c.id).char;});
+    var _shuffled = _purchased.slice().sort(function(){return Math.random()-0.5;});
+    var _preCharA = _shuffled[0]||null;
+    var _preCharB = _shuffled[1]||null;
+    var _preNameA = _preCharA?_preCharA.name:null;
+    var _preNameB = _preCharB?_preCharB.name:null;
+
+    // 查该角色是否有专属日常剧情
+    var _charStories = null;
+    if(_preCharA && typeof CharRegistry!=='undefined'){
+      var _cr = CharRegistry.get(_preCharA.id);
+      if(_cr && _cr.dailyStories && _cr.dailyStories[ev.id]){
+        _charStories = _cr.dailyStories[ev.id];
+      }
+    }
+
+    var _allStories = _charStories || ev.stories || [['今天的日常。']];
+    // 过滤：含{B}的剧情需要至少2个奴隶
+    var _avail = _allStories.filter(function(s){
+      var text = s.join('\n');
+      var needsOne = text.indexOf('{A}') !== -1 || text.indexOf('{slave}') !== -1;
+      var needsTwo = text.indexOf('{B}') !== -1;
+      if (needsOne && _purchased.length < 1) return false;
+      if (needsTwo && _purchased.length < 2) return false;
+      return true;
+    });
+    if(!_avail.length) _avail = [['今天庄园里没有奴隶，一个人度过了这段时光。']];
+    story = _avail[Math.floor(Math.random()*_avail.length)];
+    story = _resolveDailyStoryNames(story, _preNameA, _preNameB);
+
+
+    
     pushStoryLog('daily',{title:ev.title,date:getDateStr(),story:story});
     closeOv('ov-daily-event');
     setTimeout(() => {
       openStoryModal({title:ev.title,story:story},'日常剧情',{});
     }, 80);
+  }
+  // 读取剧情里 _expHtml 标记的主人经验并实际写入
+  if(typeof story!=='undefined'&&Array.isArray(story)){
+    for(var _ei=0;_ei<story.length;_ei++){
+      if(typeof story[_ei]!=='string') continue;
+      var _em=story[_ei].match(/data-player-exp="([^"]+)"/);
+      if(_em){
+        try{
+          var _eg=JSON.parse(decodeURIComponent(_em[1]));
+          if(typeof addPlayerExp==='function'){
+            Object.keys(_eg).forEach(function(k){ addPlayerExp(k,_eg[k]); });
+          }
+        }catch(e){}
+        break;
+      }
+    }
+  }
+  // 读取剧情里 _slaveExpHtml 标记的奴隶经验并实际写入
+  if(typeof story!=='undefined'&&Array.isArray(story)&&State.currentChar){
+    for(var _sei=0;_sei<story.length;_sei++){
+      if(typeof story[_sei]!=='string') continue;
+      var _sem=story[_sei].match(/data-slave-exp="([^"]+)"/);
+      if(_sem){
+        try{
+          var _seg=JSON.parse(decodeURIComponent(_sem[1]));
+          var _seSv=loadSave(State.currentChar.id);
+          Object.keys(_seg).forEach(function(k){
+            State.currentChar[k]=(State.currentChar[k]||0)+_seg[k];
+            if(_seSv&&_seSv.char) _seSv.char[k]=((_seSv.char[k]||0)+_seg[k]);
+          });
+          if(_seSv&&_seSv.char) localStorage.setItem('era_sv_'+State.currentChar.id,JSON.stringify(_seSv));
+        }catch(e){}
+        break;
+      }
+    }
+  }
+  
+    // 读取剧情里 data-slave-b-exp 标记的第二奴隶经验并实际写入
+  if(typeof story!=='undefined'&&Array.isArray(story)&&typeof _preCharB!=='undefined'&&_preCharB){
+    for(var _sbi=0;_sbi<story.length;_sbi++){
+      if(typeof story[_sbi]!=='string') continue;
+      var _sbm=story[_sbi].match(/data-slave-b-exp="([^"]+)"/);
+      if(_sbm){
+        try{
+          var _sbg=JSON.parse(decodeURIComponent(_sbm[1]));
+          var _sbSv=loadSave(_preCharB.id);
+          Object.keys(_sbg).forEach(function(k){
+            _preCharB[k]=(_preCharB[k]||0)+_sbg[k];
+            if(_sbSv&&_sbSv.char) _sbSv.char[k]=((_sbSv.char[k]||0)+_sbg[k]);
+          });
+          if(_sbSv&&_sbSv.char) localStorage.setItem('era_sv_'+_preCharB.id,JSON.stringify(_sbSv));
+        }catch(e){}
+        break;
+      }
+    }
   }
   if(typeof renderPlayerCard==='function')renderPlayerCard();
 }
@@ -1348,29 +1747,351 @@ function _showWrongGenderSelfUse(item, genderType, isForSlave) {
   }
 }
 
+// ── 辅助：获取/设置角色装备列表 ────────────────────────
+function _getEquipped(charId) {
+  if (!State.equippedItems) State.equippedItems = {};
+  if (!State.equippedItems[charId]) State.equippedItems[charId] = [];
+  return State.equippedItems[charId];
+}
+function _isEquipped(charId, itemId) {
+  return _getEquipped(charId).indexOf(itemId) >= 0;
+}
+function _equipItem(charId, itemId) {
+  var list = _getEquipped(charId);
+  if (list.indexOf(itemId) < 0) list.push(itemId);
+  State.equippedItems[charId] = list;
+}
+function _unequipItem(charId, itemId) {
+  State.equippedItems[charId] = _getEquipped(charId).filter(function(id){ return id !== itemId; });
+}
+
+// ── 装备剧情：按 stage 选台词 ────────────────────────────
+var EQUIP_STORIES = {
+  // 跳蛋 (0)
+  0: {
+    equip: {
+      stage0:['你将跳蛋缓缓推入，对方因羞耻与拒绝而颤抖。「……不要……！」然而身体的反应出卖了内心。','「你……你要干什么——」跳蛋抵在最敏感处的瞬间，声音戛然而止，变成了细细的、压抑的颤音。'],
+      stage1:['「……」对方咬着下唇，没有开口，却没有阻止你塞入的动作。细微的颤抖从腰间开始蔓延。','「主人……这种东西……」话说了一半，跳蛋开始振动，余下的字全部化作了喘息。'],
+      stage2:['对方已经知道会发生什么，却还是配合地微微分开了腿，眼神回避着。「……轻一点……」','「嗯……」被放入的瞬间，眼角微微湿润了，却没有逃开的意思。那是一种近乎习惯的顺从。'],
+      stage3:['「主人是要……让我一直带着吗……」对方的声音带着期待，主动将身体往你这边倾。','放入的过程格外顺滑——对方的身体早已学会了接纳这份存在。「……开心。」轻声说道。'],
+    },
+    unequip: {
+      stage0:['取出的瞬间对方如释重负，却不愿意让你看见那副狼狈的样子，背过身去。','「……终于……」喃喃了一声，腿还在发软，扶着墙才站稳。'],
+      stage1:['「……嗯……」取出时压抑着一声细响，沉默了几秒才恢复神色。','对方悄悄垂下头，试图掩盖脸上的红晕。'],
+      stage2:['「……有点空。」对方轻声说，像是在自言自语，又像是故意说给你听的。','取出后身体微微一空，对方下意识地夹紧了腿，偏过头去。'],
+      stage3:['「……不要拿走嘛。」语气里带着撒娇的委屈，却没有真正阻止你的手。','「会想念的。」说完自己也笑了，用手背遮住脸。'],
+    },
+  },
+  // 肛塞 (5)
+  5: {
+    equip: {
+      stage0:['「不行……那种地方……！」对方拼命想逃开，被按住后，肛塞缓缓推入——失声的颤抖让你满意。','羞耻与异物感同时袭来，对方紧咬牙关，硬撑着不让自己出声。'],
+      stage1:['「……轻一点……求你……」声音哽在喉咙里，身体绷紧，却没再反抗。','放入的过程沉默而漫长，偶尔溢出一声压抑的闷哼，对方攥紧了衣角。'],
+      stage2:['「……进来了。」短短的确认，对方垂着眼，脸颊泛着隐约的红。','对方已经学会放松，配合地调整了呼吸，只有轻微的喘息证明着此刻的状态。'],
+      stage3:['「要带着走吗……？」眼神带着期待，主动微微弓起身体，方便你操作。','放入时对方发出了一声满足的喟叹，随即用手背掩住唇，有些不好意思地笑了。'],
+    },
+    unequip: {
+      stage0:['取出后对方蜷缩起来，喘着气，用衣袖遮住脸。','「……不要再这样了……」声音颤抖，却不知道自己说的是拒绝还是恳求。'],
+      stage1:['对方闷哼了一声，腿间的力气散去一半，靠着墙缓了很久。','「……好了吗？」低声问，声音还带着颤。'],
+      stage2:['「……空掉了。」漫不经心地说，眼神却悄悄朝你瞟了一眼。','身体随着取出微微一松，对方深吸一口气，算是恢复了平静。'],
+      stage3:['「……不舍得。」小声嘟囔，坐起来帮你理好了东西。','「下次……还要吗？」主动问出口，耳尖有些红。'],
+    },
+  },
+  // 振动乳头夹 (10)
+  10: {
+    equip: {
+      stage0:['夹上的瞬间对方倒吸了口冷气，下意识想缩身。「不要……！那里……太敏感了……！」','敏感的顶点被金属咬住，对方几乎站不稳，用颤抖的双手死死抓住你的袖子。'],
+      stage1:['「……嗯……！」被夹住的瞬间发出了一声没压住的细响，随即低下头，耳根全红了。','对方努力不叫出来，嘴唇咬出了白印，泪意悄悄爬上了眼角。'],
+      stage2:['「……夹上了。」短短三个字，对方眼神飘移，不敢看你。胸口随着呼吸起伏，每次都牵动着那处的感觉。','对方轻轻颤了一下，随即深吸一口气，接受了这个存在。'],
+      stage3:['「……主人亲自夹上的，就不会忘记。」低声说，嘴角微微弯起。','被夹住的瞬间笑着缩了一下肩膀，「好……」答得格外顺从。'],
+    },
+    unequip: {
+      stage0:['取下后对方大口喘气，背过身去，双手捂住脸。','「……终于……」呜咽着说，胸口还在细细发颤。'],
+      stage1:['取下时对方压抑住了叫声，颤抖着肩膀，沉默半晌才抬起头。','「……好酸……」小声说，用手背轻轻抚了抚。'],
+      stage2:['「……松开了。」呢喃一声，对方揉了揉，用眼神问你今天结束了吗。','身体微微松弛，对方轻叹了口气，算是从那种持续的紧绷里缓了出来。'],
+      stage3:['「……有点舍不得。」转过脸，笑得有些羞涩。','「下次……可以再夹久一点吗。」主动提出，表情认真又微微期待。'],
+    },
+  },
+  // 眼罩 (15)
+  15: {
+    equip: {
+      stage0:['「等等……看不见就……」眼罩遮住双眼的瞬间，对方身体僵住，警惕地侧耳倾听每一声动静。','失去视觉的恐惧让对方开始轻微颤抖，双手不知所措地悬在半空。'],
+      stage1:['「……只是眼罩……」对方深呼吸，试图说服自己放松，却还是一直绷着。','眼前一暗，对方下意识低下头，声音变小了很多。'],
+      stage2:['对方配合地闭上眼让你戴上，指尖微微收紧，随即放开了。','「……好了。」平静地确认，却伸手找到了你的衣角，轻轻握住。'],
+      stage3:['「这样……主人的声音会更清晰。」对方主动闭目等待，嘴角微弯。','「随你了。」回答得漫不经心，却把头转向你那侧，用耳朵找到你的方向。'],
+    },
+    unequip: {
+      stage0:['取下眼罩后对方猛地眯眼，用力喘了几口气，四处张望，确认安全。','「……终于看得见了。」手抖着把眼罩推开，背对着你不想说话。'],
+      stage1:['适应了一会儿光线，对方悄悄瞥了你一眼，移开视线。','「……下次不要了。」虽然这样说，声音里没有多少底气。'],
+      stage2:['慢慢睁开眼，第一眼找到的是你，沉默了一秒，才移开视线。','「……结束了吗？」轻声问，语气还残留着那种专注的静。'],
+      stage3:['睁眼后第一件事是看你，嘴角浮起一点弧度。「看到你了。」','「摘掉了……不过，刚才很安心。」说完像是觉得说了奇怪的话，偏过头去。'],
+    },
+  },
+  // 口塞球 (17)
+  17: {
+    equip: {
+      stage0:['「……唔——！」塞入的瞬间，对方眼睛睁大，想说的话全变成了含糊的挣扎。','含住球塞后对方无法言语，只能用眼神传达愤怒与羞耻，泪意不受控地漫上来。'],
+      stage1:['「……唔……唔……」对方试图说什么，说不清楚，只能垂下头，不再挣扎。','被封住嘴后，对方的眼神里有委屈，有恼怒，还有一点说不清楚的什么。'],
+      stage2:['「唔……」轻轻叫了一声，对方就安静下来了，接受地张嘴配合着。','被塞住时对方眼神闪烁，随即闭上了眼，接受了这份沉默。'],
+      stage3:['「主人想让我安静吗……？」对方主动张嘴，眼神里带着顺从与期待。','戴上后对方的眼睛弯起来，用眼神说了一句"知道了"。'],
+    },
+    unequip: {
+      stage0:['取下口塞的瞬间对方大口喘气，随即把脸撇过去，拒绝和你对视。','「……你……！」第一句话就是质问，喘着气，声音发哑。'],
+      stage1:['喘了几口气，对方垂着眼，久久没有说话。','「……嗯。」只发出一个音节，沉默着。'],
+      stage2:['活动了一下酸麻的下颌，对方轻声说：「……有点酸。」然后抬头看你，神情平静。','「……舒服多了。」深呼吸，像是终于说出了积累已久的话。'],
+      stage3:['「……主人下次可以塞久一点。」主动说，声音很小，却说得认真。','「嗯……谢谢主人。」说完自己也感到奇怪，笑着低下了头。'],
+    },
+  },
+  // 项圈 (22)
+  22: {
+    equip: {
+      stage0:['项圈合拢的声音在安静的空间里格外清晰。对方抬起手想摘掉，最终还是放下了。「……这东西……」','「这个……我是奴隶，对吗？」项圈戴上后对方说了这句话，声音里说不清是接受还是确认。'],
+      stage1:['「……好重。」对方摸了摸项圈的边缘，没有说更多。','被戴上的瞬间，对方深吸一口气，随即低下头，不再看你。'],
+      stage2:['对方配合地仰起脖子，让你扣上项圈，轻声说：「……扣好了吗？」','「……主人的。」抚摸着项圈，轻轻说了这句话，嘴角微微动了一下。'],
+      stage3:['「……终于。」对方摸着项圈，笑得很满足。「戴上了，就是主人的了。」','主动扬起脖子配合，戴上后侧头照了照镜子：「……很好看。」'],
+    },
+    unequip: {
+      stage0:['摘下时对方摸了摸脖子，没说话，表情复杂。','「……自由了？」冷冷地问，随即走开了。'],
+      stage1:['摘下后对方抬手摸了摸颈间，发现空了，沉默了一会儿。','「……好吧。」轻声应，没有表情地离开。'],
+      stage2:['「……摘了？」对方摸摸脖子，语气说不清是松了口气还是失落。','摘下后对方低头看了看手里的项圈，慢慢放好了。'],
+      stage3:['「……不戴了吗？」对方明显有点失落，摸了摸空空的脖子。','「……今天不戴？」小声问，把项圈握在手心，不舍得还给你。'],
+    },
+  },
+  // 贞操带 (30)
+  30: {
+    equip: {
+      stage0:['「……！」锁扣合上的声音让对方身体一僵，随即拼命去拉锁扣。「打开！你给我打开！」','「你要把我关多久……！」对方拉扯着贞操带，愤怒与羞耻交织，眼眶已经红了。'],
+      stage1:['「……不要……」声音很轻，手微微颤着，却没有阻止你锁上的动作。','锁扣合上后对方低下头，盯着腰间那道金属，长久地沉默。'],
+      stage2:['对方站着没动，接受你把贞操带扣好，轻声说：「……钥匙在你那里？」','「……锁上了。」对方确认了一声，摸了摸腰间，神情平静。'],
+      stage3:['「……主人亲手锁上的，才安心。」对方配合地举起双臂，方便你操作。','锁好后对方低头看了一眼，「……谢谢主人。」语气里有种奇异的满足。'],
+    },
+    unequip: {
+      stage0:['「终于！」锁扣打开的瞬间对方把贞操带扯下来，扔到角落，喘着气。','「你最好别再让我戴这个……！」边说边想走，却发现腿还软着。'],
+      stage1:['打开后对方沉默了一会儿，抬起头看你，没说什么。','「……可以了吗？」低声问，松了口气。'],
+      stage2:['「……解放了。」对方轻声说，随即整理了一下衣物，神色平静。','摘下后对方活动了一下，「……有点酸。」平淡地告知，没有其他。'],
+      stage3:['「……下次还要戴。」对方小声说，帮你把贞操带放好了。','「……会想念的。」摸了摸腰间，认真地说，一点都不像在开玩笑。'],
+    },
+  },
+  // 猫耳/犬耳/兔耳 (31/32/33) 通用
+  _ear: {
+    equip: {
+      stage0:['「……我才不是什么猫……！」帮对方戴上猫耳，对方立刻伸手去摘，被你拦住。','戴上的瞬间对方涨红了脸，死命低头，拒绝看镜子里的自己。'],
+      stage1:['「……真的要戴这个……」对方任你给他戴上，却别过了脸，不让你看见表情。','「……嗯。」极简短地应了一声，垂着眼，耳朵戴上了，心里还在挣扎。'],
+      stage2:['对方配合地低头，让你把耳朵夹好，「……好看吗？」随口问了一声。','戴上后对方偷偷照了照镜子，动了动耳朵，没说话。'],
+      stage3:['「主人帮我戴！」主动凑过来，低头配合，戴好后开心地转了一圈。','「好不好看？」戴上就往你面前凑，要你夸，眼睛闪闪发亮。'],
+    },
+    unequip: {
+      stage0:['摘掉后对方把耳朵攥在手里，冷着脸，「……以后别让我戴了。」','「终于摘了。」长出一口气，把耳朵塞到看不见的地方去。'],
+      stage1:['摘下来后对方拿着耳朵，看了一会儿，放到桌上。','「……嗯。」简短地应，没有其他。'],
+      stage2:['「……摘了就摘了。」对方口是心非地说，但手还是摸了一下头上空了的地方。','「……下次还戴吗？」不经意地问，语气很轻。'],
+      stage3:['「……不想摘嘛。」撅起嘴，被摘走了还要用头蹭你的手讨要。','「摘了……今天不戴了吗？」失落得很明显，把耳朵捧在手心。'],
+    },
+  },
+  // 三角巾/围裙/耳机 通用
+  _clothing: {
+    equip: {
+      stage0:['对方僵着没动，让你把东西穿戴好，眼神里有隐忍的别扭。','「……穿这个有什么意义……」小声嘟囔，但没有真的反抗。'],
+      stage1:['配合地站好让你穿戴，低着头，「……好了？」','「……随便吧。」表面冷漠，但任你摆弄。'],
+      stage2:['「……主人来系。」对方把东西递给你，自然地等待你亲手帮他穿戴。','穿戴好后对方整理了一下，「……这样？」抬头问你是否合适。'],
+      stage3:['「主人亲手帮我穿的，格外不同呢。」对方笑着说，转了个身给你看。','「好看吗？」穿戴好就来找你确认，眼里带着期待。'],
+    },
+    unequip: {
+      stage0:['摘下后对方立刻整理衣物，背过身不理你。','「……终于。」只说这两个字。'],
+      stage1:['摘掉后对方淡淡应了一声，没有表情。','「……嗯。」'],
+      stage2:['「……可以了吗？」轻声确认，等你点头才动手整理。','摘下后帮你把东西放好了。'],
+      stage3:['「……下次还穿吗？」主动问，有点期待的样子。','「主人帮我摘……」把手伸向你，等你来帮他。'],
+    },
+  },
+};
+
+// ── 获取装备/卸下剧情 ────────────────────────────────────
+function _getEquipStory(itemId, action, stage) {
+  var stageKey = 'stage' + stage;
+  var table = EQUIP_STORIES[itemId];
+  // 耳类道具
+  if (!table && (itemId === 31 || itemId === 32 || itemId === 33)) table = EQUIP_STORIES._ear;
+  // 服装类
+  if (!table && (itemId === 23 || itemId === 34 || itemId === 35)) table = EQUIP_STORIES._clothing;
+  if (!table) return null;
+  var pool = table[action] && table[action][stageKey];
+  if (!pool || !pool.length) {
+    // fallback to stage0
+    pool = table[action] && table[action]['stage0'];
+  }
+  if (!pool || !pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
 function openItemUse(itemId){
   var item=ITEMS_DATA?ITEMS_DATA.filter(function(i){return i.id===itemId;})[0]:null;
   if(!item){toast('道具数据不存在','err');return;}
+
+  // 背包里没有这个道具 → 弹购买提示
+  var inBag=(State.inventory[itemId]||0)>0||(State.inventory[String(itemId)]||0)>0;
+  if(!inBag){
+    // 先关背包
+    var bagEl=document.getElementById('ov-bag');
+    if(bagEl&&bagEl.classList.contains('on')) closeOv('ov-bag');
+    setTimeout(function(){ openBuyItemPrompt(itemId); }, 80);
+    return;
+  }
+
   _pendingUseItemId=itemId;
   var nameEl=document.getElementById('item-use-name');
   var descEl=document.getElementById('item-use-desc');
   if(nameEl)nameEl.textContent='使用：'+item.name;
   if(descEl)descEl.textContent=item.desc||item.name;
-  // 先关闭背包弹窗再打开使用弹窗，避免层级冲突
-  var bagEl=document.getElementById('ov-bag');
-  if(bagEl&&bagEl.classList.contains('on')){
+
+  // 恢复按钮原始状态（防止上次调用留下的修改）
+  var selfBtn=document.getElementById('item-use-self-btn');
+  var slaveBtn=document.getElementById('item-use-slave-btn');
+  if(selfBtn){
+    selfBtn.style.display='';
+    selfBtn.disabled=false;
+    selfBtn.style.opacity='';
+    selfBtn.innerHTML='🙋 自己使用（立即触发剧情）';
+    selfBtn.onclick=function(){ useItemOnSelf(); };
+  }
+  if(slaveBtn){
+    slaveBtn.style.display='';
+    slaveBtn.disabled=false;
+    slaveBtn.style.opacity='';
+    // ★ 装备类道具：根据当前奴隶佩戴状态显示「佩戴/取下」，而不是统一的"留着使用"
+    if(item.equippable && State.currentChar){
+      var _curEquipped=_getEquipped(State.currentChar.id).indexOf(itemId)>=0;
+      slaveBtn.innerHTML=_curEquipped ? '🔓 取下「'+item.name+'」（触发卸装剧情）' : '⛓️ 给奴隶佩戴「'+item.name+'」';
+    } else {
+      slaveBtn.innerHTML='⚔️ 留着对奴隶使用';
+    }
+    slaveBtn.onclick=function(){ useItemOnSlave(); };
+  }
+  // 隐藏装备区（如果存在）
+  var equipArea=document.getElementById('item-use-equip-area');
+  if(equipArea) equipArea.style.display='none';
+
+  var bagEl2=document.getElementById('ov-bag');
+  if(bagEl2&&bagEl2.classList.contains('on')){
     closeOv('ov-bag');
     setTimeout(function(){openOv('ov-item-use');},80);
   } else {
     openOv('ov-item-use');
   }
 }
+
+
 function useItemOnSelf(){
   var itemId=_pendingUseItemId;
   var item=ITEMS_DATA?ITEMS_DATA.filter(function(i){return i.id===itemId;})[0]:null;
   if(!item)return;
   closeOv('ov-item-use');
-  if(item.category!=='standard'){
+
+  // ── ★ 特殊消耗品：直接触发专属效果（药水/约会券）────────────
+  if (itemId === 'date_voucher') {
+    // 约会券：打开月老红线系统安排约会
+    if (typeof openMatchmaking === 'function') {
+      setTimeout(function(){ openMatchmaking(); }, 150);
+    } else {
+      toast('月老红线系统未加载', 'err');
+    }
+    return;
+  }
+  if (itemId === 'stamina_up_potion') {
+    if((State.inventory['stamina_up_potion']||0)>0){
+      State.inventory['stamina_up_potion']--;
+      if(!State.inventory['stamina_up_potion'])delete State.inventory['stamina_up_potion'];
+    }
+    if(typeof _playerProfile!=='undefined'){
+      _playerProfile.staminaMax=(_playerProfile.staminaMax||2000)+200;
+      _playerProfile.stamina=Math.min(_playerProfile.staminaMax,(_playerProfile.stamina||0)+200);
+      localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+      if(typeof renderPlayerCard==='function')renderPlayerCard();
+    }
+    if(typeof saveGlobalInventory==='function')saveGlobalInventory();
+    openStoryModal({title:'💪 强体药水',story:[
+      '你仰头将那瓶散发着淡金色光泽的药水一饮而尽。',
+      '温热的液体顺着喉咙流下，紧接着一股滚烫的暖流从腹腔蔓延，涌向四肢百骸——',
+      '曾经那种调教到一半就感到疲惫的感觉，好像被人悄悄抹去了。',
+      '「……嗯，好像真的不一样了。」',
+      '全身充盈着前所未有的力量感，哪怕再多折腾一会儿，也不成问题。',
+      '【体力上限永久提升 +200 点！】'
+    ]},'强体药水',{});
+    return;
+  }
+  if (itemId === 'stamina_down_potion') {
+    if((State.inventory['stamina_down_potion']||0)>0){
+      State.inventory['stamina_down_potion']--;
+      if(!State.inventory['stamina_down_potion'])delete State.inventory['stamina_down_potion'];
+    }
+    if(typeof _playerProfile!=='undefined'){
+      var _newSMax=Math.max(200,(_playerProfile.staminaMax||2000)-200);
+      _playerProfile.staminaMax=_newSMax;
+      _playerProfile.stamina=Math.min(_newSMax,_playerProfile.stamina||0);
+      localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+      if(typeof renderPlayerCard==='function')renderPlayerCard();
+    }
+    if(typeof saveGlobalInventory==='function')saveGlobalInventory();
+    openStoryModal({title:'😵 虚弱药水',story:[
+      '盯着那瓶暗紫色的诡异液体看了许久，最终还是鬼使神差地仰头灌了下去。',
+      '一股甜腻中带着苦涩的怪味在舌根散开，没多久，四肢就涌上了酥软的无力感……',
+      '走几步路都觉得腿有些发沉，精力仿佛被什么东西悄悄抽走了一截。',
+      '「……这种虚软无力的感觉，果然还是有点……特别的刺激？」',
+      '【体力上限永久降低 -200 点。】'
+    ]},'虚弱药水',{});
+    return;
+  }
+  if (itemId === 'energy_up_potion') {
+    if((State.inventory['energy_up_potion']||0)>0){
+      State.inventory['energy_up_potion']--;
+      if(!State.inventory['energy_up_potion'])delete State.inventory['energy_up_potion'];
+    }
+    if(typeof _playerProfile!=='undefined'){
+      _playerProfile.energyMax=(_playerProfile.energyMax||3000)+200;
+      _playerProfile.energy=Math.min(_playerProfile.energyMax,(_playerProfile.energy||0)+200);
+      localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+      if(typeof renderPlayerCard==='function')renderPlayerCard();
+    }
+    if(typeof saveGlobalInventory==='function')saveGlobalInventory();
+    openStoryModal({title:'🧠 凝神药水',story:[
+      '那瓶澄澈如晨露的药水入喉的瞬间，脑海里某种模糊的东西忽然变得清晰起来。',
+      '思维好像被人调了个焦，连呼吸的空气都感觉比平时清新了几分。',
+      '「……脑子前所未有地好使。连那几个复杂的调教计划，现在想起来都格外清楚。」',
+      '精力充沛，意气风发——今天可以做更多有趣的事了。',
+      '【精力上限永久提升 +200 点！】'
+    ]},'凝神药水',{});
+    return;
+  }
+  if (itemId === 'energy_down_potion') {
+    if((State.inventory['energy_down_potion']||0)>0){
+      State.inventory['energy_down_potion']--;
+      if(!State.inventory['energy_down_potion'])delete State.inventory['energy_down_potion'];
+    }
+    if(typeof _playerProfile!=='undefined'){
+      var _newEMax=Math.max(200,(_playerProfile.energyMax||3000)-200);
+      _playerProfile.energyMax=_newEMax;
+      _playerProfile.energy=Math.min(_newEMax,_playerProfile.energy||0);
+      localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+      if(typeof renderPlayerCard==='function')renderPlayerCard();
+    }
+    if(typeof saveGlobalInventory==='function')saveGlobalInventory();
+    openStoryModal({title:'😶\u200d🌫️ 迷神药水',story:[
+      '那股甜腻的花香气味在鼻腔散开，没过多久，意识就开始变得轻飘飘的……',
+      '思维像是被谁往水里按了一下，模糊而迟钝，连时间的流逝都感觉变慢了。',
+      '「嗯……有点……犯困……脑子……转不动了……」',
+      '这种迷迷糊糊、虚弱无力的感觉，竟有种说不清道不明的奇特体验。',
+      '【精力上限永久降低 -200 点。】'
+    ]},'迷神药水',{});
+    return;
+  }
+  // ── 特殊消耗品处理结束 ──────────────────────────────────────
+
+  // ★ 修复：只有消耗品才扣减库存；装备类(equippable)和标准道具永不扣减
+  var isConsumable = item.category === 'consumable';
+  var isEquipment  = item.category === 'standard' || item.equippable;
+  
+
+
+
+  if(isConsumable && !isEquipment){
     if((State.inventory[itemId]||0)>0){State.inventory[itemId]--;if(!State.inventory[itemId])delete State.inventory[itemId];}
   }
   if(itemId===80){setTimeout(function(){if(typeof openGenderChangeModal==='function')openGenderChangeModal();},300);return;}
@@ -1440,13 +2161,94 @@ function useItemOnSlave(){
     }
   }
 
-  var charName=State.currentChar.name;
-  if((State.inventory[itemId]||0)>0){State.inventory[itemId]--;if(!State.inventory[itemId])delete State.inventory[itemId];}
-  var story=['将「'+item.name+'」用在了 '+charName+' 身上。',item.desc||'对方出现了一些异样的反应……','效果已经发挥，'+charName+' 的状态发生了改变。'];
-  if(typeof pushStoryLog==='function')pushStoryLog('daily',{title:'对'+charName+'使用·'+item.name,date:getDateStr(),char:charName,story:story});
-  openStoryModal({title:'对 '+charName+' 使用「'+item.name+'」',story:story},'道具',{});
+  var charName = State.currentChar.name;
+  var charId   = State.currentChar.id;
+
+  // ★ 消耗品才扣库存；装备类/标准道具永不扣减
+  if (item.category === 'consumable' && !item.equippable && (State.inventory[itemId] || 0) > 0) {
+    State.inventory[itemId]--;
+    if (!State.inventory[itemId]) delete State.inventory[itemId];
+  }
+
+  var story;
+  if (item.equippable) {
+    // ★ 装备类道具：读 EQUIP_STORIES，按服从度分 stage 选台词，并切换佩戴状态
+    var alreadyOn = _getEquipped(charId).indexOf(itemId) >= 0;
+    var action    = alreadyOn ? 'unequip' : 'equip';
+    var obed      = State.currentChar.obedience || 0;
+    var stage     = Math.min(3, Math.floor(obed / 25));
+    var equipLine = _getEquipStory(itemId, action, stage);
+
+    if (equipLine) {
+      story = [equipLine];
+    } else {
+      story = action === 'equip'
+        ? ['你将「'+item.name+'」戴在了 '+charName+' 身上。', item.desc || '对方出现了异样的反应……']
+        : ['你将「'+item.name+'」从 '+charName+' 身上取下。'];
+    }
+    // 切换装备状态 & 刷新装备栏
+    if (action === 'equip') _equipItem(charId, itemId);
+    else _unequipItem(charId, itemId);
+    _renderEquippedBar();
+    if (typeof renderActs === 'function') renderActs();
+  } else {
+    // 非装备类道具：通用剧情
+    story = ['将「'+item.name+'」用在了 '+charName+' 身上。', item.desc||'对方出现了一些异样的反应……', '效果已经发挥，'+charName+' 的状态发生了改变。'];
+  }
+
+  if (typeof pushStoryLog === 'function') pushStoryLog('daily', {title:'对'+charName+'使用·'+item.name, date:getDateStr(), char:charName, story:story});
+  openStoryModal({title:'对 '+charName+' 使用「'+item.name+'」', story:story}, '道具', {});
 }
 
+// ── 佩戴道具状态栏渲染 ────────────────────────────────────────
+function _renderEquippedBar() {
+  var bar  = document.getElementById('equipped-bar');
+  var card = document.getElementById('equipped-card');
+  if (!bar) return;
+  var charId = State.currentChar ? State.currentChar.id : null;
+  if (!charId || !ITEMS_DATA) {
+    bar.innerHTML = '';
+    if (card) card.style.display = 'none';
+    return;
+  }
+  if (!State.equippedItems) State.equippedItems = {};
+  if (!State.equippedItems[charId]) State.equippedItems[charId] = [];
+  var equipped = State.equippedItems[charId];
+  if (!equipped.length) {
+    bar.innerHTML = '';
+    if (card) card.style.display = 'none';
+    return;
+  }
+  if (card) card.style.display = '';
+  bar.innerHTML = equipped.map(function(eid) {
+    var it = ITEMS_DATA.find(function(i){ return i.id === eid; });
+    if (!it) return '';
+    var icon = (typeof getItemIcon === 'function' && getItemIcon(it)) || '📦';
+    return '<span onclick="_unequipTrainingItem(' + JSON.stringify(eid) + ')" ' +
+      'style="cursor:pointer;display:inline-flex;align-items:center;gap:3px;background:rgba(229,115,115,.15);color:var(--txt);font-size:.72rem;padding:3px 9px;border-radius:12px;border:1px solid rgba(229,115,115,.3);white-space:nowrap" ' +
+      'title="点击卸下「' + esc(it.name) + '」">' +
+      '<span style="font-size:.95rem">' + icon + '</span>' + esc(it.name) + ' ✕' +
+      '</span>';
+  }).join('');
+}
+
+// 直接卸下装备（从装备栏点击 ✕）
+async function _unequipTrainingItem(itemId) {
+  if (State.isProcessing || !State.currentChar) return;
+  var charId = State.currentChar.id;
+  if (!State.equippedItems) State.equippedItems = {};
+  if (!State.equippedItems[charId]) State.equippedItems[charId] = [];
+  var item = ITEMS_DATA ? ITEMS_DATA.find(function(i){ return i.id === itemId; }) : null;
+  State.equippedItems[charId] = State.equippedItems[charId].filter(function(id){ return id !== itemId; });
+  toast('已卸下：' + (item ? item.name : itemId), '');
+  _renderEquippedBar();
+  if (typeof renderActs === 'function') renderActs();
+  
+  // ★ 修复：卸装后播放训练剧情
+  if (item && typeof doAction === 'function') {
+    await doAction(item.name, 'tool');
+  }
+}
 
 // ── 嫉妒系统（争锋吃醋）─────────────────────────────────────────
 // 触发模板 —— 场景描述 + 对峙问题
@@ -1652,11 +2454,15 @@ function _triggerFirstMeeting(c){
 function openSlaveProcurement(){
   var body=document.getElementById('slave-procurement-body');if(!body)return;
   var unacq = _getUnacquiredChars().length;
+  var featuredCount=(typeof CharRegistry!=='undefined')
+    ?_getUnacquiredChars(function(c){return CharRegistry.get(c.id)!==null;}).length
+    :0;
   body.innerHTML=
     '<div style="font-size:.8rem;color:var(--muted);line-height:1.7;margin-bottom:14px">'+
     '在奴隶市场，您可以通过多种途径扩充手下奴隶……或召唤来自异界的非人之物。'+
     '<br><span style="color:var(--txt2)">当前可获取角色：<strong>'+unacq+'</strong> 位</span></div>'+
     '<div style="display:grid;gap:10px">'+
+      _slaveFeaturedBtn(featuredCount)+
       _slaveProcBtn('hunt','⚔️','托人猎捕奴隶','委托猎奴商前往各地搜寻，费用 $1500~$2500（含风险费）')+
       _slaveProcBtn('market','🏪','从奴隶市场购买','浏览完整角色列表，按需选购')+
       _slaveProcBtn('summon','🔮','召唤非人之物','浏览并指定召唤异界存在，代价难以预料')+
@@ -1674,8 +2480,83 @@ function _slaveProcBtn(type,icon,title,desc){
   '</div>';
 }
 
+// ── 推荐奴隶：高亮入口按钮 ──────────────────────────────────
+function _slaveFeaturedBtn(count){
+  var badge=count>0
+    ?(' <span style="background:#f0c050;color:#333;font-size:.6rem;padding:1px 7px;border-radius:10px;margin-left:3px;font-weight:700">'+count+' 位</span>')
+    :'';
+  var desc=count>0?'有专属剧情与背景故事，体验更丰富，优先推荐':'所有推荐角色均已拥有 ✓';
+  return '<div style="background:linear-gradient(135deg,var(--card) 0%,rgba(240,192,80,.09) 100%);border:1.5px solid rgba(240,192,80,.65);border-radius:12px;padding:14px;cursor:pointer;transition:all .2s" onclick="doSlaveProcurement(\'featured\')">'+
+    '<div style="display:flex;align-items:center;gap:10px;margin-bottom:6px">'+
+      '<div style="font-size:1.8rem">⭐</div>'+
+      '<div>'+
+        '<div style="font-size:.9rem;font-weight:700;color:var(--txt)">推荐奴隶'+badge+'</div>'+
+        '<div style="font-size:.7rem;color:var(--muted)">'+desc+'</div>'+
+      '</div>'+
+    '</div>'+
+  '</div>';
+}
+
+// ── 推荐奴隶：列表页面 ──────────────────────────────────────
+function _openFeaturedSlaves(){
+  var body=document.getElementById('slave-procurement-body');if(!body)return;
+  // 只显示有专属角色文件（在 CharRegistry 中注册过）且尚未获得的
+  var pool=_getUnacquiredChars(function(c){
+    return typeof CharRegistry!=='undefined'&&CharRegistry.get(c.id)!==null;
+  });
+  var cards=pool.map(function(c){
+    var price=800+((c.initial_affection||0)+(c.initial_obedience||0)+(c.initial_lust||0))*35;
+    var canBuy=State.money>=price;
+    var ava='',cr=typeof CharRegistry!=='undefined'?CharRegistry.get(c.id):null;
+    if(cr&&cr._presetAvaUrl)ava=cr._presetAvaUrl;
+    var avaHtml=ava
+      ?'<div style="width:62px;height:62px;border-radius:10px;overflow:hidden;flex-shrink:0"><img src="'+ava+'" style="width:100%;height:100%;object-fit:cover"></div>'
+      :'<div style="font-size:2.2rem;width:62px;height:62px;display:flex;align-items:center;justify-content:center;background:var(--card2);border-radius:10px;flex-shrink:0">'+cEmoji(c)+'</div>';
+    var traits=(c.special_traits||[]).slice(0,3).map(function(t){
+      return '<span style="font-size:.6rem;background:rgba(240,192,80,.15);color:#b8900a;padding:2px 6px;border-radius:4px">'+esc(t)+'</span>';
+    }).join('');
+    return '<div style="background:var(--card);border:1px solid rgba(240,192,80,.3);border-radius:12px;padding:12px;margin-bottom:10px">'+
+      '<div style="display:flex;gap:10px;align-items:flex-start">'+
+        avaHtml+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="display:flex;align-items:center;gap:5px;margin-bottom:3px">'+
+            '<span style="font-size:.95rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</span>'+
+
+          '</div>'+
+          '<div style="font-size:.68rem;color:var(--muted);margin-bottom:4px">'+[c.gender,c.race,c.class,c.age?c.age+'岁':''].filter(Boolean).join(' · ')+'</div>'+
+          (traits?'<div style="display:flex;gap:3px;flex-wrap:wrap">'+traits+'</div>':'')+
+        '</div>'+
+      '</div>'+
+      (c.description?'<div style="font-size:.72rem;color:var(--txt2);line-height:1.6;margin:8px 0 10px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">'+esc(c.description)+'</div>':'')+
+      '<div style="display:flex;gap:7px">'+
+        '<button class="btn btn-ghost btn-sm" style="font-size:.72rem" onclick="previewMarketSlave('+c.id+')">查看详情</button>'+
+        '<button class="btn '+(canBuy?'btn-p':'btn-ghost')+' btn-sm" style="font-size:.72rem;flex:1;white-space:nowrap" '+
+          (canBuy?'onclick="buySlaveFromMarket('+JSON.stringify(c.id)+','+price+')"':'disabled')+'>'+
+          (canBuy?'💰 购买 $'+price:'资金不足')+
+        '</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
+  body.innerHTML=
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">'+
+      '<span style="font-size:.85rem;font-weight:700;color:var(--txt2)">⭐ 推荐奴隶</span>'+
+      '<span style="font-size:.82rem;color:#f0c050">💰 '+fmtMoney(State.money)+'</span>'+
+    '</div>'+
+    '<div style="font-size:.75rem;color:var(--txt2);line-height:1.7;margin-bottom:12px;background:var(--card2);border-radius:8px;padding:10px;border-left:3px solid #f0c050">'+
+      '✨ 以下角色拥有专属背景故事与调教剧情，互动体验更为丰富，适合优先选购。'+
+    '</div>'+
+    (pool.length
+      ?('<div style="font-size:.72rem;color:var(--muted);margin-bottom:8px">共 '+pool.length+' 位推荐角色</div>'+cards)
+      :'<div style="text-align:center;padding:24px 0;color:var(--muted)"><div style="font-size:2rem;margin-bottom:8px">🏆</div><div>所有推荐角色均已拥有！</div></div>')+
+    '<button class="btn btn-ghost btn-full" style="margin-top:10px" onclick="openSlaveProcurement()">← 返回</button>';
+}
+
 // ── 奴隶采购执行逻辑 ────────────────────────────────────────
 function doSlaveProcurement(type){
+  if(type==='featured'){
+    _openFeaturedSlaves();
+    return;
+  }
   if(type==='hunt'){
     // 从未获得的男性角色中随机猎取一个
     var pool = _getUnacquiredChars(function(c){ return c.gender==='男'; });
@@ -1727,8 +2608,11 @@ function _openSummonMarket(searchQuery){
   var cards=pool.slice(0,40).map(function(c){
     var cost=3000+Math.floor(((c.initial_affection||0)+(c.initial_obedience||0)+(c.initial_lust||0))*50);
     var canBuy=State.money>=cost;
+    var _smAva='',_smCr=typeof CharRegistry!=='undefined'?CharRegistry.get(c.id):null;
+    if(_smCr&&_smCr._presetAvaUrl)_smAva=_smCr._presetAvaUrl;
+    var _smAvaHtml=_smAva?'<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+_smAva+'" style="width:100%;height:100%;object-fit:cover"></div>':'<div style="font-size:1.5rem">'+cEmoji(c)+'</div>';
     return '<div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:8px">'+
-      '<div style="font-size:1.5rem">'+cEmoji(c)+'</div>'+
+      _smAvaHtml+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-size:.88rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>'+
         '<div style="font-size:.68rem;color:var(--muted)">'+[c.gender,c.race,c.class,c.age?c.age+'岁':''].filter(Boolean).join(' · ')+'</div>'+
@@ -1791,8 +2675,11 @@ function _openSlaveMarket(genderFilter, searchQuery){
   var cards = pool.slice(0,30).map(function(c){
     var price = priceMap[c.id]||999;
     var canBuy = State.money >= price;
+    var _mmAva='',_mmCr=typeof CharRegistry!=='undefined'?CharRegistry.get(c.id):null;
+    if(_mmCr&&_mmCr._presetAvaUrl)_mmAva=_mmCr._presetAvaUrl;
+    var _mmAvaHtml=_mmAva?'<div style="width:38px;height:38px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+_mmAva+'" style="width:100%;height:100%;object-fit:cover"></div>':'<div style="font-size:1.5rem">'+cEmoji(c)+'</div>';
     return '<div style="display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--bdr);border-radius:10px;padding:10px 12px;margin-bottom:8px;cursor:pointer" onclick="previewMarketSlave('+c.id+')">'+
-      '<div style="font-size:1.5rem">'+cEmoji(c)+'</div>'+
+      _mmAvaHtml+
       '<div style="flex:1;min-width:0">'+
         '<div style="font-size:.9rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>'+
         '<div style="font-size:.68rem;color:var(--muted)">'+[c.gender,c.race,c.class,c.age?c.age+'岁':''].filter(Boolean).join(' · ')+'</div>'+
@@ -1828,27 +2715,68 @@ function _openSlaveMarket(genderFilter, searchQuery){
 function previewMarketSlave(charId){
   var c=CHARS_DATA.find(function(x){return x.id===charId;});
   if(!c)return;
-  var rows=[
-    ['性别',c.gender||'未知'],['种族',c.race||'人类'],['职业',c.class||'—'],
-    ['年龄',c.age?c.age+'岁':'—'],['性格',c.personality||'—'],
-    ['身高',c.height?c.height+'cm':'—'],['体重',c.weight?c.weight+'kg':'—'],
-    ['性取向',c.sexual_orientation||'—']
-  ];
-  var html='<div style="text-align:center;margin-bottom:14px"><div style="font-size:3rem;margin-bottom:6px">'+cEmoji(c)+'</div><div style="font-weight:900;font-size:1.1rem;color:var(--txt)">'+esc(c.name)+'</div></div>';
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;font-size:.8rem">'+rows.map(function(r){return _detRow(r[0],r[1]);}).join('')+'</div>';
-  html+='<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px">';
+  var gSym=c.gender==='女'?'♀':c.gender==='男'?'♂':'⚧';
+  var _pmAvaImg='';
+  if(typeof CharRegistry!=='undefined'){var _pmCr=CharRegistry.get(charId)||CharRegistry.get(parseInt(charId));if(_pmCr&&_pmCr._presetAvaUrl)_pmAvaImg=_pmCr._presetAvaUrl;}
+  var _pmAvaEl=_pmAvaImg
+    ?'<div style="width:80px;height:80px;border-radius:14px;overflow:hidden;flex-shrink:0"><img src="'+_pmAvaImg+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    :'<div style="width:80px;height:80px;border-radius:14px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:2.6rem;flex-shrink:0">'+cEmoji(c)+'</div>';
+  var _pmTraits=(c.special_traits||[]).length
+    ?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:7px">'+
+        (c.special_traits||[]).map(function(t){return '<span style="font-size:.6rem;background:rgba(240,192,80,.14);color:#b8900a;padding:2px 7px;border-radius:10px;border:1px solid rgba(240,192,80,.28)">'+esc(t)+'</span>';}).join('')+
+      '</div>'
+    :'';
   var mSta=(typeof getMaxStamina==='function')?getMaxStamina(c):1500;
   var mEne=(typeof getMaxEnergy==='function')?getMaxEnergy(c):1500;
-  [['💪体力上限',mSta,'var(--sg)'],['⚡精力上限',mEne,'var(--sb)']].forEach(function(s){
-    html+='<div style="text-align:center;background:var(--card2);border-radius:8px;padding:8px"><div style="font-size:.68rem;color:var(--muted)">'+s[0]+'</div><div style="font-size:1.1rem;font-weight:700;color:'+s[2]+'">'+s[1]+'</div></div>';
-  });
-  html+='</div>';
-  if(c.description||c.desc) html+='<div style="font-size:.78rem;color:var(--txt2);line-height:1.7;padding:10px;background:var(--card2);border-radius:8px;margin-bottom:12px">'+esc(c.description||c.desc)+'</div>';
-  html+='<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-slave-detail\')">关闭</button>';
+  var html=
+    '<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">'+
+      _pmAvaEl+
+      '<div style="flex:1;min-width:0;padding-top:4px">'+
+        '<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">'+
+          '<span style="font-weight:900;font-size:1.05rem;color:var(--txt)">'+esc(c.name)+'</span>'+
+          '<span style="font-size:.85rem;color:var(--muted)">'+gSym+'</span>'+
+        '</div>'+
+        _pmTraits+
+      '</div>'+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">'+
+      _detRow('👤 性别',c.gender||'未知')+
+      _detRow('🧬 种族',c.race||'人类')+
+      _detRow('🏷️ 职业',c.class||'—')+
+      _detRow('📅 年龄',c.age?c.age+'岁':'—')+
+      _detRow('💭 性格',c.personality||'—')+
+      _detRow('📏 身高',c.height?c.height+'cm':'—')+
+      _detRow('⚖️ 体重',c.weight?c.weight+'kg':'—')+
+      _detRow('💗 性取向',c.sexual_orientation||'—')+
+      _detRow('🎂 生日',c.birthday||'—')+
+    '</div>'+
+    '<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:5px;margin-bottom:10px">'+
+      '<div style="text-align:center;background:var(--card2);border-radius:7px;padding:5px 4px">'+
+        '<div style="font-size:.58rem;color:var(--muted);margin-bottom:2px">💪 体力上限</div>'+
+        '<div style="font-size:.78rem;font-weight:700;color:var(--sg)">'+mSta+'</div>'+
+      '</div>'+
+      '<div style="text-align:center;background:var(--card2);border-radius:7px;padding:5px 4px">'+
+        '<div style="font-size:.58rem;color:var(--muted);margin-bottom:2px">⚡ 精力上限</div>'+
+        '<div style="font-size:.78rem;font-weight:700;color:var(--sb)">'+mEne+'</div>'+
+      '</div>'+
+    '</div>'+
+
+    
+        ((c.description||c.desc)?
+      '<div style="font-size:.78rem;color:var(--txt2);line-height:1.8;padding:10px;background:var(--card2);border-radius:8px;margin-bottom:12px">'+
+        '<div style="font-size:.62rem;color:var(--muted);font-weight:700;margin-bottom:4px">📖 人物介绍</div>'+
+        _renderDesc(c.description||c.desc)+
+      '</div>'
+    :'')+
+    
+    
+    '<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-slave-detail\')">✕ 关闭</button>';
   var body=document.getElementById('slave-detail-body');
-  if(body) body.innerHTML=html;
+  if(body)body.innerHTML=html;
   openOv('ov-slave-detail');
 }
+
+
 
 function buySlaveFromMarket(charId, price){
   var c = CHARS_DATA.filter(function(x){ return String(x.id)===String(charId); })[0];
@@ -1865,7 +2793,8 @@ function buySlaveFromMarket(charId, price){
   var story = _genPurchaseStory(c);
   pushStoryLog('purchase',{title:'购入·'+c.name,date:getDateStr(),char:c.name,story:story});
   openCustomConfirm('🎉 购入新奴隶',
-    '<div style="text-align:center;margin-bottom:12px"><div style="font-size:2.5rem">'+cEmoji(c)+'</div><div style="font-size:1rem;font-weight:700;margin-top:6px">'+esc(c.name)+'</div></div>'+
+    (function(){var _bsAvaImg='';if(typeof CharRegistry!=='undefined'){var _bsCr=CharRegistry.get(charId)||CharRegistry.get(parseInt(charId));if(_bsCr&&_bsCr._presetAvaUrl)_bsAvaImg=_bsCr._presetAvaUrl;}
+    return _bsAvaImg?'<div style="text-align:center;margin-bottom:12px"><div style="width:64px;height:64px;border-radius:50%;overflow:hidden;margin:0 auto 6px"><img src="'+_bsAvaImg+'" style="width:100%;height:100%;object-fit:cover"></div><div style="font-size:1rem;font-weight:700;margin-top:6px">'+esc(c.name)+'</div></div>':'<div style="text-align:center;margin-bottom:12px"><div style="font-size:2.5rem">'+cEmoji(c)+'</div><div style="font-size:1rem;font-weight:700;margin-top:6px">'+esc(c.name)+'</div></div>';})()+
     '<div style="font-size:.82rem;color:var(--txt2);line-height:1.8;padding:10px;background:var(--card2);border-radius:8px">'+story.map(function(s){return '<p style="margin-bottom:6px">'+esc(s)+'</p>';}).join('')+'</div>',
     '确认',function(){ _openSlaveMarket(); });
 }
@@ -1905,16 +2834,35 @@ function doRestFromHome(){
   if(!State.currentChar){
     var rs=(typeof REST_STORIES!=='undefined'&&REST_STORIES.length)?pick(REST_STORIES):{title:'休息',story:['今天好好休息了一下，感觉精神了不少。'],effects:{}};
     State.day=(State.day||1)+1;
+    // ★ 修复：无角色时直接修改天数，必须立即持久化防止刷新倒退
+    if(typeof _saveDay==='function') _saveDay();
     if(typeof _playerProfile!=='undefined'){var mxS=_playerProfile.staminaMax||2000;_playerProfile.stamina=Math.min(mxS,(_playerProfile.stamina||0)+Math.floor(mxS*0.5));_playerProfile.energy=Math.min(_playerProfile.energyMax||2000,(_playerProfile.energy||0)+Math.floor((_playerProfile.energyMax||2000)*0.5));localStorage.setItem('era_profile',JSON.stringify(_playerProfile));}
     // ★ 每日孕育+节日检测
     if(typeof dailyPregnancyCheck==='function') try{dailyPregnancyCheck();}catch(e){}
     if(typeof checkFestivalWarning==='function') try{checkFestivalWarning();}catch(e){}
     var storyLines=(rs.story||['好好休息了一番。']).slice();
-    storyLines.push('');storyLines.push('—— 休息效果 ——');
-    storyLines.push('所有奴隶和主人的体力与精力恢复了上限的一半。');
-    storyLines.push('进入了第 '+State.day+' 天。');
+    var _rEff='';
+    if(allChars.length>0){
+      var _fSv=loadSave(allChars[0].id);
+      if(_fSv&&_fSv.char){
+        var _mxSta=(typeof getMaxStamina==='function')?getMaxStamina(_fSv.char):1500;
+        var _mxEne=(typeof getMaxEnergy==='function')?getMaxEnergy(_fSv.char):1500;
+        _rEff+='<span class="eff-item eff-pos" style="margin-right:8px;display:inline-block;font-size:0.85rem;">💪 奴隶体力 +'+Math.floor(_mxSta/2)+'</span>';
+        _rEff+='<span class="eff-item eff-pos" style="margin-right:8px;display:inline-block;font-size:0.85rem;">🔋 奴隶精力 +'+Math.floor(_mxEne/2)+'</span>';
+      }
+    }
+    if(typeof _playerProfile!=='undefined'){
+      var _mxPS=_playerProfile.staminaMax||2000;
+      var _mxPE=_playerProfile.energyMax||2000;
+      _rEff+='<span class="eff-item eff-pos" style="display:inline-block;font-size:0.85rem;margin-right:8px;">👑 主人体力 +'+Math.floor(_mxPS*0.5)+'</span>';
+      _rEff+='<span class="eff-item eff-pos" style="display:inline-block;font-size:0.85rem;">👑 主人精力 +'+Math.floor(_mxPE*0.5)+'</span>';
+    }
+    if(_rEff){
+      storyLines.push('<div style="margin-top:15px;padding:12px;background:rgba(115,209,139,0.1);border-left:4px solid #73d18b;border-radius:6px;"><div style="font-size:0.85rem;color:var(--txt);font-weight:bold;margin-bottom:6px;">🌙 休息效果结算：</div><div style="display:flex;flex-wrap:wrap;gap:8px;">'+_rEff+'</div></div>');
+    }
     pushStoryLog&&pushStoryLog('rest',{title:rs.title,date:typeof getDateStr==='function'?getDateStr():'第'+State.day+'天',story:storyLines});
     openStoryModal({title:'🌙 '+rs.title,story:storyLines,noSplit:true,cat:'basic'},'休息',{});
+    showNewDayCard(State.day,350);
     if(typeof renderPlayerCard==='function')renderPlayerCard();
     if(typeof renderManor==='function')renderManor();
     return;
@@ -1997,10 +2945,22 @@ function renderCheatPanel(){
 
     // 时间
     '<div class="cheat-section-title">⏰ 时间操控</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:14px">'+
+    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:7px;margin-bottom:7px">'+
       '<button class="btn btn-ghost" onclick="cheatSkipDay(1)">+1天</button>'+
       '<button class="btn btn-ghost" onclick="cheatSkipDay(7)">+7天</button>'+
       '<button class="btn btn-ghost" onclick="cheatSkipDay(30)">+30天</button>'+
+      '<button class="btn btn-ghost" style="color:#e57373" onclick="cheatSkipDay(-1)">−1天</button>'+
+      '<button class="btn btn-ghost" style="color:#e57373" onclick="cheatSkipDay(-7)">−7天</button>'+
+      '<button class="btn btn-ghost" style="color:#e57373" onclick="cheatSkipDay(-30)">−30天</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:7px">'+
+      '<input class="inp" id="cheat-day-jump" type="number" min="1" placeholder="跳转到第 N 天" style="flex:1">'+
+      '<button class="btn btn-p" onclick="cheatJumpToDay()">跳转</button>'+
+    '</div>'+
+    '<div style="display:flex;gap:6px;margin-bottom:14px">'+
+      '<input class="inp" id="cheat-mo-inp" type="number" min="1" max="12" placeholder="月" style="width:64px;flex:none">'+
+      '<input class="inp" id="cheat-da-inp" type="number" min="1" max="31" placeholder="日" style="flex:1">'+
+      '<button class="btn btn-p" onclick="cheatJumpToDate()">跳到该日</button>'+
     '</div>'+
 
     // 主角体力/精力
@@ -2120,11 +3080,114 @@ function _cheatRefreshLiveStats(){
 }
 
 function cheatSkipDay(n){
-  State.day=(State.day||1)+n;
+  State.day=Math.max(1,(State.day||1)+n);
   if(typeof renderPlayerCard==='function')renderPlayerCard();
   if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
   _cheatRefreshLiveStats();
-  toast('⏰ 已快进 '+n+' 天（现在是第 '+State.day+' 天）','ok');
+  var label=n>0?'快进 '+n+' 天':'回退 '+Math.abs(n)+' 天';
+  toast('⏰ 已'+label+'，现在第 '+State.day+' 天（'+dayToDate(State.day)+'）','ok');
+}
+function cheatJumpToDay(){
+  var inp=document.getElementById('cheat-day-jump');
+  var v=parseInt(inp?inp.value:'');
+  if(isNaN(v)||v<1){toast('请输入大于 0 的天数','err');return;}
+  var old=State.day||1;
+  State.day=v;
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
+  _cheatRefreshLiveStats();
+  if(inp)inp.value='';
+  toast('📅 天数已跳转：第 '+old+' 天 → 第 '+v+' 天（'+dayToDate(v)+'）','ok');
+}
+function cheatJumpToDate(){
+  var mo=parseInt((document.getElementById('cheat-mo-inp')||{}).value);
+  var da=parseInt((document.getElementById('cheat-da-inp')||{}).value);
+  var ms=[31,28,31,30,31,30,31,31,30,31,30,31];
+  if(isNaN(mo)||isNaN(da)||mo<1||mo>12||da<1||da>ms[mo-1]){toast('请输入有效月份和日期','err');return;}
+  var dayInYear=0;
+  for(var i=0;i<mo-1;i++) dayInYear+=ms[i];
+  dayInYear+=da;
+  var curDay=State.day||1;
+  var base=Math.floor((curDay-1)/365)*365;
+  var target=base+dayInYear;
+  if(target<=curDay) target+=365; // 已过则跳到下一年同日
+  var old=curDay;
+  State.day=target;
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
+  _cheatRefreshLiveStats();
+  document.getElementById('cheat-mo-inp').value='';
+  document.getElementById('cheat-da-inp').value='';
+  toast('📅 已跳至 '+mo+'月'+da+'日（第 '+old+' → 第 '+target+' 天）','ok');
+}
+function cheatJumpToDate(){
+  var mo=parseInt((document.getElementById('cheat-mo-inp')||{}).value);
+  var da=parseInt((document.getElementById('cheat-da-inp')||{}).value);
+  var ms=[31,28,31,30,31,30,31,31,30,31,30,31];
+  if(isNaN(mo)||isNaN(da)||mo<1||mo>12||da<1||da>ms[mo-1]){toast('请输入有效月份和日期','err');return;}
+  var dayInYear=0;
+  for(var i=0;i<mo-1;i++) dayInYear+=ms[i];
+  dayInYear+=da;
+  var curDay=State.day||1;
+  var base=Math.floor((curDay-1)/365)*365;
+  var target=base+dayInYear;
+  if(target<=curDay) target+=365; // 已过则跳到下一年同日
+  var old=curDay;
+  State.day=target;
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
+  _cheatRefreshLiveStats();
+  document.getElementById('cheat-mo-inp').value='';
+  document.getElementById('cheat-da-inp').value='';
+  toast('📅 已跳至 '+mo+'月'+da+'日（第 '+old+' → 第 '+target+' 天）','ok');
+}
+function cheatJumpToDate(){
+  var mo=parseInt((document.getElementById('cheat-mo-inp')||{}).value);
+  var da=parseInt((document.getElementById('cheat-da-inp')||{}).value);
+  var ms=[31,28,31,30,31,30,31,31,30,31,30,31];
+  if(isNaN(mo)||isNaN(da)||mo<1||mo>12||da<1||da>ms[mo-1]){toast('请输入有效月份和日期','err');return;}
+  var dayInYear=0;
+  for(var i=0;i<mo-1;i++) dayInYear+=ms[i];
+  dayInYear+=da;
+  var curDay=State.day||1;
+  var base=Math.floor((curDay-1)/365)*365;
+  var target=base+dayInYear;
+  if(target<=curDay) target+=365; // 已过则跳到下一年同日
+  var old=curDay;
+  State.day=target;
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
+  _cheatRefreshLiveStats();
+  document.getElementById('cheat-mo-inp').value='';
+  document.getElementById('cheat-da-inp').value='';
+  toast('📅 已跳至 '+mo+'月'+da+'日（第 '+old+' → 第 '+target+' 天）','ok');
+}
+function cheatJumpToDate(){
+  var mo=parseInt((document.getElementById('cheat-mo-inp')||{}).value);
+  var da=parseInt((document.getElementById('cheat-da-inp')||{}).value);
+  var ms=[31,28,31,30,31,30,31,31,30,31,30,31];
+  if(isNaN(mo)||isNaN(da)||mo<1||mo>12||da<1||da>ms[mo-1]){toast('请输入有效月份和日期','err');return;}
+  var dayInYear=0;
+  for(var i=0;i<mo-1;i++) dayInYear+=ms[i];
+  dayInYear+=da;
+  var curDay=State.day||1;
+  var base=Math.floor((curDay-1)/365)*365;
+  var target=base+dayInYear;
+  if(target<=curDay) target+=365; // 已过则跳到下一年同日
+  var old=curDay;
+  State.day=target;
+  if(typeof renderPlayerCard==='function')renderPlayerCard();
+  if(typeof saveMiniState==='function')saveMiniState();
+  if(typeof _saveDay==='function')_saveDay();
+  _cheatRefreshLiveStats();
+  document.getElementById('cheat-mo-inp').value='';
+  document.getElementById('cheat-da-inp').value='';
+  toast('📅 已跳至 '+mo+'月'+da+'日（第 '+old+' → 第 '+target+' 天）','ok');
 }
 function cheatSetMoney(){
   var v=parseInt(document.getElementById('cheat-money-inp').value);
@@ -2148,7 +3211,6 @@ function cheatFillStamina(){
   State.currentChar.stamina=maxSta;
   State.currentChar.energy=maxEne;
   if(typeof setStat==='function'){setStat('stamina',maxSta);setStat('energy',maxEne);}
-  if(typeof writeSave==='function')writeSave();
   toast('💪 体力'+maxSta+' 精力'+maxEne+' 已拉满','ok');
 }
   if(typeof renderPlayerCard==='function')renderPlayerCard();
@@ -2305,11 +3367,32 @@ function checkFestivalWarning(){
   var day=State.day||1;
   var dm=typeof _dayToMD==='function'?_dayToMD(day):null;
   if(!dm)return;
+
+  // ── HolidayManager 接管全部横幅与弹窗 ─────────────────────
+  if(typeof HolidayManager!=='undefined'){
+    // 清除旧式静态横幅，避免重复
+    var oldBanner=document.getElementById('manor-festival-banner');
+    if(oldBanner) oldBanner.innerHTML='';
+    // 收集所有已拥有角色
+    var allAcq=(typeof CHARS_DATA!=='undefined')
+      ?CHARS_DATA.filter(function(c){var sv=loadSave(c.id);return sv&&sv.char;})
+      :[];
+    var ownedIds=allAcq.map(function(c){return c.id;});
+    var slaveNames=allAcq.map(function(c){
+      var sv=loadSave(c.id);
+      return (sv&&sv.char&&sv.char.name)?sv.char.name:c.name;
+    });
+    HolidayManager.init(ownedIds,dm.month,dm.day,slaveNames);
+    HolidayManager.showBannerIfNeeded('s-manor');
+    setTimeout(function(){HolidayManager.checkAndShowPopup();},300);
+    return;
+  }
+
+  // ── 旧式兜底（HolidayManager 未加载时才走这里）────────────
   var festival=null;
   FESTIVALS.forEach(function(f){
     if(f.month===dm.month&&f.day===dm.day)festival=f;
   });
-  // 检查奴隶生日（如果有charProfile里的birthMonth/birthDay）
   var birthday=null;
   if(State.currentChar){
     var sv=loadSave(State.currentChar.id);
@@ -2318,8 +3401,6 @@ function checkFestivalWarning(){
       birthday={name:State.currentChar.name,icon:'🎂'};
     }
   }
-  
-  // 在庄园顶部显示横幅
   var bannerEl=document.getElementById('manor-festival-banner');
   if(!bannerEl){
     var manorSection=document.getElementById('s-manor');
@@ -2344,32 +3425,114 @@ function checkFestivalWarning(){
       bannerEl.innerHTML='';
     }
   }
-}
+}	
+
+
+
+
 
 // ══ 奴隶路线 & 标签系统 ══════════════════════════════════════
 var SLAVE_ROUTES = [
-  { id:'love',       tag:'恋慕', icon:'❤️',  color:'#e91e63', name:'爱情路线', check:function(sv){return (sv.affection||0)>=85;} },
-  { id:'domination', tag:'服从', icon:'⛓️',  color:'#7c4dff', name:'支配路线', check:function(sv){return (sv.obedience||0)>=90;} },
-  { id:'lust',       tag:'淫乱', icon:'🔥',  color:'#ff5722', name:'色欲路线', check:function(sv){return (sv.lust||0)>=90;} },
-  { id:'yandere',    tag:'执迷', icon:'🩸',  color:'#c62828', name:'病娇路线', check:function(sv){return (sv.affection||0)>=85&&(sv.obedience||0)>=85;} },
-  { id:'dark',       tag:'堕落', icon:'🌑',  color:'#37474f', name:'黑化路线', check:function(sv){return (sv.affection||0)<=-10&&(sv.obedience||0)>=65;} },
+  { id:'love', tag:'恋慕', icon:'❤️', color:'#e91e63', name:'爱情路线',
+    desc:'她已经把你深深刻进了心里。\n\n那些掩藏在低头、错开视线、无意识靠近之间的情绪，不再只是服从——那是真实的依恋，是她自己也无法解释的在意。你走进来，她的心跳会乱。你不在，她会等。',
+    lore:'爱情路线完成后解锁',
+    unlock:'「……主人今天回来得比昨天早。」她低声自言自语，随即意识到自己在数你的归来时间，耳朵悄悄红了。',
+    check:function(sv){return (sv.affection||0)>=85;} },
+  { id:'domination', tag:'服从', icon:'⛓️', color:'#7c4dff', name:'支配路线',
+    desc:'她的意志已经被彻底驯服。\n\n命令不需要重复第二遍，她的身体已经学会了在你开口之前倾斜。那些反抗、别扭、不肯低头的瞬间，在一次次训练里被磨得光滑，只剩下流畅的顺从——以及偶尔从眼底一闪而过、说不清是什么的东西。',
+    lore:'支配路线完成后解锁',
+    unlock:'「……是。主人说什么，就是什么。」她的声音很平静，只有握住衣角的手指微微收紧了一下。',
+    check:function(sv){return (sv.obedience||0)>=90;} },
+  { id:'lust', tag:'淫乱', icon:'🔥', color:'#ff5722', name:'色欲路线',
+    desc:'欲望已经漫过了她能控制的边界。\n\n身体早就记住了那种感觉，甚至开始主动向那个方向渴望。只需要一个眼神，或者仅仅是你走近时的气息，她就会开始期待——然后为自己的期待而羞耻，而那种羞耻本身，又变成了另一重刺激。',
+    lore:'色欲路线完成后解锁',
+    unlock:'「不……不是的，才没有在想那种事……」她的眼神躲开了，但腿根已经悄悄并拢。',
+    check:function(sv){return (sv.lust||0)>=90;} },
+  { id:'yandere', tag:'病娇', icon:'🩸', color:'#c62828', name:'病娇路线',
+    desc:'她爱你，但那份爱里掺着执念和占有。\n\n世界在她眼中已经缩小成你一个人的轮廓。旁的一切——其他人、其他事——都开始变得像障碍物一样碍眼。她不会说出口，却会记住每一个靠近你的人，以及靠近了多久。',
+    lore:'病娇路线完成后解锁',
+    unlock:'「主人今天和……那个人说了很久的话。」她的声音很轻，语气听起来只是随口一提，「……多久？」',
+    check:function(sv){return (sv.affection||0)>=85&&(sv.obedience||0)>=85;} },
+  { id:'dark', tag:'蚀心', icon:'🌑', color:'#37474f', name:'黑化路线',
+    desc:'她恨你，也离不开你。\n\n仇恨与依存缠成了一团，她自己也分不清那根线究竟在哪里。那双眼睛望着你的时候，比任何人都更危险——因为那里面有真实的憎恶，也有比憎恶更深的东西，她不会承认，但你看得见。\n\n心是被腐蚀过的，所以才会以这种扭曲的方式，继续燃烧。',
+    lore:'黑化路线完成后解锁',
+    unlock:'「……你以为我是在服从你吗。」她笑了，但那个笑容凉得像一把刀，「我只是还没找到好时机。」',
+    check:function(sv){return (sv.affection||0)<=-10&&(sv.obedience||0)>=65;} },
 ];
 
 function _updateSlaveTags(charData, charId) {
+  // 路线标签只通过 completeRoute() 显式解锁，不再自动触发
   if (!charData) return false;
   if (!charData.tags) charData.tags = [];
+  if (!charData.completedRoutes) charData.completedRoutes = [];
   var changed = false;
-  SLAVE_ROUTES.forEach(function(route) {
-    if (route.check(charData) && charData.tags.indexOf(route.tag) < 0) {
+  charData.completedRoutes.forEach(function(routeId) {
+    var route = SLAVE_ROUTES.find(function(r){ return r.id === routeId; });
+    if (route && charData.tags.indexOf(route.tag) < 0) {
       charData.tags.push(route.tag);
       changed = true;
-      if (typeof toast === 'function') toast(route.icon + ' 解锁标签「' + route.tag + '」（' + route.name + '）', 'ok');
     }
   });
   return changed;
 }
 
+// ── 路线完成解锁（在剧情里调用：completeRoute(charId, 'love')）──────
+// 支持的 routeId：love / domination / lust / yandere / dark
+function completeRoute(charId, routeId) {
+  var sv = loadSave(charId);
+  if (!sv || !sv.char) return false;
+  var char = sv.char;
+  if (!char.completedRoutes) char.completedRoutes = [];
+  if (char.completedRoutes.indexOf(routeId) >= 0) return false; // 已解锁
+  var route = SLAVE_ROUTES.find(function(r){ return r.id === routeId; });
+  if (!route) return false;
+  char.completedRoutes.push(routeId);
+  if (!char.tags) char.tags = [];
+  if (char.tags.indexOf(route.tag) < 0) {
+    char.tags.push(route.tag);
+    if (typeof toast === 'function') toast('🎉 ' + route.icon + ' 解锁路线标签「' + route.tag + '」！', 'ok');
+  }
+  sv.char = char;
+  localStorage.setItem('era_sv_' + charId, JSON.stringify(sv));
+  // 如果当前训练中就是这个角色，同步更新内存
+  if (State.currentChar && String(State.currentChar.id) === String(charId)) {
+    State.currentChar.completedRoutes = char.completedRoutes;
+    State.currentChar.tags = char.tags;
+  }
+  return true;
+}
+
+// ── 路线标签详情弹窗 ─────────────────────────────────────────────
+function openTagDetail(tagName) {
+  var route = SLAVE_ROUTES.find(function(r){ return r.tag === tagName; });
+  if (!route) return;
+  var el = document.getElementById('ov-tag-detail');
+  if (!el) return;
+  var body = el.querySelector('.s-body');
+  if (!body) return;
+  var descHtml = (route.desc || '').replace(/\n/g, '<br>');
+  body.innerHTML =
+    '<div style="text-align:center;padding:20px 0 14px">' +
+      '<div style="font-size:3.2rem;margin-bottom:10px">' + route.icon + '</div>' +
+      '<div style="display:inline-block;background:' + route.color + ';color:#fff;padding:5px 18px;border-radius:20px;font-weight:800;font-size:.92rem;letter-spacing:3px">' + route.tag + '</div>' +
+      '<div style="color:var(--muted);font-size:.7rem;margin-top:8px;letter-spacing:1px">' + route.name + '</div>' +
+    '</div>' +
+    '<div style="background:var(--card2);border-left:3px solid ' + route.color + ';border-radius:0 10px 10px 0;padding:14px 16px;margin-bottom:12px;font-size:.82rem;line-height:1.8;color:var(--txt)">' +
+      descHtml +
+    '</div>' +
+    (route.unlock ?
+      '<div style="background:var(--card2);border-radius:10px;padding:10px 14px;margin-bottom:12px">' +
+        '<div style="font-size:.62rem;color:' + route.color + ';font-weight:700;margin-bottom:5px">✦ 解锁瞬间</div>' +
+        '<div style="font-size:.78rem;color:var(--txt2);line-height:1.6;font-style:italic">' + route.unlock + '</div>' +
+      '</div>'
+    : '') +
+    '<div style="text-align:center;font-size:.65rem;color:var(--muted);padding-top:4px">' + (route.lore||'') + '</div>';
+  openOv('ov-tag-detail');
+}
+
 function renderManor(){
+  // 渲染助手面板
+  if (typeof renderAssistantPanel === 'function') renderAssistantPanel();
   var acquired=CHARS_DATA.filter(function(c){var sv=loadSave(c.id);return sv&&sv.char;});
   var list=document.getElementById('manor-slave-list');
   var empty=document.getElementById('manor-empty');
@@ -2420,7 +3583,7 @@ function renderManor(){
     if (char.tags && char.tags.length) {
       char.tags.forEach(function(tag) {
         var route = SLAVE_ROUTES.find(function(r){return r.tag===tag;}) || {};
-        badges += '<span style="background:' + (route.color||'#888') + ';color:#fff;padding:1px 5px;border-radius:8px;font-size:.55rem;font-weight:700;margin-left:3px">' + (route.icon||'🏷️') + tag + '</span>';
+        badges += '<span data-tag="' + tag + '" onclick="openTagDetail(this.dataset.tag)" style="cursor:pointer;background:' + (route.color||'#888') + ';color:#fff;padding:1px 5px;border-radius:8px;font-size:.55rem;font-weight:700;margin-left:3px" title="点击查看路线详情">' + (route.icon||'🏷️') + tag + '</span>';
       });
     }
     // 属性条紧凑版
@@ -2447,10 +3610,10 @@ function renderManor(){
       '</div>'+
       // 属性条（紧凑4列，值不会溢出）
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:4px;margin-bottom:6px;font-size:.65rem">'+
-        _manorStatBar('❤',aff,'var(--so)')+
-        _manorStatBar('👁',obed,'var(--sp)')+
-        _manorStatBar('🔥',lust,'var(--sr)')+
-        _manorStatBar('💪',staPct+'%','var(--sg)',staPct)+
+        _manorStatBar('❤',aff,'var(--so)',undefined,'affection')+
+        _manorStatBar('👁',obed,'var(--sp)',undefined,'obedience')+
+        _manorStatBar('🔥',lust,'var(--sr)',undefined,'lust')+
+        _manorStatBar('💪',staPct+'%','var(--sg)',staPct,'stamina')+
       '</div>'+
       '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px">'+
         '<button class="btn btn-sm" style="font-size:.72rem;background:rgba(233,30,99,.06);color:#e91e63;border:1px solid rgba(233,30,99,.15)" onclick="if(typeof viewCharCG===\'function\')viewCharCG('+cid+');else openCharCGList('+cid+')">🖼️ 形象</button>'+
@@ -2461,9 +3624,10 @@ function renderManor(){
   }).join('');
 }
 
-function _manorStatBar(icon, val, color, pctOverride){
+function _manorStatBar(icon, val, color, pctOverride, statKey){
   var pct=(pctOverride!==undefined)?pctOverride:(typeof val==='number'?val:0);
-  return '<div>'+
+  var clickAttr = statKey ? ('onclick="openStatDetail(\'' + statKey + '\',' + JSON.stringify(val) + ')" style="cursor:pointer"') : '';
+  return '<div ' + clickAttr + '>'+
     '<div style="display:flex;justify-content:space-between;margin-bottom:2px">'+
       '<span style="color:var(--muted)">'+icon+'</span>'+
       '<span style="color:'+color+';font-weight:700;font-size:.62rem">'+val+'</span>'+
@@ -2474,7 +3638,99 @@ function _manorStatBar(icon, val, color, pctOverride){
   '</div>';
 }
 
+// ── 庄园属性条点击：属性详情弹窗 ────────────────────────────────────
+var STAT_INFO = {
+  affection: {
+    icon:'❤️', name:'好感', color:'#e91e63',
+    lv: ['陌路','淡漠','接受','亲近','依赖','心动','迷恋','牵挂','深情','挚爱'],
+    note: '代表她对你的情感深度。好感越高，她越愿意主动靠近、越在意你的看法。'
+  },
+  obedience: {
+    icon:'👁', name:'服从', color:'#7c4dff',
+    lv: ['桀骜','抗拒','敷衍','听话','顺从','依令','驯服','惯性服从','彻底归顺','全然臣服'],
+    note: '代表她对命令的接受程度。服从越高，她越容易执行指令，也越少表现出抵触。'
+  },
+  lust: {
+    icon:'🔥', name:'欲望', color:'#ff5722',
+    lv: ['冷感','迟钝','微敏','有感','觉醒','渴望','贪欲','沉溺','放纵','失控'],
+    note: '代表她身体的敏感度与欲望强度。欲望越高，亲密互动的反应越强烈、越主动。'
+  },
+  stamina: {
+    icon:'💪', name:'体力', color:'#66bb6a',
+    lv: ['精疲力竭','疲惫','乏力','还行','平常','充沛','精力充足','活力四射','生龙活虎','巅峰状态'],
+    note: '代表当前体力状态。体力低时训练效果会下降，需要休息恢复。'
+  }
+};
+function openStatDetail(statKey, val) {
+  var info = STAT_INFO[statKey];
+  if (!info) return;
+  var el = document.getElementById('ov-stat-detail');
+  if (!el) return;
+  var body = el.querySelector('.s-body');
+  if (!body) return;
+  // 计算等级描述（0-100 → 10档）
+  var numVal = parseFloat(val) || 0;
+  var lvIdx = Math.min(9, Math.floor(numVal / 10));
+  var lvLabel = info.lv[lvIdx] || info.lv[9];
+  body.innerHTML =
+    '<div style="text-align:center;padding:16px 0 10px">' +
+      '<div style="font-size:2.8rem;margin-bottom:6px">' + info.icon + '</div>' +
+      '<div style="font-weight:800;font-size:1.1rem;color:' + info.color + '">' + info.name + '</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">' +
+        '当前值 <strong style="color:' + info.color + '">' + val + '</strong>' +
+        ' · 状态 <strong style="color:' + info.color + '">' + lvLabel + '</strong>' +
+      '</div>' +
+    '</div>' +
+    '<div style="background:var(--card2);border-left:3px solid ' + info.color + ';border-radius:0 10px 10px 0;padding:12px 14px;margin-bottom:10px;font-size:.8rem;line-height:1.8;color:var(--txt)">' +
+      info.note +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:4px">' +
+    info.lv.map(function(l, i) {
+      var active = (i === lvIdx);
+      return '<div style="text-align:center;padding:5px 2px;border-radius:8px;background:' + (active ? info.color : 'var(--card2)') + ';color:' + (active ? '#fff' : 'var(--muted)') + ';font-size:.6rem;font-weight:' + (active ? '700' : '400') + '">' +
+        '<div style="font-size:.55rem;color:' + (active ? 'rgba(255,255,255,.7)' : 'var(--bdr2)') + '">Lv.' + i + '</div>' + l +
+      '</div>';
+    }).join('') +
+    '</div>';
+  openOv('ov-stat-detail');
+}
+
+// ── 道具指令未持有时：购买提示弹窗 ──────────────────────────────────
+function openBuyItemPrompt(itemId) {
+  var _id = (typeof itemId === 'string' && itemId.trim() !== '' && !isNaN(itemId)) ? Number(itemId) : itemId;
+  var it = ITEMS_DATA && ITEMS_DATA.find(function(i){ return i.id === _id || String(i.id) === String(_id); });
+  if (!it) return;
+  var el = document.getElementById('ov-buy-item-prompt');
+  if (!el) return;
+  el.style.zIndex = '420';
+  var body = el.querySelector('.s-body');
+  if (!body) return;
+  body.innerHTML =
+    '<div style="text-align:center;padding:20px 0 12px">' +
+      '<div style="font-size:2.5rem;margin-bottom:8px">🛒</div>' +
+      '<div style="font-weight:800;font-size:.95rem;color:var(--txt)">需要「' + esc(it.name) + '」</div>' +
+      '<div style="font-size:.72rem;color:var(--muted);margin-top:4px">背包里还没有这件道具</div>' +
+    '</div>' +
+    '<div style="background:var(--card2);border-radius:10px;padding:12px 14px;margin-bottom:14px;font-size:.8rem;line-height:1.7;color:var(--txt2)">' +
+      (it.desc ? esc(it.desc) : '前往商店购买后即可使用。') +
+    '</div>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;padding:0 4px;margin-bottom:12px">' +
+      '<span style="font-size:.75rem;color:var(--muted)">商店售价</span>' +
+      '<span style="font-weight:800;color:var(--acc);font-size:.9rem">💰 ' + (it.price || '?') + '</span>' +
+    '</div>' +
+    '<button class="btn btn-p btn-full" onclick="closeOv(\'ov-buy-item-prompt\');navTo(\'shop\')" style="margin-bottom:8px">🏪 前往商店</button>' +
+    '<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-buy-item-prompt\')">取消</button>';
+  openOv('ov-buy-item-prompt');
+}
+
 function enterTrainingFromManor(charId){
+  // 如果点击的就是当前角色，直接跳到训练页，不重新加载存档（避免背包被旧快照覆盖）
+  if(State.currentChar && State.currentChar.id === charId){
+    if(typeof navTo==='function') navTo('play');
+    if(typeof renderPlay==='function') renderPlay();
+    return;
+  }
+  // 切换到不同角色时才走 selectChar
   if(typeof selectChar==='function') selectChar(charId);
 }
 
@@ -2483,7 +3739,13 @@ function openExpDetailForSlave(charId){
   var sv=loadSave(charId);if(!sv||!sv.char)return;
   var c=sv.char;var base=CHARS_DATA.find(function(x){return x.id===charId;});
   var body=document.getElementById('slave-detail-body');if(!body)return;
-  var html='<div style="text-align:center;margin-bottom:14px"><div style="font-size:2rem;margin-bottom:4px">'+cEmoji(c)+'</div><div style="font-weight:800;color:var(--txt)">'+esc(c.name)+' · 角色经验</div></div>';
+  // 角色经验头像（优先自定义）
+  var _expAvaImgSrc=sv.charProfile&&(sv.charProfile.avaImg||sv.charProfile._presetAvaUrl)||'';
+  if(!_expAvaImgSrc&&typeof CharRegistry!=='undefined'){var _expCr=CharRegistry.get(charId);if(_expCr&&_expCr._presetAvaUrl)_expAvaImgSrc=_expCr._presetAvaUrl;}
+  var _expAvaHtml;
+  if(_expAvaImgSrc){_expAvaHtml='<div style="width:52px;height:52px;border-radius:50%;overflow:hidden;margin:0 auto 6px;cursor:pointer" onclick="openSlaveAvaModal('+charId+')"><img src="'+_expAvaImgSrc+'" style="width:100%;height:100%;object-fit:cover"></div>';}
+  else{var _expEmoji=(sv.charProfile&&sv.charProfile.ava)||cEmoji(c);_expAvaHtml='<div style="font-size:2rem;margin-bottom:4px;cursor:pointer" onclick="openSlaveAvaModal('+charId+')">'+_expEmoji+'</div>';}
+  var html='<div style="text-align:center;margin-bottom:14px">'+_expAvaHtml+'<div style="font-weight:800;color:var(--txt)">'+esc(c.name)+' · 角色经验</div></div>';
   // 基础经验
   var expItems=[
     {k:'expKiss',label:'接吻',icon:'💋'},{k:'expCaress',label:'爱抚',icon:'🤲'},{k:'expOral',label:'口技',icon:'👅'},
@@ -2511,48 +3773,66 @@ function openSlaveDetailById(charId){
   var c=CHARS_DATA.find(function(x){return x.id===charId;});
   var sv=loadSave(charId);
   if(!c||!sv)return;
-  var char=sv.char;
-  var nick=sv.charProfile?.nickname||c.nickname||'';
   var profile=sv.charProfile||{};
   var body=document.getElementById('slave-detail-body');
   if(!body)return;
-  // 头像（使用上传的头像，完整显示）
-  var avaHtml;
-  if(profile.avaImg){
-    avaHtml='<div style="width:80px;height:80px;border-radius:50%;overflow:hidden;margin:0 auto 8px"><img src="'+profile.avaImg+'" style="width:100%;height:100%;object-fit:cover"></div>';
-  }else{
-    avaHtml='<div style="font-size:3rem;margin-bottom:6px">'+cEmoji(c)+'</div>';
-  }
   var gSym=c.gender==='女'?'♀':c.gender==='男'?'♂':'⚧';
+  var _sdAvaImgSrc=profile.avaImg||profile._presetAvaUrl||'';
+  if(!_sdAvaImgSrc&&typeof CharRegistry!=='undefined'){var _sdCr=CharRegistry.get(charId);if(_sdCr&&_sdCr._presetAvaUrl)_sdAvaImgSrc=_sdCr._presetAvaUrl;}
+  var _sdAvaEl=_sdAvaImgSrc
+    ?'<div style="width:80px;height:80px;border-radius:14px;overflow:hidden;flex-shrink:0;cursor:pointer" onclick="openSlaveAvaModal('+charId+')" title="点击更换头像"><img src="'+_sdAvaImgSrc+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    :'<div style="width:80px;height:80px;border-radius:14px;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:2.6rem;flex-shrink:0;cursor:pointer" onclick="openSlaveAvaModal('+charId+')" title="点击更换头像">'+(profile.ava||cEmoji(c))+'</div>';
+  var _sdTraits=(c.special_traits||[]).length
+    ?'<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:7px">'+
+        (c.special_traits||[]).map(function(t){return '<span style="font-size:.6rem;background:rgba(240,192,80,.14);color:#b8900a;padding:2px 7px;border-radius:10px;border:1px solid rgba(240,192,80,.28)">'+esc(t)+'</span>';}).join('')+
+      '</div>'
+    :'';
+  var mSta=(typeof getMaxStamina==='function')?getMaxStamina(c):1500;
+  var mEne=(typeof getMaxEnergy==='function')?getMaxEnergy(c):1500;
   body.innerHTML=
-    '<div style="text-align:center;margin-bottom:16px">'+
-      avaHtml+
-      '<div style="font-weight:900;font-size:1.1rem;color:var(--txt)">'+esc(c.name)+' <span style="font-size:.85rem;color:var(--muted)">'+gSym+'</span></div>'+
+    '<div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px">'+
+      _sdAvaEl+
+      '<div style="flex:1;min-width:0;padding-top:4px">'+
+        '<div style="display:flex;align-items:center;gap:5px;margin-bottom:5px">'+
+          '<span style="font-weight:900;font-size:1.05rem;color:var(--txt)">'+esc(c.name)+'</span>'+
+          '<span style="font-size:.85rem;color:var(--muted)">'+gSym+'</span>'+
+        '</div>'+
+        _sdTraits+
+      '</div>'+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;font-size:.8rem">'+
-      '<div style="background:var(--card2);border-radius:7px;padding:7px 9px"><div style="font-size:.65rem;color:var(--muted)">昵称</div><div style="font-weight:700;color:var(--txt);cursor:pointer" ondblclick="renameSlaveNick('+charId+')" title="双击修改">'+esc(nick||'无')+'</div></div>'+
-      _detRow('性取向',c.sexual_orientation||'—')+
+    '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:10px">'+
+      _detRow('👤 性别',c.gender||'未知')+
+      _detRow('🧬 种族',c.race||'人类')+
+      _detRow('🏷️ 职业',c.class||'—')+
+      _detRow('📅 年龄',c.age?c.age+'岁':'—')+
+      _detRow('💭 性格',c.personality||'—')+
+      _detRow('📏 身高',c.height?c.height+'cm':'—')+
+      _detRow('⚖️ 体重',c.weight?c.weight+'kg':'—')+
+      _detRow('💗 性取向',c.sexual_orientation||'—')+
+      _detRow('📆 调教天数',Math.round(sv.day||1)+'天')+
+      _detRow('🎂 生日',c.birthday||'—')+
+      _detRow('💪 体力上限',mSta)+
+      _detRow('⚡ 精力上限',mEne)+
     '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;font-size:.8rem">'+
-      _detRow('性别',c.gender||'未知')+
-      _detRow('种族',c.race||'人类')+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:10px;font-size:.8rem">'+
-      _detRow('年龄',c.age?c.age+'岁':'—')+
-      _detRow('性格',c.personality||'—')+
-    '</div>'+
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:14px;font-size:.8rem">'+
-      _detRow('调教天数',Math.round(sv.day||1)+'天')+
-      _detRow('身高',c.height?c.height+'cm':'—')+
-      _detRow('体重',c.weight?c.weight+'kg':'—')+
-      _detRow('职业',c.class||'—')+
-    '</div>'+
-    ((c.description||c.desc)?'<div style="font-size:.82rem;color:var(--txt2);line-height:1.8;padding:12px;background:var(--card2);border-radius:10px;margin-bottom:14px;border-left:3px solid var(--acc3)"><div style="font-size:.7rem;color:var(--acc3);font-weight:700;margin-bottom:5px">📖 人物介绍</div>'+esc(c.description||c.desc)+'</div>':'')+
-'<div style="display:flex;gap:8px;margin-top:4px">'+
-      '<button class="btn btn-ghost btn-full" onclick="closeOv(\'ov-slave-detail\')">关闭</button>'+
-    '</div>';    
+
+    
+        ((c.description||c.desc)?
+      '<div style="font-size:.78rem;color:var(--txt2);line-height:1.8;padding:10px;background:var(--card2);border-radius:8px;margin-bottom:12px">'+
+        '<div style="font-size:.62rem;color:var(--muted);font-weight:700;margin-bottom:4px">📖 人物介绍</div>'+
+        _renderDesc(c.description||c.desc)+
+      '</div>'
+    :'')+
+    
+    
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:4px">'+
+      '<button class="btn btn-ghost" style="font-size:.82rem" onclick="openExpDetailForSlave('+charId+')">📊 经验详情</button>'+
+      '<button class="btn btn-ghost" style="font-size:.82rem" onclick="closeOv(\'ov-slave-detail\')">✕ 关闭</button>'+
+    '</div>';
   openOv('ov-slave-detail');
 }
+
+
+
 function renameSlaveNick(charId){
   var sv=loadSave(charId);if(!sv)return;
   var nick=prompt('输入新昵称：',sv.charProfile?.nickname||'');
@@ -2563,12 +3843,36 @@ function renameSlaveNick(charId){
   openSlaveDetailById(charId);
   toast('昵称已修改','ok');
 }
+function _renderDesc(txt){
+  if(!txt)return '';
+  // 同时处理：真实换行符 和 字面量 \\n 两种情况
+  return txt
+    .split(/\\n|\n/)
+    .map(function(line){ return esc(line); })
+    .join('<br>');
+}
 
 function _detRow(label, val){
-  return '<div style="background:var(--card2);border-radius:7px;padding:7px 9px">'+
-    '<div style="font-size:.65rem;color:var(--muted)">'+label+'</div>'+
-    '<div style="font-weight:700;color:var(--txt)">'+esc(String(val))+'</div>'+
+  var _clr='#c8900a';
+  if     (label.indexOf('👤')>=0) _clr='#4a90d9';
+  else if(label.indexOf('🧬')>=0) _clr='#9b59b6';
+  else if(label.indexOf('🏷')>=0) _clr='#e67e22';
+  else if(label.indexOf('📅')>=0) _clr='#1abc9c';
+  else if(label.indexOf('💭')>=0) _clr='#e91e8c';
+  else if(label.indexOf('📏')>=0) _clr='#2980b9';
+  else if(label.indexOf('⚖')>=0)  _clr='#27ae60';
+  else if(label.indexOf('💗')>=0) _clr='#e74c3c';
+  else if(label.indexOf('📆')>=0) _clr='#f39c12';
+  else if(label.indexOf('🎂')>=0) _clr='#c77dff';
+  else if(label.indexOf('💪')>=0) _clr='var(--sg)';
+  else if(label.indexOf('⚡')>=0)  _clr='var(--sb)';
+    return '<div style="background:var(--card2);border-radius:7px;padding:5px 4px;text-align:center">'+
+    '<div style="font-size:.58rem;color:var(--muted);margin-bottom:2px">'+label+'</div>'+
+    '<div style="font-size:.78rem;font-weight:700;color:'+_clr+'">'+esc(String(val))+'</div>'+
   '</div>';
+  
+  
+
 }
 function _statRow(label, val, color){
   return '<div style="display:flex;align-items:center;gap:8px">'+
@@ -2712,9 +4016,15 @@ function _renderSlaveRoom(charId, c, sv){
     '</div>';
   }).join('');
 
+  // ★ 头像：与庄园/CG库同步
+  var _roomAvaImg=(sv.charProfile&&(sv.charProfile.avaImg||sv.charProfile._presetAvaUrl))||'';
+  if(!_roomAvaImg&&typeof CharRegistry!=='undefined'){var _roomCr=CharRegistry.get(charId)||CharRegistry.get(parseInt(charId));if(_roomCr&&_roomCr._presetAvaUrl)_roomAvaImg=_roomCr._presetAvaUrl;}
+  var _roomAvaHtml=_roomAvaImg
+    ?'<div style="width:60px;height:60px;border-radius:50%;overflow:hidden;margin:0 auto 6px;cursor:pointer" onclick="openSlaveAvaModal('+charId+')"><img src="'+_roomAvaImg+'" style="width:100%;height:100%;object-fit:cover"></div>'
+    :'<div style="font-size:2rem;margin-bottom:4px;cursor:pointer" onclick="openSlaveAvaModal('+charId+')">'+((sv.charProfile&&sv.charProfile.ava)||cEmoji(c))+'</div>';
   body.innerHTML=
     '<div style="text-align:center;margin-bottom:14px">'+
-      '<div style="font-size:2rem;margin-bottom:4px">'+cEmoji(c)+'</div>'+
+      _roomAvaHtml+
       '<div style="font-weight:800;font-size:.95rem">'+esc(c.name)+'的房间</div>'+
       '<div style="font-size:.72rem;color:var(--muted);margin-top:3px">好感 <b style="color:var(--so)">'+Math.round(char.affection||0)+'</b> · 服从 <b style="color:var(--sp)">'+Math.round(char.obedience||0)+'</b></div>'+
     '</div>'+
@@ -2897,3 +4207,330 @@ function initFeatures(){
   (State.wanderLog||[]).forEach(function(e){if(!State.storyLog.some(function(s){return s.type==='wander'&&s.title===e.title;}))State.storyLog.push({type:'wander',title:e.title||'闲逛',date:e.date||'',story:[e.snippet||''],locked:false});});
 }
 document.addEventListener('DOMContentLoaded',initFeatures);
+
+// ============================================================
+// 助手系统（Assistant System）
+// ============================================================
+
+// ── 助手数据持久化 ──────────────────────────────────────────
+function loadAssistants() {
+  try { return JSON.parse(localStorage.getItem('era_assistants') || '[]'); }
+  catch(e) { return []; }
+}
+function _saveAssistantsData(arr) {
+  localStorage.setItem('era_assistants', JSON.stringify(arr || []));
+}
+function isAssistant(charId) {
+  var list = loadAssistants();
+  return list.some(function(id){ return String(id) === String(charId); });
+}
+function _addAssistant(charId) {
+  var list = loadAssistants();
+  var sid = String(charId);
+  if (!list.some(function(id){ return String(id) === sid; })) list.push(sid);
+  _saveAssistantsData(list);
+  // 若还没有活跃助手，设为活跃
+  if (!State.activeAssistantId) State.activeAssistantId = sid;
+}
+function _removeAssistantById(charId) {
+  var sid = String(charId);
+  var list = loadAssistants().filter(function(id){ return String(id) !== sid; });
+  _saveAssistantsData(list);
+  // 若移除的是当前活跃助手，切换到下一个
+  if (String(State.activeAssistantId) === sid) {
+    State.activeAssistantId = list.length ? list[0] : null;
+    if (!list.length) {
+      State.assistantMode = false;
+    }
+  }
+  renderAssistantPanel();
+  if (typeof renderAssistantTrainingBar === 'function') renderAssistantTrainingBar();
+}
+
+// ── 庄园助手面板渲染 ──────────────────────────────────────────
+function renderAssistantPanel() {
+  var panel = document.getElementById('assistant-panel');
+  if (!panel) return;
+
+  var assistantIds = loadAssistants();
+  // 过滤掉失效角色
+  var valid = assistantIds.filter(function(aid) {
+    var base = CHARS_DATA.find(function(c){ return String(c.id) === String(aid); });
+    if (!base) return false;
+    var sv = loadSave(base.id);
+    return sv && sv.char;
+  });
+  if (valid.length !== assistantIds.length) _saveAssistantsData(valid);
+
+  // ── 外层容器（使用主题 CSS 变量，随主题自动适配）──
+  var html = '<div style="' +
+    'background:var(--card);' +
+    'border:1px solid var(--acc-g);border-radius:14px;' +
+    'box-shadow:var(--shd-a);' +
+    'padding:12px 14px 10px;margin-bottom:14px">';
+
+  // ── 标题行 ──
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:' + (valid.length ? '10' : '0') + 'px">';
+  html += '<div style="display:flex;align-items:center;gap:7px">';
+  html += '<span style="font-size:1rem;filter:drop-shadow(0 0 6px var(--acc2))">✨</span>';
+  html += '<span style="font-size:.8rem;font-weight:700;color:var(--txt);letter-spacing:.04em">庄园助手</span>';
+  if (valid.length) {
+    html += '<span style="background:var(--acc-s);color:var(--txt2);' +
+      'font-size:.6rem;padding:1px 7px;border-radius:10px;border:1px solid var(--bdr)">' + valid.length + '&nbsp;人</span>';
+  }
+  html += '</div>';
+  html += '<button onclick="openAssistantSelectModal()" style="' +
+    'background:var(--acc-s);color:var(--txt2);' +
+    'border:1px solid var(--bdr);border-radius:8px;' +
+    'padding:3px 11px;font-size:.66rem;cursor:pointer">＋ 设置助手</button>';
+  html += '</div>';
+
+  if (valid.length) {
+    // ── 助手卡片 ──
+    html += '<div style="display:flex;flex-direction:column;gap:7px">';
+    valid.forEach(function(aid) {
+      var base = CHARS_DATA.find(function(c){ return String(c.id) === String(aid); });
+      if (!base) return;
+      var sv = loadSave(base.id);
+      if (!sv || !sv.char) return;
+      var char = sv.char;
+      var name = char.name || base.name;
+      var isActive = State.activeAssistantId && String(State.activeAssistantId) === String(aid);
+
+      var maxSta = typeof getMaxStamina === 'function' ? getMaxStamina(char) : 1500;
+      var maxEne = typeof getMaxEnergy  === 'function' ? getMaxEnergy(char)  : 1500;
+      var staPct = Math.round(Math.max(0, Math.min(100, (char.stamina / maxSta) * 100)));
+      var enePct = Math.round(Math.max(0, Math.min(100, (char.energy  / maxEne) * 100)));
+      var staCol = staPct > 55 ? 'var(--sg)' : staPct > 25 ? '#fbbf24' : 'var(--sr)';
+      var eneCol = enePct > 55 ? 'var(--sb)' : enePct > 25 ? '#fb923c' : 'var(--sr)';
+      var isExhausted = staPct === 0 && enePct === 0;
+
+      // 头像
+      var profile = sv.charProfile || {};
+      var avaImg = profile.avaImg || profile._presetAvaUrl || '';
+      if (!avaImg && typeof CharRegistry !== 'undefined') {
+        var cr = CharRegistry.get(base.id);
+        if (cr && cr._presetAvaUrl) avaImg = cr._presetAvaUrl;
+      }
+      var avaBorder = isActive ? 'var(--acc)' : 'var(--bdr)';
+      var avaHtml = avaImg
+        ? '<div style="width:36px;height:36px;border-radius:50%;background-image:url(\'' + avaImg + '\');' +
+          'background-size:cover;background-position:center;border:2px solid ' + avaBorder + ';flex-shrink:0"></div>'
+        : '<div style="width:36px;height:36px;border-radius:50%;background:var(--card2);' +
+          'border:2px solid ' + avaBorder + ';display:flex;align-items:center;' +
+          'justify-content:center;font-size:1.1rem;flex-shrink:0">' + (typeof cEmoji==='function'?cEmoji(char):'👤') + '</div>';
+
+      var cardBg = isActive
+        ? 'background:var(--acc-s);border-color:var(--acc-g);'
+        : 'background:var(--card2);border-color:var(--bdr2);';
+
+      html += '<div style="display:flex;align-items:center;gap:9px;' + cardBg +
+        'border:1px solid;border-radius:10px;padding:7px 10px">';
+      html += avaHtml;
+
+      // 信息区
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:4px">';
+      html += '<span style="font-size:.78rem;font-weight:700;color:var(--txt)">' + (typeof esc==='function'?esc(name):name) + '</span>';
+      html += '<span style="font-size:.6rem;color:var(--txt2)">' + (char.gender||'') + '</span>';
+      if (isActive) {
+        html += '<span style="background:var(--acc-s);color:var(--acc2);font-size:.56rem;' +
+          'padding:0 5px;border-radius:6px;border:1px solid var(--acc-g)">活跃</span>';
+      }
+      if (isExhausted) {
+        html += '<span style="background:rgba(229,92,122,.15);color:var(--sr);font-size:.56rem;' +
+          'padding:0 5px;border-radius:6px;border:1px solid rgba(229,92,122,.25)">💤 力竭</span>';
+      }
+      html += '</div>';
+
+      // 体力 / 精力条
+      html += _assistStatBar('体力', staPct, staCol) + _assistStatBar('精力', enePct, eneCol);
+      html += '</div>';
+
+      // 右侧按钮区
+      html += '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">';
+      if (valid.length > 1 && !isActive) {
+        html += '<button onclick="_setActiveAssistant(\'' + aid + '\')" style="' +
+          'background:var(--card2);color:var(--txt2);' +
+          'border:1px solid var(--bdr);border-radius:7px;' +
+          'padding:2px 7px;font-size:.58rem;cursor:pointer">激活</button>';
+      }
+      html += '<button onclick="_removeAssistantById(\'' + aid + '\')" style="' +
+        'background:rgba(229,92,122,.12);color:var(--sr);' +
+        'border:1px solid rgba(229,92,122,.22);border-radius:7px;' +
+        'padding:2px 7px;font-size:.58rem;cursor:pointer">解除</button>';
+      html += '</div>';
+
+      html += '</div>'; // card
+    });
+    html += '</div>';
+  } else {
+    html += '<div style="text-align:center;padding:12px 0 4px;color:var(--muted);font-size:.73rem">' +
+      '尚未设置助手 · 点击「设置助手」选择</div>';
+  }
+
+  html += '</div>';
+  panel.innerHTML = html;
+}
+
+// 辅助：渲染小属性条
+function _assistStatBar(label, pct, color) {
+  return '<div style="display:flex;align-items:center;gap:4px;margin-bottom:2px">' +
+    '<span style="font-size:.56rem;color:var(--muted);width:20px">' + label + '</span>' +
+    '<div style="flex:1;height:4px;background:var(--bdr);border-radius:2px;overflow:hidden">' +
+    '<div style="height:100%;width:' + pct + '%;background:' + color + ';border-radius:2px;' +
+    'transition:width .3s"></div></div>' +
+    '<span style="font-size:.54rem;color:var(--muted);width:24px;text-align:right">' + pct + '%</span>' +
+    '</div>';
+}
+
+// 切换活跃助手
+function _setActiveAssistant(charId) {
+  State.activeAssistantId = String(charId);
+  renderAssistantPanel();
+  if (typeof renderAssistantTrainingBar === 'function') renderAssistantTrainingBar();
+}
+
+// ── 打开助手选择弹窗 ──────────────────────────────────────────
+function openAssistantSelectModal() {
+  var body = document.getElementById('assistant-select-body');
+  if (!body) return;
+
+  var acquired = CHARS_DATA.filter(function(c) {
+    var sv = loadSave(c.id);
+    return sv && sv.char;
+  });
+
+  var currentAssistants = loadAssistants();
+  window._astSelId = null;
+
+  function buildBody(selId) {
+    var html = '<div style="font-size:.72rem;color:var(--muted);margin-bottom:12px;line-height:1.65">' +
+      '选择奴隶担任庄园助手。助手可在调教时提供协助并获得经验。</div>';
+
+    if (!acquired.length) {
+      return html + '<div style="text-align:center;padding:30px 0;color:var(--muted)">还没有可选择的奴隶</div>';
+    }
+
+    html += '<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:14px">';
+    acquired.forEach(function(base) {
+      var sv = loadSave(base.id);
+      if (!sv || !sv.char) return;
+      var char = sv.char;
+      var name = char.name || base.name;
+      var alreadyAsst = currentAssistants.some(function(id){ return String(id)===String(base.id); });
+      var isSel = selId && String(selId) === String(base.id);
+
+      var maxSta = typeof getMaxStamina === 'function' ? getMaxStamina(char) : 1500;
+      var staPct = Math.round(Math.max(0, Math.min(100, (char.stamina/maxSta)*100)));
+
+      var profile = sv.charProfile || {};
+      var avaImg = profile.avaImg || profile._presetAvaUrl || '';
+      if (!avaImg && typeof CharRegistry !== 'undefined') {
+        var cr = CharRegistry.get(base.id);
+        if (cr && cr._presetAvaUrl) avaImg = cr._presetAvaUrl;
+      }
+      var avaBorder = isSel ? 'var(--acc)' : 'var(--bdr)';
+      var avaHtml = avaImg
+        ? '<div style="width:38px;height:38px;border-radius:50%;background-image:url(\'' + avaImg + '\');' +
+          'background-size:cover;background-position:center;border:2px solid ' + avaBorder + ';flex-shrink:0"></div>'
+        : '<div style="width:38px;height:38px;border-radius:50%;background:var(--card2);' +
+          'display:flex;align-items:center;justify-content:center;font-size:1.2rem;' +
+          'border:2px solid ' + avaBorder + ';flex-shrink:0">' + (typeof cEmoji==='function'?cEmoji(char):'👤') + '</div>';
+
+      var bg = isSel
+        ? 'background:var(--acc-s);border-color:var(--acc-g);'
+        : alreadyAsst
+          ? 'background:var(--card2);border-color:var(--bdr);'
+          : 'background:var(--card2);border-color:var(--bdr2);';
+
+      html += '<div onclick="window._astSelId=\'' + base.id + '\';_astRebuildBody(\'' + base.id + '\')" ' +
+        'style="display:flex;align-items:center;gap:9px;' + bg +
+        'border:1px solid;border-radius:10px;padding:8px 11px;cursor:pointer">';
+      html += avaHtml;
+      html += '<div style="flex:1;min-width:0">';
+      html += '<div style="display:flex;align-items:center;gap:5px;margin-bottom:2px">';
+      html += '<span style="font-size:.8rem;font-weight:700;color:var(--txt)">' + (typeof esc==='function'?esc(name):name) + '</span>';
+      html += '<span style="font-size:.62rem;color:var(--txt2)">' + (char.gender||'') + '</span>';
+      if (alreadyAsst) {
+        html += '<span style="background:var(--acc-s);color:var(--acc2);font-size:.56rem;' +
+          'padding:0 5px;border-radius:6px;border:1px solid var(--acc-g)">已为助手</span>';
+      }
+      html += '</div>';
+      html += '<div style="font-size:.62rem;color:var(--muted)">' +
+        '好感 ' + Math.round(char.affection||0) +
+        '  服从 ' + Math.round(char.obedience||0) +
+        '  体力 ' + staPct + '%</div>';
+      html += '</div>';
+      if (isSel) html += '<span style="color:var(--acc);font-size:1.1rem;flex-shrink:0">✓</span>';
+      html += '</div>';
+    });
+    html += '</div>';
+
+    // 确认按钮
+    var hasSel = !!selId;
+    html += '<button onclick="_astConfirm()" style="width:100%;padding:10px;' +
+      'background:' + (hasSel ? 'var(--acc)' : 'var(--card2)') + ';' +
+      'color:' + (hasSel ? 'var(--btn-c)' : 'var(--muted)') + ';' +
+      'border:1px solid ' + (hasSel ? 'var(--acc)' : 'var(--bdr)') + ';' +
+      'border-radius:10px;font-size:.82rem;font-weight:700;' +
+      'cursor:' + (hasSel ? 'pointer' : 'default') + '">' +
+      (hasSel ? '✓ 确认设为助手' : '请先选择一位奴隶') + '</button>';
+    html += '<button onclick="closeOv(\'ov-assistant-select\')" style="' +
+      'width:100%;padding:7px;margin-top:7px;background:transparent;' +
+      'color:var(--muted);border:1px solid var(--bdr2);' +
+      'border-radius:10px;font-size:.73rem;cursor:pointer">取消</button>';
+    return html;
+  }
+
+  window._astRebuildBody = function(selId) { body.innerHTML = buildBody(selId); };
+  window._astConfirm = function() {
+    var sid = window._astSelId;
+    if (!sid) return;
+    _openAssistantDialogueAndSet(sid);
+  };
+
+  body.innerHTML = buildBody(null);
+  if (typeof openOv === 'function') openOv('ov-assistant-select');
+}
+
+// ── 设定助手 + 触发对话故事 ───────────────────────────────────
+function _openAssistantDialogueAndSet(charId) {
+  var wasAlready = isAssistant(charId);
+  _addAssistant(charId);
+  renderAssistantPanel();
+  if (typeof renderAssistantTrainingBar === 'function') renderAssistantTrainingBar();
+  if (typeof closeOv === 'function') closeOv('ov-assistant-select');
+
+  var base = CHARS_DATA.find(function(c){ return String(c.id) === String(charId); });
+  var sv = loadSave(charId);
+  var char = sv && sv.char;
+  var charName = (char && char.name) || (base && base.name) || '???';
+
+  // 选对话池
+  var story = null;
+  var charStories = (typeof ASSISTANT_CHAR_STORIES !== 'undefined') && ASSISTANT_CHAR_STORIES[charId];
+  if (charStories && charStories.length) {
+    story = charStories[0];
+  } else if (wasAlready) {
+    var pool = (typeof ASSISTANT_RECONFIRM_GENERIC !== 'undefined') ? ASSISTANT_RECONFIRM_GENERIC : [];
+    if (pool.length) story = pool[Math.floor(Math.random() * pool.length)];
+  } else {
+    var pool2 = (typeof ASSISTANT_APPOINT_GENERIC !== 'undefined') ? ASSISTANT_APPOINT_GENERIC : [];
+    if (pool2.length) story = pool2[Math.floor(Math.random() * pool2.length)];
+  }
+
+  if (story) {
+    var storyObj = {
+      title: story.title,
+      story: story.story.map(function(line){ return line.replace(/\{NAME\}/g, charName); }),
+      cat: 'event',
+      effects: {}
+    };
+    if (typeof openStoryModal === 'function') {
+      setTimeout(function(){ openStoryModal(storyObj, story.title, {}); }, 60);
+    }
+  } else {
+    if (typeof toast === 'function') toast('✨ ' + charName + ' 成为了庄园助手', 'success');
+  }
+}

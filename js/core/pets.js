@@ -1482,22 +1482,31 @@ function _renderCGGallery(){
     ownedChars.forEach(function(c){
       var cd=cgData[String(c.id)]||{albums:[]};
       var albums=cd.albums||[];
-      var totalImgs=albums.reduce(function(a,b){return a+(b.images?b.images.length:0);},0);
+      // ★ 同时计入预设初始相册图片数量
+      var _presetAlbs=_getInitialAlbums(c.id);
+      var presetImgs=_presetAlbs.reduce(function(a,b){return a+(b.images?b.images.length:0);},0);
+      var totalImgs=albums.reduce(function(a,b){return a+(b.images?b.images.length:0);},0)+presetImgs;
+      var totalAlbs=albums.length+_presetAlbs.length;
       var sv=loadSave(c.id);var profile=(sv&&sv.charProfile)||{};
       var avaHtml;
-      if(profile.avaImg) avaHtml='<img src="'+profile.avaImg+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--acc)">';
+      var _cgListAvaImg=profile.avaImg||profile._presetAvaUrl||'';
+      if(!_cgListAvaImg&&typeof CharRegistry!=='undefined'){var _cgListCr=CharRegistry.get(c.id)||CharRegistry.get(parseInt(c.id));if(_cgListCr&&_cgListCr._presetAvaUrl)_cgListAvaImg=_cgListCr._presetAvaUrl;}
+      if(_cgListAvaImg) avaHtml='<img src="'+_cgListAvaImg+'" style="width:38px;height:38px;border-radius:50%;object-fit:cover;border:2px solid var(--acc)">';
       else avaHtml='<div style="font-size:1.5rem">'+esc(profile.ava||cEmoji(c))+'</div>';
       html+='<div onclick="openCharCGAlbums('+c.id+')" style="cursor:pointer;padding:8px 4px;text-align:center;background:var(--card);border:1px solid var(--bdr2);border-radius:12px;position:relative;overflow:hidden;transition:transform .15s" onmouseover="this.style.transform=\'scale(1.04)\'" onmouseout="this.style.transform=\'scale(1)\'">';
-      // 背景预览（第一张图）
-      if(totalImgs>0){
+      // ★ 背景预览：优先用户相册，回落到预设初始相册
+      var _bgUrl='';
+      if(albums.length>0){
         var firstAlb=albums.find(function(a){return a.images&&a.images.length;});
-        if(firstAlb){
-          var fi=firstAlb.images[0];
-          if(fi&&fi.url)html+='<div style="position:absolute;inset:0;background:url(\''+fi.url+'\') center/cover;opacity:.18;border-radius:12px"></div>';
-        }
+        if(firstAlb){var fi=firstAlb.images[0];if(fi&&(fi.url||fi.presetUrl))_bgUrl=fi.url||fi.presetUrl;}
       }
+      if(!_bgUrl&&_presetAlbs.length>0){
+        var _pAlb=_presetAlbs.find(function(a){return a.images&&a.images.length;});
+        if(_pAlb){var _pfi=_pAlb.images[0];if(_pfi&&_pfi.presetUrl)_bgUrl=_pfi.presetUrl;}
+      }
+      if(_bgUrl)html+='<div style="position:absolute;inset:0;background:url(\''+_bgUrl+'\') center/cover;opacity:.18;border-radius:12px"></div>';
       html+='<div style="position:relative">'+avaHtml+'<div style="font-size:.65rem;font-weight:700;color:var(--txt);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(c.name)+'</div>';
-      html+='<div style="font-size:.55rem;color:'+(totalImgs?'var(--acc)':'var(--muted)')+'">'+totalImgs+'张 · '+albums.length+'册</div>';
+      html+='<div style="font-size:.55rem;color:'+(totalImgs?'var(--acc)':'var(--muted)')+'">'+totalImgs+'张 · '+totalAlbs+'册</div>';
       html+='</div></div>';
     });
     html+='</div>';
@@ -1540,11 +1549,74 @@ function _loadCGThumbnails(chars,cgData,body){
   });
 }
 
+
+// ── 初始相册：动态将制作者预设图归入相册（不写localStorage，避免配额超出）
+// 返回虚拟的初始相册列表（只影响显示，用户编辑信息单独存在 era_init_alb_{charKey}）
+function _getInitialAlbums(charKey) {
+  var _cr = typeof CharRegistry !== 'undefined'
+    ? (CharRegistry.get(charKey) || CharRegistry.get(parseInt(charKey)))
+    : null;
+  if (!_cr || !_cr._presetImages || !_cr._presetImages.length) return [];
+
+  // 读取用户对初始相册的编辑（改名、描述）
+  var editKey = 'era_init_alb_' + charKey;
+  var edits = {};
+  try { edits = JSON.parse(localStorage.getItem(editKey) || '{}'); } catch(e) {}
+
+  var ratioGroups = {};
+  _cr._presetImages.forEach(function(pi) {
+    var r = pi.ratio || '3-4';
+    if (!ratioGroups[r]) ratioGroups[r] = [];
+    ratioGroups[r].push(pi);
+  });
+
+  var albums = [];
+  Object.keys(ratioGroups).forEach(function(ratio) {
+    var pis = ratioGroups[ratio];
+    var albId = 'alb_init_' + ratio.replace('-','');
+    var albEdit = edits[albId] || {};
+    var images = pis.map(function(pi, idx) {
+      var imgId = 'preset_' + idx + '_' + pi.file.split('/').pop().replace(/[^a-z0-9]/gi,'_');
+      var imgEdit = albEdit.images && albEdit.images[imgId] || {};
+      return {
+        id: imgId,
+        presetUrl: pi.file,
+        name: imgEdit.name !== undefined ? imgEdit.name : (pi.file.split('/').pop().replace(/\.\w+$/, '') || '图片'),
+        desc: imgEdit.desc !== undefined ? imgEdit.desc : (pi.desc || ''),
+      };
+    });
+    albums.push({
+      id: albId,
+      name: albEdit.albumName || '初始相册',
+      ratio: ratio,
+      images: images,
+      isInitial: true,
+      _editKey: editKey,
+    });
+  });
+  return albums;
+}
+
+// 保存初始相册的用户编辑（改相册名/图片名/描述）——不入 era_cg_meta
+function _saveInitialAlbumEdit(charKey, albId, changes) {
+  var editKey = 'era_init_alb_' + charKey;
+  var edits = {};
+  try { edits = JSON.parse(localStorage.getItem(editKey) || '{}'); } catch(e) {}
+  if (!edits[albId]) edits[albId] = {};
+  Object.assign(edits[albId], changes);
+  try { localStorage.setItem(editKey, JSON.stringify(edits)); } catch(e) { toast('保存失败','err'); }
+}
+
+// 兼容旧版 _ensureInitialAlbum 调用（不再操作 cgData）
+function _ensureInitialAlbum(charKey, cgData) { return false; }
+
 // ── 角色相册列表页（显示5种比例的相册）────────────────
 function openCharCGAlbums(charKey){
   var body=document.getElementById('exp-detail-body');if(!body)return;
   _migrateCGData();
   var cgData=getCGData();
+  // ★ 动态获取初始相册（来自 CharRegistry 预设图，不写 localStorage）
+  var _initAlbs=_getInitialAlbums(charKey);
   var cd=cgData[String(charKey)]||{albums:[],primaryImgId:null};
   if(!cd.albums)cd.albums=[];
   var c=null;
@@ -1554,11 +1626,35 @@ function openCharCGAlbums(charKey){
   var title=(c?c.name:'通用')+' · CG相册';
   _setExpDetailTitle('📚 '+title);
 
-  var html='';
+  // ★ Fix3: 显示当前自定义头像（与庄园同步）
+  var _cgAvaHtml='';
+  if(c){
+    var _cgSv=typeof loadSave==='function'?loadSave(charKey):null;
+    var _cgPro=(_cgSv&&_cgSv.charProfile)||{};
+    var _cgAvaImg=_cgPro.avaImg||_cgPro._presetAvaUrl||'';
+    if(!_cgAvaImg&&typeof CharRegistry!=='undefined'){var _cgCr=CharRegistry.get(charKey)||CharRegistry.get(parseInt(charKey));if(_cgCr&&_cgCr._presetAvaUrl)_cgAvaImg=_cgCr._presetAvaUrl;}
+    if(_cgAvaImg){
+      _cgAvaHtml='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card2);border-radius:12px;margin-bottom:12px;cursor:pointer" onclick="openSlaveAvaModal('+charKey+')" title="点击更换头像">'+
+        '<div style="width:44px;height:44px;border-radius:50%;overflow:hidden;flex-shrink:0"><img src="'+_cgAvaImg+'" style="width:100%;height:100%;object-fit:cover"></div>'+
+        '<div><div style="font-size:.82rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>'+
+        '<div style="font-size:.6rem;color:var(--muted)">点击更换头像</div></div></div>';
+    } else {
+      var _cgEmoji=_cgPro.ava||(typeof cEmoji==='function'?cEmoji(c):'✨');
+      _cgAvaHtml='<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--card2);border-radius:12px;margin-bottom:12px;cursor:pointer" onclick="openSlaveAvaModal('+charKey+')" title="点击更换头像">'+
+        '<div style="width:44px;height:44px;border-radius:50%;background:var(--card);display:flex;align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0">'+_cgEmoji+'</div>'+
+        '<div><div style="font-size:.82rem;font-weight:700;color:var(--txt)">'+esc(c.name)+'</div>'+
+        '<div style="font-size:.6rem;color:var(--muted)">点击更换头像</div></div></div>';
+    }
+  }
+
+  var html=_cgAvaHtml;
 
   // 按比例分组显示相册
   CG_RATIOS.forEach(function(ratio){
-    var ratioAlbs=cd.albums.filter(function(a){return a.ratio===ratio.id;});
+    // 合并：用户相册 + 虚拟初始相册（同比例）
+    var ratioAlbs=cd.albums.filter(function(a){return a.ratio===ratio.id;}).concat(
+      _initAlbs.filter(function(a){return a.ratio===ratio.id;})
+    );
     html+='<div style="margin-bottom:16px">';
     html+='<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">';
     html+='<span style="font-size:.88rem">'+ratio.icon+'</span>';
@@ -1585,7 +1681,8 @@ function openCharCGAlbums(charKey){
         html+='</div></div>';
         // 相册信息
         html+='<div style="padding:6px 8px;background:linear-gradient(rgba(0,0,0,.02),rgba(0,0,0,.06))">';
-        html+='<div style="font-size:.68rem;font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ondblclick="event.stopPropagation();_renameAlbum(\''+charKey+'\',\''+alb.id+'\')" title="双击改名">'+esc(alb.name||'相册')+'</div>';
+        var _albTag=alb.isInitial?'<span style="font-size:.48rem;background:rgba(var(--acc-rgb),.15);color:var(--acc);padding:1px 5px;border-radius:6px;margin-left:4px;vertical-align:middle">内置</span>':'';
+        html+='<div style="font-size:.68rem;font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap" ondblclick="event.stopPropagation();_renameAlbum(\''+charKey+'\',\''+alb.id+'\')" title="双击改名">'+esc(alb.name||'相册')+_albTag+'</div>';
         html+='<div style="font-size:.58rem;color:var(--muted)">'+imgCount+'张</div>';
         if(cd.primaryImgId&&alb.images&&alb.images.some(function(i){return i.id===cd.primaryImgId;})){
           html+='<div style="font-size:.52rem;color:var(--acc)">★ 主形象</div>';
@@ -1597,37 +1694,13 @@ function openCharCGAlbums(charKey){
     html+='</div>';
   });
 
-  html+='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">';
+  html+='<div style="margin-top:12px">';
   html+='<button class="btn btn-ghost btn-full" onclick="openCGGallery()" style="font-size:.72rem">← 返回</button>';
   html+='</div>';
-  
-  // ★ 内置图库区块（制作者预设图片）
-  if (charKey !== 'general' && typeof CharRegistry !== 'undefined') {
-    var _crCG = CharRegistry.get(charKey) || CharRegistry.get(parseInt(charKey));
-    if (_crCG && _crCG._presetImages && _crCG._presetImages.length) {
-      html += '<div style="margin-top:16px;padding:10px 12px;background:var(--card2);border-radius:12px;border:1px solid var(--bdr2)">';
-      html += '<div style="font-size:.75rem;font-weight:700;color:var(--acc);margin-bottom:8px">✨ 内置图库（制作者预设）</div>';
-      html += '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">';
-      _crCG._presetImages.forEach(function(pi, idx) {
-        var ratioObj = CG_RATIOS.find(function(r){return r.id===pi.ratio;}) || CG_RATIOS[3];
-        html += '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;overflow:hidden;cursor:pointer" onclick="_viewPresetImage(' + JSON.stringify(charKey) + ',' + idx + ')">';
-        html += '<div style="' + ratioObj.style + ';background:var(--card2);overflow:hidden"><img src="' + pi.file + '" style="width:100%;height:100%;object-fit:cover" loading="lazy" onerror="this.parentNode.innerHTML=\'<div style=text-align:center;padding:8px;font-size:.6rem;color:var(--muted)>无法加载</div>\'"></div>';
-        html += '<div style="padding:4px 6px">';
-        html += '<div style="font-size:.6rem;color:var(--muted)">' + esc(pi.album || '内置') + '</div>';
-        if (pi.desc) html += '<div style="font-size:.58rem;color:var(--txt2);margin-top:2px;line-height:1.4">' + esc(pi.desc) + '</div>';
-        html += '</div></div>';
-      });
-      html += '</div></div>';
-    }
-  }
-
-  html += '<div style="margin-top:12px">';
-  html += '<button class="btn btn-ghost btn-full" onclick="openCGGallery()" style="font-size:.72rem">← 返回</button>';
-  html += '</div>';
   body.innerHTML = html;
 
-  // 异步加载封面图
-  _loadAlbumCovers(cd, charKey);
+  // 异步加载封面图（包含初始相册）
+  _loadAlbumCovers(cd, charKey, _initAlbs);
 }
 
 function _viewPresetImage(charKey, idx) {
@@ -1646,8 +1719,9 @@ function _viewPresetImage(charKey, idx) {
 
 
 
-function _loadAlbumCovers(cd,charKey){
-  var albums=cd.albums||[];
+function _loadAlbumCovers(cd,charKey,initAlbs){
+  // 合并用户相册 + 初始相册（去重）
+  var albums=(cd.albums||[]).concat(initAlbs||[]);
   albums.forEach(function(alb){
     if(!alb.images||!alb.images.length)return;
     var fi=alb.images[0];
@@ -1657,7 +1731,9 @@ function _loadAlbumCovers(cd,charKey){
       var el=document.getElementById(coverId);if(!el)return;
       el.innerHTML='<img src="'+url+'" style="width:100%;height:100%;object-fit:cover"><div style="position:absolute;inset:0;background:linear-gradient(transparent 60%,rgba(0,0,0,.4))"></div>';
     }
-    if(fi.url)applyUrl(fi.url);
+    // 初始相册图片用 presetUrl 直接显示，其他用 IndexedDB
+    if(fi.presetUrl) applyUrl(fi.presetUrl);
+    else if(fi.url)applyUrl(fi.url);
     else if(fi.id)_loadCGImage(fi.id,function(url){if(url){fi.url=url;applyUrl(url);}});
   });
 }
@@ -1704,6 +1780,18 @@ function _createAlbum(charKey,ratioId){
   if(inp)inp.addEventListener('keydown',function(e){if(e.key==='Enter')sheet.querySelector('#_alb_ok').click();});
 }
 function _renameAlbum(charKey,albId){
+  // 初始相册改名走独立存储，不改 era_cg_meta
+  var initAlbs=_getInitialAlbums(charKey);
+  var isInit=initAlbs.some(function(a){return a.id===albId;});
+  if(isInit){
+    var curAlb=initAlbs.find(function(a){return a.id===albId;});
+    _showInputModal('✏️ 相册改名','新名称',curAlb?curAlb.name:'初始相册',function(n){
+      if(!n)return;
+      _saveInitialAlbumEdit(charKey,albId,{albumName:n.trim().slice(0,16)});
+      openCharCGAlbums(charKey);
+    });
+    return;
+  }
   var cgData=getCGData();var cd=cgData[String(charKey)];if(!cd)return;
   var alb=cd.albums&&cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
   _showInputModal('✏️ 相册改名','新名称',alb.name,function(n){if(!n)return;
@@ -1715,8 +1803,14 @@ var _albumViewerState={};
 function openAlbumViewer(charKey,albId,imgIdx){
   _migrateCGData();
   var cgData=getCGData();var cd=cgData[String(charKey)];
-  if(!cd||!cd.albums)return;
-  var alb=cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
+  var alb=(cd&&cd.albums&&cd.albums.find(function(a){return a.id===albId;}));
+  // ★ 如果在用户相册找不到，尝试虚拟初始相册
+  if(!alb){
+    var initAlbs=_getInitialAlbums(charKey);
+    alb=initAlbs.find(function(a){return a.id===albId;});
+  }
+  if(!alb)return;
+  if(!cd)cd={albums:[],primaryImgId:null};
   var body=document.getElementById('exp-detail-body');if(!body)return;
   var idx=imgIdx||0;
   _albumViewerState={charKey:charKey,albId:albId,idx:idx};
@@ -1739,13 +1833,15 @@ function openAlbumViewer(charKey,albId,imgIdx){
 
   images.forEach(function(img,i){
     var isPrimary=cd.primaryImgId===img.id;
+    var _imgSrc=img.presetUrl||img.url||'';
+    var _imgLabel=img.name||img.title||'';
     html+='<div style="position:relative;border-radius:10px;overflow:hidden;background:var(--card2);border:2px solid '+(isPrimary?'var(--acc)':'var(--bdr2)')+';cursor:pointer" onclick="_viewAlbumImage(\''+charKey+'\',\''+albId+'\','+i+')">';
     html+='<div id="cg-img-'+img.id+'" style="'+ratio.style+';background:var(--card2)">';
-    if(img.url)html+='<img src="'+img.url+'" style="width:100%;height:100%;object-fit:contain;display:block">';
+    if(_imgSrc)html+='<img src="'+_imgSrc+'" style="width:100%;height:100%;object-fit:contain;display:block" loading="lazy">';
     else html+='<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:.65rem;color:var(--muted)">加载中…</div>';
     html+='</div>';
     if(isPrimary)html+='<div style="position:absolute;top:3px;left:3px;background:var(--acc);color:#fff;font-size:.5rem;padding:1px 5px;border-radius:8px">★主</div>';
-    if(img.title)html+='<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:.52rem;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(img.title)+'</div>';
+    if(_imgLabel)html+='<div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:.52rem;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(_imgLabel)+'</div>';
     html+='</div>';
   });
 
@@ -1763,9 +1859,9 @@ function openAlbumViewer(charKey,albId,imgIdx){
 
   body.innerHTML=html;
 
-  // 异步加载图片
+  // 异步加载图片（跳过有 presetUrl 的初始相册图片，它们直接用URL）
   images.forEach(function(img){
-    if(img.url||!img.id)return;
+    if(img.presetUrl||img.url||!img.id)return;
     _loadCGImage(img.id,function(url){
       if(!url)return;img.url=url;
       var el=document.getElementById('cg-img-'+img.id);
@@ -1791,6 +1887,9 @@ function _viewAlbumImage(charKey,albId,idx){
   var alb=cd&&cd.albums&&cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
   var images=alb.images||[];var img=images[idx];if(!img)return;
 
+  // ★ 初始相册图片直接用 presetUrl，无需 IndexedDB
+  if(img.presetUrl){ renderViewer(img.presetUrl); return; }
+
   function renderViewer(url){
     var existing=document.getElementById('_cg_viewer');if(existing)existing.remove();
     var ov=document.createElement('div');ov.id='_cg_viewer';
@@ -1811,7 +1910,7 @@ function _viewAlbumImage(charKey,albId,idx){
       '<div style="position:relative;width:100%;max-width:600px;display:flex;flex-direction:column;align-items:center;padding:10px">'+navHtml+
       '<img src="'+(url||'')+'" style="max-width:90%;max-height:68vh;object-fit:contain;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.6)">'+
       '<div style="text-align:center;margin-top:10px;max-width:85%">'+
-        (img.title?'<div style="color:#fff;font-size:.92rem;font-weight:700;margin-bottom:4px">'+esc(img.title)+'</div>':'')+
+        ((img.name||img.title)?'<div style="color:#fff;font-size:.92rem;font-weight:700;margin-bottom:4px">'+esc(img.name||img.title)+'</div>':'')+
         (img.desc?'<div style="color:rgba(255,255,255,.7);font-size:.75rem;margin-bottom:6px">'+esc(img.desc)+'</div>':'')+
         '<div style="color:rgba(255,255,255,.4);font-size:.6rem">'+(idx+1)+' / '+images.length+' · 点击空白关闭</div>'+
       '</div>'+
@@ -1857,10 +1956,11 @@ function _editCGImageInfo(charKey,albId,idx){
   var ov=document.getElementById('_cg_viewer');if(ov)ov.remove();
   var body=document.getElementById('exp-detail-body');if(!body)return;
   _setExpDetailTitle('✏️ 编辑图片信息');
+  var currentName=img.name||img.title||'';
   body.innerHTML=
-    '<label style="font-size:.72rem;color:var(--txt2);display:block;margin-bottom:4px">图片标题</label>'+
-    '<input type="text" id="cg-edit-title" value="'+esc(img.title||'')+'" maxlength="30" style="width:100%;padding:8px;font-size:.82rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box;margin-bottom:10px">'+
-    '<label style="font-size:.72rem;color:var(--txt2);display:block;margin-bottom:4px">图片简介</label>'+
+    '<label style="font-size:.72rem;color:var(--txt2);display:block;margin-bottom:4px">图片名称</label>'+
+    '<input type="text" id="cg-edit-title" value="'+esc(currentName)+'" maxlength="30" style="width:100%;padding:8px;font-size:.82rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box;margin-bottom:10px">'+
+    '<label style="font-size:.72rem;color:var(--txt2);display:block;margin-bottom:4px">图片描述</label>'+
     '<textarea id="cg-edit-desc" maxlength="200" rows="3" style="width:100%;padding:8px;font-size:.78rem;border:1px solid var(--bdr2);border-radius:8px;background:var(--card2);color:var(--txt);box-sizing:border-box;margin-bottom:12px;resize:none">'+esc(img.desc||'')+'</textarea>'+
     '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">'+
     '<button class="btn btn-ghost" onclick="openAlbumViewer(\''+charKey+'\',\''+albId+'\','+idx+')">取消</button>'+
@@ -1869,10 +1969,29 @@ function _editCGImageInfo(charKey,albId,idx){
 }
 function _saveCGImageInfo(charKey,albId,idx){
   var t=document.getElementById('cg-edit-title');var d=document.getElementById('cg-edit-desc');
+  var newName=t?t.value.trim():'';
+  var newDesc=d?d.value.trim():'';
+  // 初始相册图片编辑走独立存储
+  var initAlbs=_getInitialAlbums(charKey);
+  var isInit=initAlbs.some(function(a){return a.id===albId;});
+  if(isInit){
+    var initAlb=initAlbs.find(function(a){return a.id===albId;});
+    var imgId=initAlb&&initAlb.images[idx]&&initAlb.images[idx].id;
+    if(imgId){
+      var editKey='era_init_alb_'+charKey;
+      var edits={};try{edits=JSON.parse(localStorage.getItem(editKey)||'{}');}catch(e){}
+      if(!edits[albId])edits[albId]={};
+      if(!edits[albId].images)edits[albId].images={};
+      edits[albId].images[imgId]={name:newName,desc:newDesc};
+      try{localStorage.setItem(editKey,JSON.stringify(edits));toast('已保存','ok');}catch(e){toast('保存失败','err');}
+    }
+    openAlbumViewer(charKey,albId,idx);return;
+  }
   var cgData=getCGData();var cd=cgData[String(charKey)];
   var alb=cd&&cd.albums&&cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
-  alb.images[idx].title=(t?t.value.trim():'');
-  alb.images[idx].desc=(d?d.value.trim():'');
+  var img=alb.images[idx];if(!img)return;
+  img.name=newName; img.title=newName;
+  img.desc=newDesc;
   saveCGData(cgData);toast('已保存','ok');openAlbumViewer(charKey,albId,idx);
 }
 function _deleteAlbumImage(charKey,albId,idx){
@@ -1881,7 +2000,8 @@ function _deleteAlbumImage(charKey,albId,idx){
     var cgData=getCGData();var cd=cgData[String(charKey)];
     var alb=cd&&cd.albums&&cd.albums.find(function(a){return a.id===albId;});if(!alb)return;
     var removed=alb.images.splice(idx,1);
-    if(removed[0]&&removed[0].id)_deleteCGImage(removed[0].id);
+    // ★ presetUrl 类型（初始相册图）只从元数据删除，不删 IndexedDB
+    if(removed[0]&&removed[0].id&&!removed[0].presetUrl)_deleteCGImage(removed[0].id);
     if(cd.primaryImgId===removed[0].id)cd.primaryImgId=null;
     saveCGData(cgData);toast('已删除','');openAlbumViewer(charKey,albId,Math.min(idx,alb.images.length-1));
   });

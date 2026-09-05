@@ -286,7 +286,8 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 /* 分页点 */
 .story-pages{
   display:flex;align-items:center;justify-content:center;
-  gap:8px;padding:12px 0 6px
+  gap:8px;padding:4px 0 2px;
+  margin-top:10px  /* ★ 与"继续阅读"按钮拉开间距 */
 }
 .story-dot{
   width:6px;height:6px;border-radius:50%;background:var(--bdr);
@@ -306,8 +307,15 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 .eff-item{font-size:.72rem;display:flex;align-items:center;gap:3px;font-weight:600}
 .eff-pos{color:var(--sg)}.eff-neg{color:var(--sr)}
 
+/* ★ 翻页/混合模式末页：属性结算内嵌在 story-body 正文末尾 */
+.story-eff-block{
+  display:flex;gap:6px;flex-wrap:wrap;margin-top:14px;padding:10px 12px;
+  background:var(--card2);border-radius:12px;
+  border:1px solid var(--bdr2)
+}
+
 /* 导航按钮 */
-.story-nav{display:flex;gap:8px;margin-top:14px}
+.story-nav{display:flex;gap:8px;margin-top:10px;padding-top:8px;border-top:1px solid var(--bdr2)}
 .story-nav .btn{border-radius:12px;font-size:.82rem;transition:all .2s}
 
 /* 新建相册弹窗动画 */
@@ -743,8 +751,6 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
   padding:2px 8px;transition:background .15s;background:var(--card)}
 .pc-stat-btn:hover{background:var(--card2);border-color:var(--acc)}
 
-/* ── date-loc-grid ───────────────────────────────────────── */
-.date-loc-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:12px}
 .date-loc-card{background:var(--card);border:1px solid var(--bdr2);border-radius:13px;
   padding:13px 11px;cursor:pointer;text-align:center;transition:all .2s}
 .date-loc-card:hover{border-color:var(--acc);transform:translateY(-1px)}
@@ -834,3 +840,39 @@ body{background:var(--bg);color:var(--txt);font-family:'Noto Serif SC','PingFang
 .pet-sel .pet-bubble { animation: none !important; filter: none !important; }
 .pet-bubble { animation: bubbleIn .22s ease forwards !important; }
 
+
+/* ══ 剧情弹窗布局修复（三合一）═══════════════════════════════
+   1. 去除双滚动条：sheet 改为 flex 列布局 + overflow:hidden
+   2. story-body 填充剩余空间，自身负责滚动
+   3. 减少底部留白：s-body 缩减 padding，story-pages 贴近按钮
+   ═══════════════════════════════════════════════════════════ */
+#ov-story .sheet {
+  overflow: hidden;          /* 外层不滚动，消除第二条滚动条 */
+  display: flex;
+  flex-direction: column;
+}
+#ov-story .s-body {
+  flex: 1;
+  min-height: 0;             /* flex 子项必须设 min-height:0 才能收缩 */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 6px;       /* 从 16px 压缩到 6px，减少底部空白 */
+}
+#ov-story #story-body {
+  flex: 1;
+  min-height: 60px;
+  /* max-height 由 flex 决定，JS 不再硬写 56vh */
+}
+#ov-story .story-eff {
+  display: none !important;  /* 结算块已内嵌在 story-body 末尾，外部框永久隐藏 */
+}
+#ov-story .story-nav {
+  flex-shrink: 0;
+  margin-top: 8px;
+}
+#ov-story .story-pages {
+  flex-shrink: 0;
+  margin-top: 4px;
+  padding: 2px 0;
+}

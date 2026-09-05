@@ -63,6 +63,9 @@ function startWork(locId) {
     toast('该地点暂无可用任务', '');
     return;
   }
+  // 重置闲逛标志，防止上次未正常结束的闲逛污染本次打工日志
+  _isWanderMode = false;
+  _currentWanderEvent = null;
   _currentWorkLoc = loc;
   // 随机选一条剧情
   _currentWorkEvent = pick(loc.events);
@@ -105,11 +108,13 @@ function _renderWorkStoryPage() {
   // Body
   if (body) {
     const page = _workStoryPages[_workStoryIdx] || [];
-    body.innerHTML = page.map(p =>
-      (p.startsWith('「') || p.startsWith('"'))
-        ? `<p class="story-quote">${esc(p)}</p>`
-        : `<p>${esc(p)}</p>`
-    ).join('');
+    body.innerHTML = page.map(p => {
+      // ★ 应用人称占位符替换（{master},{slave},{ta} 等）
+      const _p = typeof applyStoryPlaceholders === 'function' ? applyStoryPlaceholders(p) : p;
+      return (_p.startsWith('「') || _p.startsWith('"'))
+        ? `<p class="story-quote">${esc(_p)}</p>`
+        : `<p>${esc(_p)}</p>`;
+    }).join('');
   }
 
   // Dots
@@ -124,11 +129,14 @@ function _renderWorkStoryPage() {
     if (isLast && _workPhase === 'reading') {
       // Show choices
       choices.style.display = '';
-      choices.innerHTML = (_currentWorkEvent?.choices || []).filter(c => c && c.text).map((c, i) => `
-        <button class="btn btn-full work-choice-btn"
+      choices.innerHTML = (_currentWorkEvent?.choices || []).filter(c => c && c.text).map((c, i) => {
+        // ★ 应用人称占位符替换，确保选项按钮文字中的 {master} 等正确显示
+        const _t = typeof applyStoryPlaceholders === 'function' ? applyStoryPlaceholders(c.text) : c.text;
+        return `<button class="btn btn-full work-choice-btn"
                 onclick="pickWorkChoice(${i})" style="margin-bottom:8px;text-align:left;padding:12px 14px;white-space:normal;word-break:normal;word-wrap:break-word;line-height:1.6;height:auto;min-height:44px">
-          ${esc(c.text)}
-        </button>`).join('') +
+          ${esc(_t)}
+        </button>`;
+      }).join('') +
         `<button class="ai-gen-btn" style="margin-top:6px" onclick="aiGenOutingStory()">🤖 AI生成替代剧情</button>`;
     } else {
       choices.style.display = 'none';
@@ -194,12 +202,19 @@ function pickWorkChoice(idx) {
   const charName = State.currentChar?.name || '你';
 
   // --- 1. 剧情文本渲染 ---
+  // ★ 先做 {name} 替换（兼容劳役剧情），再做通用占位符替换（处理 {master} 等）
+  const _choiceDisplayText = typeof applyStoryPlaceholders === 'function'
+    ? applyStoryPlaceholders(resolvedChoice.text.replace(/\{name\}/g, charName))
+    : resolvedChoice.text.replace(/\{name\}/g, charName);
+
   let fullHTML = `
     <p class="story-quote" style="margin-bottom:18px; color:var(--acc); font-weight:600; font-size:1.02rem;">
-      ▶ 你选择了：<strong>${esc(resolvedChoice.text.replace(/\{name\}/g, charName))}</strong>
+      ▶ 你选择了：<strong>${esc(_choiceDisplayText)}</strong>
     </p>`;
 
   let resultText = (resolvedChoice.result || '').replace(/\{name\}/g, charName);
+  // ★ 应用人称占位符替换，将 {master}/{slave}/{ta} 等转换为实际称呼
+  if (typeof applyStoryPlaceholders === 'function') resultText = applyStoryPlaceholders(resultText);
   window._lastChoiceResultFull = resultText;
   const paragraphs = resultText.split(/\n\n+/).filter(p => p.trim() !== '');
 
@@ -390,11 +405,13 @@ let _currentWanderEvent = null;
 let _isWanderMode = false;
 
 function doWander() {
-  if (!WANDER_EVENTS.length) {
+  // 过滤掉没有 story 字段的非法条目（如模板地点对象）
+  const validEvents = WANDER_EVENTS.filter(ev => ev && ev.story && ev.story.length > 0);
+  if (!validEvents.length) {
     toast('（闲逛剧情开发中……）', '');
     return;
   }
-  _currentWanderEvent = pick(WANDER_EVENTS);
+  _currentWanderEvent = pick(validEvents);
   _isWanderMode = true;
   // Reuse work story overlay
   const bannerTitle = document.getElementById('work-story-title');

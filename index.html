@@ -11,10 +11,17 @@
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <script>
+
 // file:// 协议下移除 manifest link，避免 CORS 阻塞页面渲染
 if (location.protocol === 'file:') {
   document.querySelector('link[rel="manifest"]')?.remove();
   document.querySelector('link[rel="apple-touch-icon"]')?.remove();
+  // ★ 修复：注销所有可能残留的 Service Worker，防止 "Unsafe attempt to load URL" 报错
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(reg) { reg.unregister(); });
+    });
+  }
 }
 </script>
 <title>eraQueenA+ 调教版</title>
@@ -88,7 +95,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
   <header id="hdr">
     <div class="hdr-row">
       <button class="hdr-back" id="hdr-back">‹</button>
-      <div class="hdr-ava" id="hdr-ava">👑</div>
+      <div class="hdr-ava" id="hdr-ava">🏯</div>
       <div class="hdr-ttl">
         <h1 id="hdr-h1">eraQueenA+</h1>
         <p id="hdr-sub">调教养成游戏</p>
@@ -107,23 +114,29 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
     <div class="scr" id="s-home">
 
       <!-- 玩家信息卡 -->
-      <div class="player-card" id="player-card">
-        <div class="pc-top">
-          <div class="pc-ava" id="pc-ava" onclick="openAvaModal()" title="点击更换头像">👑</div>
-          <div class="pc-info">
-            <div class="pc-name">
-              <span id="pc-name-display" ondblclick="openPrettyRename()" title="双击改名">主人</span>
-            </div>
-            <div class="pc-gender" id="pc-gender">性别：未设定</div>
-            <div class="pc-stats-row" style="margin-top:6px">
-              <span class="pc-stat" onclick="openStaminaDetail()" style="cursor:pointer" title="查看体力消耗详情">⚡ 体力 <span id="pc-stamina">75</span>/<span id="pc-stamina-max">2000</span></span>
-              <span class="pc-stat" onclick="openExpDetail()" title="查看详情" style="cursor:pointer;color:#fff">📊 经验详情</span>
+      <div class="player-card" id="player-card" style="position:relative">
+        <!-- ★ 卡片自定义背景层（图片时覆盖渐变） -->
+        <div id="pc-card-bg" style="display:none;position:absolute;inset:0;border-radius:18px;background-size:cover;background-position:center;z-index:0;opacity:.55"></div>
+        <!-- ★ 编辑按钮（右上角） -->
+        <button onclick="openCardBgModal()" title="自定义卡片背景" style="position:absolute;top:10px;right:10px;z-index:2;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.38);color:#fff;border-radius:8px;padding:3px 9px;font-size:.68rem;cursor:pointer;backdrop-filter:blur(4px)">&#x270F;&#xFE0F; 编辑</button>
+        <div style="position:relative;z-index:1">
+          <div class="pc-top">
+            <div class="pc-ava" id="pc-ava" onclick="openAvaModal()" title="点击更换头像">&#x1F451;</div>
+            <div class="pc-info">
+              <div class="pc-name">
+                <span id="pc-name-display" onclick="openPrettyRename()" title="点击改名" style="cursor:pointer">主人</span>
+              </div>
+              <div class="pc-gender" id="pc-gender">性别：未设定</div>
+              <div class="pc-stats-row" style="margin-top:6px">
+                <span class="pc-stat" onclick="openStaminaDetail()" style="cursor:pointer" title="查看体力消耗详情">&#x26A1; 体力 <span id="pc-stamina">75</span>/<span id="pc-stamina-max">2000</span></span>
+                <span class="pc-stat" onclick="openExpDetail()" title="查看详情" style="cursor:pointer;color:#fff">&#x1F4CA; 经验详情</span>
+              </div>
             </div>
           </div>
-        </div>
-        <div class="pc-bottom">
-          <div class="pc-day" onclick="if(typeof openCalendar==='function')openCalendar()" style="cursor:pointer" title="点击打开日历">📅 <span id="pc-day">第 1 天</span> <span id="pc-date-actual" style="font-size:.6rem;color:var(--muted);margin-left:2px"></span></div>
-          <div class="pc-money" onclick="openMoneyLogPopup()" style="cursor:pointer" title="点击查看金币记录">💰 <span id="pc-money-home">$10,000</span> <span style="font-size:.65rem;color:var(--muted)">›</span></div>
+          <div class="pc-bottom">
+            <div class="pc-day" onclick="if(typeof openCalendar==='function')openCalendar()" style="cursor:pointer;position:relative" title="点击打开日历">&#x1F4C5; <span id="pc-day">第 1 天</span> <span id="pc-date-actual" style="font-size:.6rem;color:var(--muted);margin-left:2px"></span><span id="calendar-alert-dot" style="display:none;position:absolute;top:-3px;right:-6px;width:9px;height:9px;background:#e53935;border-radius:50%;border:1.5px solid var(--bg)" title="今天有特殊节日或生日，点击日历查看"></span></div>
+            <div class="pc-money" onclick="openMoneyLogPopup()" style="cursor:pointer" title="点击查看金币记录">&#x1F4B0; <span id="pc-money-home">$10,000</span> <span style="font-size:.65rem;color:var(--muted)">&#x203A;</span></div>
+          </div>
         </div>
       </div>
 
@@ -177,6 +190,22 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         </div>
       </div>
 
+      <!-- 旧的奴隶 / 新的猎物 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px">
+        <div class="card card-tap card-b" onclick="navTo('manor')"
+             style="text-align:center;padding:12px 8px">
+          <div style="font-size:1.4rem;margin-bottom:4px">⛓️</div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--acc2)">旧的奴隶</div>
+          <div style="font-size:.66rem;color:var(--muted);margin-top:2px">进入庄园</div>
+        </div>
+        <div class="card card-tap card-b" onclick="if(typeof PrologueSystem!=='undefined')PrologueSystem.startNewGame()"
+             style="text-align:center;padding:12px 8px">
+          <div style="font-size:1.4rem;margin-bottom:4px">🔑</div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--acc2)">新的猎物</div>
+          <div style="font-size:.66rem;color:var(--muted);margin-top:2px">重新开始</div>
+        </div>
+      </div>
+
       <!-- 继续游戏 -->
       <div class="s-ttl">继续游戏</div>
       <div id="home-recent" style="margin-bottom:14px"></div>
@@ -219,6 +248,11 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
           <div class="slb-name">劳役剧情</div>
           <div class="slb-count" id="corvee-log-count">0 条记录</div>
         </div>
+        <div class="slb" onclick="if(typeof PrologueSystem!=='undefined')PrologueSystem.openPrologueLogModal()">
+          <div class="slb-icon">📜</div>
+          <div class="slb-name">序章与结局</div>
+          <div class="slb-count" id="prologue-log-count">待解锁</div>
+        </div>
       </div>
 
       <!-- 爱心贴士 -->
@@ -230,10 +264,8 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 
     <!-- ── 庄园（已购奴隶列表）── -->
     <div class="scr" id="s-manor">
-      <div class="s-ttl" style="margin-bottom:8px">🏰 我的庄园</div>
-      <div style="font-size:.76rem;color:var(--muted);margin-bottom:12px;line-height:1.6">
-        已入住奴隶一览。点击进入训练或查看房间。
-      </div>
+      <!-- ── 助手面板 ── -->
+      <div id="assistant-panel" style="margin-bottom:4px"></div>
       <div id="manor-slave-list" style="display:grid;gap:10px"></div>
       <div id="manor-empty" style="display:none;text-align:center;padding:40px 0;color:var(--muted)">
         <div style="font-size:2.5rem;margin-bottom:8px">🏚️</div>
@@ -257,6 +289,10 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         <button class="chip g-chip"    onclick="filterGenderSpecial(this)">✨特殊</button>
       </div>
       <div id="char-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:11px"></div>
+      <div id="chars-empty-hint" style="display:none;text-align:center;padding:32px 16px;color:var(--muted);font-size:.82rem;line-height:1.8">
+        暂无奴隶。<br>前往 <b style="color:var(--acc)">庄园 → 奴隶采购</b> 引入第一位奴隶吧。<br>
+        <button class="btn btn-p" style="margin-top:14px" onclick="navTo('manor');setTimeout(openSlaveProcurement,300)">⛓️ 前往采购</button>
+      </div>
       <div class="pagi">
         <button class="btn btn-sm" id="ch-prev" onclick="changePage(-1)">‹ 上页</button>
         <span class="pi" id="ch-info">1 / 1</span>
@@ -279,12 +315,16 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
             <span id="p-relation-stage" style="font-size:.65rem;color:var(--muted)"></span>
             <span id="p-depend-tag" style="font-size:.65rem;color:var(--muted)"></span>
           </div>
+
         </div>
         <div class="play-profile-acts" style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">
           <button class="pa-btn" onclick="openSlaveExpBars()" title="奴隶经验" style="font-size:.68rem;padding:4px 8px">📊角色经验</button>
           <button class="pa-btn" onclick="openCharDetail()" title="攻略进度" style="font-size:.68rem;padding:4px 8px">🎯攻略进度</button>
         </div>
       </div>
+
+      <!-- Layer 1.5: 助手调教栏 -->
+      <div id="assistant-training-bar"></div>
 
       <!-- Layer 2: 左右分栏 -->
       <div class="play-cols">
@@ -325,6 +365,17 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
           <div id="log" style="max-height:280px;overflow-y:auto;display:flex;flex-direction:column"></div>
         </div>
       </div>
+      </div>
+
+      <!-- 佩戴道具栏（有装备时才显示）-->
+      <div id="equipped-card" style="display:none">
+        <div class="card card-b" style="margin-bottom:0;padding:10px 12px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:.7rem;color:var(--muted);font-weight:600;letter-spacing:.05em">⚙️ 当前佩戴</span>
+            <span style="font-size:.6rem;color:var(--bdr2)">点击图标可卸下</span>
+          </div>
+          <div id="equipped-bar" style="display:flex;flex-wrap:wrap;gap:5px;align-items:center"></div>
+        </div>
       </div>
 
       <!-- Layer 3: 指令按钮 -->
@@ -402,6 +453,11 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
       </div>
 
       <div class="s-ttl" style="margin-top:14px">游戏设置</div>
+      <div class="sr" onclick="openReadModeModal()">
+        <div class="sr-ico">📖</div>
+        <div style="flex:1"><div class="sr-ttl">阅读设置</div><div class="sr-sub" id="read-mode-sub">滚动模式</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
       <div class="sr" onclick="openPerspectiveModal()">
         <div class="sr-ico">👤</div>
         <div style="flex:1"><div class="sr-ttl">改变人称</div><div class="sr-sub" id="perspective-settings-sub">第一人称（我）</div></div>
@@ -415,6 +471,11 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
       <div class="sr" onclick="openApiModal()">
         <div class="sr-ico">🤖</div>
         <div style="flex:1"><div class="sr-ttl">API 设置</div><div class="sr-sub" id="api-settings-sub">未设置 · 本地对话模式</div></div>
+        <div style="color:var(--muted)">›</div>
+      </div>
+      <div class="sr" onclick="if(typeof setNewDayCardEnabled==='function')setNewDayCardEnabled(!getNewDayCardEnabled())">
+        <div class="sr-ico">📅</div>
+        <div style="flex:1"><div class="sr-ttl">新天提示卡片</div><div class="sr-sub" id="newday-card-sub">每天显示</div></div>
         <div style="color:var(--muted)">›</div>
       </div>
       <div class="sr" id="pwa-install-row" onclick="triggerPwaInstall()" style="display:none">
@@ -451,6 +512,20 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 
 <!-- ══ MODALS ════════════════════════════════════════════ -->
 
+<!-- 助手选择弹窗 -->
+<div class="ov" id="ov-assistant-select" style="z-index:520">
+  <div class="ov-box" style="max-width:420px;width:92%;border-radius:18px;background:var(--card);border:1px solid var(--bdr);box-shadow:0 8px 32px rgba(0,0,0,0.35)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px 12px;background:var(--card2);border-radius:18px 18px 0 0;border-bottom:1px solid var(--bdr)">
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="font-size:1.15rem">✨</span>
+        <span style="font-size:.9rem;font-weight:700;color:var(--txt);letter-spacing:.04em">设置庄园助手</span>
+      </div>
+      <button onclick="closeOv('ov-assistant-select')" style="background:var(--bdr);border:none;color:var(--txt2);font-size:1rem;cursor:pointer;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center">✕</button>
+    </div>
+    <div id="assistant-select-body" style="padding:14px 18px 18px;overflow-y:auto;max-height:72vh"></div>
+  </div>
+</div>
+
 <!-- 剧情弹窗 -->
 <div class="ov" id="ov-story" style="z-index:500">
   <div class="sheet">
@@ -462,6 +537,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
           <div class="story-tag-lbl" id="story-tag" style="margin:0;background:rgba(255,255,255,.18);padding:2px 8px;border-radius:20px;backdrop-filter:blur(4px)">指令事件</div>
         </div>
         <div class="story-title-txt" id="story-title">剧情</div>
+        <div id="story-date-sub" style="display:none;font-size:.72rem;color:rgba(255,255,255,.78);margin-top:3px;letter-spacing:1px"></div>
         <!-- 页码显示 -->
         <div id="story-page-info" style="position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:.62rem;opacity:.72;letter-spacing:1px"></div>
       </div>
@@ -469,9 +545,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
     <!-- 正文区域 -->
     <div class="s-body" style="padding-top:4px">
       <!-- 正文滚动区 -->
-      <div class="story-body" id="story-body" style="max-height:52vh;overflow-y:auto;padding:4px 6px 4px 2px;scroll-behavior:smooth"></div>
-      <!-- 分页点 -->
-      <div class="story-pages" id="story-dots"></div>
+      <div class="story-body" id="story-body" style="padding:4px 6px 4px 2px;scroll-behavior:smooth"></div>
       <!-- 效果结算 -->
       <div class="story-eff" id="story-eff" style="display:none"></div>
       <!-- 导航按钮 -->
@@ -480,6 +554,8 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
         <button class="btn btn-full"  id="story-next" onclick="storyNext()">继续阅读 →</button>
         <button class="btn btn-full btn-p" id="story-fin" onclick="finishStory()" style="display:none">✓ 完成</button>
       </div>
+      <!-- 分页点（移至按钮下方，不遮挡正文） -->
+      <div class="story-pages" id="story-dots"></div>
 
     </div>
   </div>
@@ -497,12 +573,13 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
     </div>
     <div class="s-body">
       <div class="story-body" id="work-story-body"></div>
-      <div class="story-pages" id="work-story-dots"></div>
       <div id="work-story-choices"></div>
       <div class="story-nav">
         <button class="btn btn-full btn-ghost" id="ws-prev" onclick="workStoryPrev()" style="display:none">← 上页</button>
         <button class="btn btn-full"           id="ws-next" onclick="workStoryNext()">下一页 →</button>
       </div>
+      <!-- 分页点（移至按钮下方） -->
+      <div class="story-pages" id="work-story-dots"></div>
     </div>
   </div>
 </div>
@@ -652,7 +729,7 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
       <div id="slave-ava-grid" style="display:grid;grid-template-columns:repeat(6,1fr);gap:7px;margin-bottom:14px"></div>
       <div style="font-size:.78rem;color:var(--txt2);margin-bottom:8px;font-weight:700">或上传图片</div>
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-        <div id="slave-ava-preview" style="width:52px;height:52px;border-radius:50%;background:var(--card2);border:2px dashed var(--bdr2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:.65rem;color:var(--muted)">预览</div>
+        <div id="slave-ava-preview-upload" style="width:52px;height:52px;border-radius:50%;background:var(--card2);border:2px dashed var(--bdr2);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;font-size:.65rem;color:var(--muted)">预览</div>
         <button class="btn btn-ghost" style="flex:1" onclick="document.getElementById('slave-ava-upload').click()">📁 选择图片</button>
       </div>
       <input type="file" id="slave-ava-upload" accept="image/*" style="display:none" onchange="handleSlaveAvaUpload(this)">
@@ -764,18 +841,22 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
      新增角色：复制 js/chars/char_template.js，填写后在下方加一行
      ──────────────────────────────────────────────────────── -->
 <script src="js/chars/char_loader.js"></script>
+<script src="js/chars/char_1_千辞梦.js"></script>
+<script src="js/chars/char_4_杨.js"></script>
+<script src="js/chars/char_5_尼尔.js"></script>
+<script src="js/chars/char_6_五条悟.js"></script>
+<script src="js/chars/char_10_弥良.js"></script>
 <script src="js/chars/char_21_star.js"></script>
-<!-- 其他角色文件：复制上行，改 id 和文件名即可
-<script src="js/chars/char_1_youming.js"></script>
-<script src="js/chars/char_2_yan.js"></script>
--->
+
 <script src="js/data/items.js"></script>
 <script src="js/data/cmd_descs.js"></script>
 <script src="js/data/jealousy_events.js"></script>
 <script src="js/data/dialogues.js"></script>
+<script src="js/data/assistant_stories.js"></script>
 <script src="js/data/stories.js"></script>
     <script src="js/data/command_stories.js"></script>
 <script src="js/data/work_events.js"></script>
+<script src="js/data/rest_stories.js"></script>
 <script src="js/data/date_stories.js"></script>
 <!-- ★ 人格系统 (在 state.js 之后, game.js 之前) -->
 <script src="js/data/personality_texts.js"></script>
@@ -793,11 +874,16 @@ body, .act-btn, .log-txt, .log-spk, .story-quote, p, .sr-ttl, .sr-sub, .inp {
 <script src="js/ui/achieve.js"></script>
 <script src="js/data/item_self_stories.js"></script>
 <script src="js/data/reverse_training.js"></script>
+<script src="js/data/observe_slave_stories.js"></script>
 <script src="js/core/features.js"></script>
+<!-- ★ 日常生活剧情迁移库（来自旧版 eramaker 游戏 DAILY_LIFE_EVENT.ERB） -->
+<script src="js/data/daily_life_stories.js"></script>
 <script src="js/core/pets.js"></script>
 <script src="js/core/pregnancy.js"></script>
 <script src="js/core/relationship.js"></script>
-<script src="js/core/calendar.js"></script>
+
+<!-- ★ 序章与结局系统 (在 bridge.js 之前加载) -->
+<script src="js/core/prologue.js"></script>
 <!-- ★ 统一集成桥梁 (必须最后加载) -->
 <script src="js/ui/bridge.js"></script>
 <script>
@@ -833,16 +919,452 @@ function renderPlayerCard() {
   _el = document.getElementById('pc-exp');          if (_el) _el.textContent = State.playerExp || 0;
   // Update log counts
   if(typeof updateLogCounts==='function') updateLogCounts();
+  // ★ 刷新卡片自定义背景
+  var _bgEl = document.getElementById('pc-card-bg');
+  if (_bgEl) {
+    var _cardBgUrl = _playerProfile.cardBgImg || null;
+    if (_cardBgUrl) {
+      _bgEl.style.backgroundImage = "url('" + _cardBgUrl + "')";
+      // ★ 支持主题色开关：noTheme=true 时使用高不透明度遮盖主题渐变色
+      _bgEl.style.opacity = _playerProfile.cardBgNoTheme ? '1' : '0.55';
+      // ★ 始终使用 cover（裁剪结果已烘焙进图片，旧 CSS crop 参数自动清除）
+      if (_playerProfile.cardBgCrop) {
+        _playerProfile.cardBgCrop = null;
+        localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+      }
+      _bgEl.style.backgroundSize = 'cover';
+      _bgEl.style.backgroundPosition = 'center';
+      _bgEl.style.display = 'block';
+    } else {
+      _bgEl.style.display = 'none';
+    }
+  }
 }
+
+// ★ 主人卡片背景编辑弹窗
+var _cardBgCropImg = null, _cardBgZ = 100, _cardBgX = 0, _cardBgY = 0;
+var _cardBgDrag = false, _cardBgDragS = { x: 0, y: 0 };
+
+// 内置主人头像预设（选选即用）
+var PLAYER_AVATARS_PRESET = [
+  '👑',
+  { img: 'data:image/jpeg;base64,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', label: '🌹', title: '自定义头像1' }, // ★ 玫瑰位置替换为自定义图片
+  '⚔️','🔮','🦋','🌙','✨','💎','🐉','🌸',
+  '👁','🗡️','🌿','🔥','💀','🌊','⚡','🎭','🎪','🦅',
+  '🐺','🦊','🌺','💫','🏹','⚗️','🦁','🌑','🕷️','💠'
+];
+
+function openCardBgModal() {
+  var existing = document.getElementById('ov-card-bg');
+  if (existing) { existing.style.display = 'flex'; _renderCardBgModal(); return; }
+
+  var ov = document.createElement('div');
+  ov.id = 'ov-card-bg';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px)';
+  ov.onclick = function(e) { if (e.target === ov) ov.style.display = 'none'; };
+
+  var sheet = document.createElement('div');
+  sheet.style.cssText = 'background:var(--card);border-radius:20px 20px 0 0;padding:20px 18px 32px;width:100%;max-width:480px;animation:slideUp .25s ease;max-height:90vh;overflow-y:auto';
+  sheet.innerHTML =
+    // ── 标题栏 ──────────────────────────────────────────────
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
+      '<div style="font-size:1rem;font-weight:800;color:var(--txt)">&#x1F3A8; 自定义主人卡片</div>' +
+      '<button onclick="document.getElementById(\'ov-card-bg\').style.display=\'none\'" ' +
+        'style="background:var(--card2);border:none;border-radius:8px;padding:4px 10px;color:var(--txt2);cursor:pointer">关闭</button>' +
+    '</div>' +
+
+    // ── 头像预设区 ───────────────────────────────────────────
+    '<div style="font-size:.75rem;font-weight:700;color:var(--txt2);margin-bottom:8px">&#x1F464; 主人头像预设</div>' +
+    '<div id="player-preset-ava-grid" style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:10px"></div>' +
+
+    // ── 头像上传裁剪区（选择📷后显示）──────────────────────
+    '<div id="card-ava-crop-area" style="display:none;margin-bottom:14px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+        '<span style="font-size:.72rem;color:var(--muted)">拖动调整裁剪区域：</span>' +
+        '<button class="btn btn-sm" id="card-ava-lock-btn" style="font-size:.62rem;padding:2px 8px" onclick="_toggleCardAvaLock()">&#x1F512; 固定页面</button>' +
+      '</div>' +
+      '<div style="text-align:center;margin:10px 0">' +
+        '<canvas id="card-ava-canvas" width="400" height="400" ' +
+          'style="width:180px;height:180px;border-radius:50%;border:2px solid var(--acc);cursor:grab;touch-action:none"></canvas>' +
+      '</div>' +
+      '<input type="range" id="card-ava-zoom" min="10" max="300" value="100" style="width:100%;margin:8px 0" oninput="_redrawCardAva()">' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="btn btn-p" style="flex:1" onclick="_confirmCardAva()">&#x2713; 确认</button>' +
+        '<button class="btn btn-ghost" style="flex:1" onclick="_cancelCardAva()">取消</button>' +
+      '</div>' +
+    '</div>' +
+    '<input type="file" id="card-ava-file-inp" accept="image/*" style="display:none" onchange="_handleCardAvaUpload(this)">' +
+
+    // ── 卡片背景区 ───────────────────────────────────────────
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">' +
+      '<div style="font-size:.75rem;font-weight:700;color:var(--txt2)">&#x1F5BC; 卡片背景图片</div>' +
+      // ★ 主题色开关按钮（右上角）
+      '<button id="card-bg-theme-btn" onclick="_toggleCardBgTheme()" ' +
+        'style="font-size:.65rem;padding:3px 8px;border-radius:8px;border:1px solid var(--bdr2);background:var(--card2);color:var(--txt2);cursor:pointer">' +
+        (_playerProfile.cardBgNoTheme ? '&#x1F508; 主题色 已关' : '&#x1F3A8; 主题色 开') +
+      '</button>' +
+    '</div>' +
+    '<div style="display:flex;gap:8px;margin-bottom:12px">' +
+      '<button onclick="document.getElementById(\'card-bg-file-inp\').click()" ' +
+        'style="flex:1;padding:10px;border-radius:10px;border:1px dashed var(--bdr2);background:var(--card2);color:var(--txt2);cursor:pointer;font-size:.78rem">&#x1F4C1; 上传背景图</button>' +
+      '<button onclick="_clearCardBg()" ' +
+        'style="padding:10px 14px;border-radius:10px;border:1px solid var(--bdr2);background:var(--card2);color:var(--txt2);cursor:pointer;font-size:.78rem">&#x2716; 清除</button>' +
+    '</div>' +
+    '<input type="file" id="card-bg-file-inp" accept="image/*" style="display:none" onchange="handleCardBgUpload(this)">' +
+
+    // ── 背景裁剪区（上传背景图后显示）───────────────────────
+    '<div id="card-bg-crop-area" style="display:none">' +
+      '<div style="font-size:.7rem;color:var(--muted);margin-bottom:6px">拖动调整裁剪：覆盖层为卡片实际布局参考</div>' +
+      '<div style="position:relative;margin:8px 0;border-radius:12px;overflow:hidden;line-height:0">' +
+        '<canvas id="card-bg-canvas" width="480" height="200" ' +
+          'style="width:100%;display:block;cursor:grab;touch-action:none"></canvas>' +
+        // ── 卡片信息参考覆盖层 ──
+        '<div style="position:absolute;inset:0;pointer-events:none;padding:10px 13px;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(to bottom,rgba(0,0,0,.18) 0%,transparent 55%,rgba(0,0,0,.22) 100%)">' +
+          '<div style="display:flex;align-items:center;gap:8px">' +
+            '<div id="crop-ov-ava" style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,.22);border:2px solid rgba(255,255,255,.5);display:flex;align-items:center;justify-content:center;font-size:1.2rem;flex-shrink:0;overflow:hidden;background-size:cover;background-position:center"></div>' +
+            '<div style="color:#fff;text-shadow:0 1px 5px rgba(0,0,0,.9)">' +
+              '<div id="crop-ov-name" style="font-weight:700;font-size:.82rem;letter-spacing:1px"></div>' +
+              '<div id="crop-ov-gender" style="font-size:.62rem;opacity:.9;margin-top:1px"></div>' +
+              '<div id="crop-ov-sta" style="font-size:.62rem;opacity:.9;margin-top:1px"></div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center">' +
+            '<div id="crop-ov-day" style="font-size:.64rem;color:rgba(255,255,255,.92);text-shadow:0 1px 5px rgba(0,0,0,.9)"></div>' +
+            '<div id="crop-ov-money" style="font-size:.64rem;color:rgba(255,255,255,.92);text-shadow:0 1px 5px rgba(0,0,0,.9)"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<input type="range" id="card-bg-zoom" min="10" max="400" value="100" style="width:100%;margin:8px 0" oninput="_redrawCardBg()">' +
+      '<div style="display:flex;gap:8px;margin-top:8px">' +
+        '<button class="btn btn-p" style="flex:1" onclick="_confirmCardBg()">&#x2713; 确认</button>' +
+        '<button class="btn" style="flex:1;background:var(--card2);color:var(--txt2)" onclick="_cancelCardBg()">取消</button>' +
+      '</div>' +
+    '</div>' +
+
+    // ── ★ 卡片最终效果预览 ──────────────────────────────────
+    '<div style="font-size:.75rem;font-weight:700;color:var(--txt2);margin-top:16px;margin-bottom:8px">&#x1F441; 卡片效果预览</div>' +
+    '<div id="card-bg-preview-wrap" style="border-radius:14px;overflow:hidden;border:1px solid var(--bdr2)">' +
+      _buildCardPreviewHTML() +
+    '</div>' +
+    '<div style="font-size:.68rem;color:var(--muted);margin-top:6px;text-align:center" id="card-bg-status">' +
+      (_playerProfile.cardBgImg ? '&#x2705; 已设置自定义背景' : '&#x2139;&#xFE0F; 尚未设置背景图') +
+    '</div>';
+
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+  _renderCardBgModal();
+}
+
+// ★ 构建主人卡片预览HTML（缩小版，展示真实效果）
+function _buildCardPreviewHTML() {
+  var bgUrl = _playerProfile.cardBgImg || '';
+  var noTheme = _playerProfile.cardBgNoTheme;
+  var avaContent = _playerProfile.avatarImg
+    ? '<div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.22);background-image:url(\'' + _playerProfile.avatarImg + '\');background-size:cover;background-position:center;flex-shrink:0"></div>'
+    : '<div style="width:42px;height:42px;border-radius:50%;background:rgba(255,255,255,.22);display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">' + (_playerProfile.avatar || '👑') + '</div>';
+  var bgLayer = bgUrl
+    ? '<div style="position:absolute;inset:0;background-image:url(\'' + bgUrl + '\');background-size:cover;background-position:center;opacity:' + (noTheme ? '1' : '0.55') + ';border-radius:14px"></div>'
+    : '';
+  return '<div style="position:relative;background:var(--grad);border-radius:14px;padding:14px 16px;color:#fff;overflow:hidden">' +
+    bgLayer +
+    '<div style="position:relative;z-index:1;display:flex;align-items:center;gap:12px">' +
+      avaContent +
+      '<div>' +
+        '<div style="font-weight:700;font-size:.88rem">' + (_playerProfile.name || '主人') + '</div>' +
+        '<div style="font-size:.65rem;opacity:.85">性别：' + (_playerProfile.gender || '未设定') + '</div>' +
+        '<div style="font-size:.65rem;opacity:.85;margin-top:2px">&#x26A1; 体力 ' + Math.round(_playerProfile.stamina || 2000) + '/' + (_playerProfile.staminaMax || 2000) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div style="position:relative;z-index:1;margin-top:10px;display:flex;justify-content:space-between;align-items:center">' +
+      '<div style="font-size:.68rem;opacity:.8">&#x1F4C5; 第 ' + (typeof State !== 'undefined' ? (State.day || 1) : 1) + ' 天</div>' +
+      '<div style="font-size:.68rem;opacity:.8">&#x1F4B0; ' + (typeof fmtMoney === 'function' ? fmtMoney(typeof State !== 'undefined' ? (State.money || 0) : 0) : '$0') + '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ★ 刷新卡片预览
+function _renderCardBgPreview() {
+  var wrap = document.getElementById('card-bg-preview-wrap');
+  if (wrap) wrap.innerHTML = _buildCardPreviewHTML();
+}
+
+// ★ 主题色开关
+function _toggleCardBgTheme() {
+  _playerProfile.cardBgNoTheme = !_playerProfile.cardBgNoTheme;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var btn = document.getElementById('card-bg-theme-btn');
+  if (btn) btn.innerHTML = _playerProfile.cardBgNoTheme ? '&#x1F508; 主题色 已关' : '&#x1F3A8; 主题色 开';
+  toast(_playerProfile.cardBgNoTheme ? '主题色影响已关闭 ✓' : '主题色影响已开启 ✓', 'ok');
+}
+
+// ★ _clearCardBg 也刷新预览
+function _clearCardBg() {
+  _playerProfile.cardBgImg = null;
+  _playerProfile.cardBgCrop = null;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var st = document.getElementById('card-bg-status');
+  if (st) st.innerHTML = '&#x2139;&#xFE0F; 已清除背景图';
+  toast('背景已清除', 'ok');
+}
+
+// ── ★ 头像上传裁剪（在卡片设置弹窗内，不打开 ov-ava）──────
+var _cardAvaImg = null, _cardAvaZ = 100, _cardAvaX = 0, _cardAvaY = 0, _cardAvaDrag = false, _cardAvaDragS = {x:0,y:0};
+
+function _handleCardAvaUpload(inp) {
+  var file = inp.files ? inp.files[0] : null;
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    _cardAvaImg = new Image();
+    _cardAvaImg.onload = function() {
+      var area = document.getElementById('card-ava-crop-area');
+      if (area) area.style.display = 'block';
+      var fitScale = 400 / Math.min(_cardAvaImg.width, _cardAvaImg.height);
+      _cardAvaZ = Math.round(fitScale * 100); _cardAvaX = 0; _cardAvaY = 0;
+      var sl = document.getElementById('card-ava-zoom');
+      if (sl) { sl.min = Math.max(10, Math.round(fitScale * 60)); sl.max = Math.round(fitScale * 350); sl.value = _cardAvaZ; }
+      _redrawCardAva();
+      var cv = document.getElementById('card-ava-canvas');
+      if (cv) {
+        cv.onpointerdown = function(e) { _cardAvaDrag=true; _cardAvaDragS={x:e.clientX-_cardAvaX,y:e.clientY-_cardAvaY}; cv.setPointerCapture(e.pointerId); e.preventDefault(); };
+        cv.onpointermove = function(e) { if (!_cardAvaDrag) return; _cardAvaX=e.clientX-_cardAvaDragS.x; _cardAvaY=e.clientY-_cardAvaDragS.y; _redrawCardAva(); };
+        cv.onpointerup = cv.onpointercancel = function() { _cardAvaDrag=false; };
+      }
+    };
+    _cardAvaImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  inp.value = '';
+}
+
+function _redrawCardAva() {
+  var cv = document.getElementById('card-ava-canvas'); if (!cv || !_cardAvaImg) return;
+  var ctx = cv.getContext('2d');
+  var sl = document.getElementById('card-ava-zoom'); if (sl) _cardAvaZ = parseInt(sl.value);
+  var z = _cardAvaZ/100, w = _cardAvaImg.width*z, h = _cardAvaImg.height*z;
+  var ox = (400-w)/2 + _cardAvaX*(400/180), oy = (400-h)/2 + _cardAvaY*(400/180);
+  ctx.clearRect(0,0,400,400); ctx.save(); ctx.beginPath(); ctx.arc(200,200,200,0,Math.PI*2); ctx.clip();
+  ctx.drawImage(_cardAvaImg, ox, oy, w, h); ctx.restore();
+}
+
+function _confirmCardAva() {
+  var cv = document.getElementById('card-ava-canvas'); if (!cv) return;
+  var url = cv.toDataURL('image/png');
+  _playerProfile.avatar = null; _playerProfile.avatarImg = url;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var area = document.getElementById('card-ava-crop-area');
+  if (area) area.style.display = 'none';
+  _cardAvaImg = null;
+  toast('头像已更新 ✓', 'ok');
+}
+
+function _cancelCardAva() {
+  var area = document.getElementById('card-ava-crop-area');
+  if (area) area.style.display = 'none';
+  _cardAvaImg = null;
+}
+
+function _toggleCardAvaLock() {
+  var btn = document.getElementById('card-ava-lock-btn');
+  var ov = document.getElementById('ov-card-bg');
+  if (!ov) return;
+  var isLocked = ov.style.overflowY === 'hidden';
+  ov.style.overflowY = isLocked ? '' : 'hidden';
+  if (btn) btn.innerHTML = isLocked ? '&#x1F512; 固定页面' : '&#x1F513; 已固定';
+}
+
+function _renderCardBgModal() {
+  // ── 渲染头像预设格 ─────────────────────────────────────────
+  var grid = document.getElementById('player-preset-ava-grid');
+  if (grid) {
+    var html = '';
+    PLAYER_AVATARS_PRESET.forEach(function(a) {
+      if (typeof a === 'object' && a.img) {
+        // ★ 自定义图片预设
+        var isOn = _playerProfile.avatarImg === a.img;
+        html += '<div onclick="_pickImgPresetAva(\'' + a.img + '\',this)" title="' + (a.title || '自定义图片') + '" ' +
+          'style="width:36px;height:36px;border-radius:8px;cursor:pointer;border:2px solid ' + (isOn ? 'var(--acc)' : 'transparent') + ';overflow:hidden">' +
+          '<img src="' + a.img + '" style="width:100%;height:100%;object-fit:cover" />' +
+          '</div>';
+      } else {
+        // 普通 emoji 预设
+        var isOn2 = a === _playerProfile.avatar;
+        html += '<div onclick="_pickPresetPlayerAva(\'' + a + '\',this)" ' +
+          'style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:1.3rem;cursor:pointer;border:2px solid ' +
+          (isOn2 ? 'var(--acc)' : 'transparent') + ';background:' + (isOn2 ? 'var(--acc-s)' : 'var(--card2)') + '">' + a + '</div>';
+      }
+    });
+    // ★ 上传按钮（触发卡片弹窗内的裁剪，不打开 ov-ava）
+    html += '<div onclick="document.getElementById(\'card-ava-file-inp\').click()" ' +
+      'style="width:36px;height:36px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:.9rem;cursor:pointer;border:1px dashed var(--bdr2);background:var(--card2);color:var(--muted)" title="上传自定义头像">&#x1F4F7;</div>';
+    grid.innerHTML = html;
+  }
+}
+
+// ★ 选择图片类型头像预设
+function _pickImgPresetAva(imgUrl, el) {
+  _playerProfile.avatar = null;
+  _playerProfile.avatarImg = imgUrl;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var grid = document.getElementById('player-preset-ava-grid');
+  if (grid) {
+    grid.querySelectorAll('div').forEach(function(d) {
+      d.style.border = '2px solid transparent';
+      d.style.background = 'var(--card2)';
+    });
+  }
+  el.style.border = '2px solid var(--acc)';
+  toast('头像已更新 ✓', 'ok');
+}
+
+function _pickPresetPlayerAva(ava, el) {
+  _playerProfile.avatar = ava;
+  _playerProfile.avatarImg = null;
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var grid = document.getElementById('player-preset-ava-grid');
+  if (grid) {
+    grid.querySelectorAll('div').forEach(function(d) {
+      d.style.border = '2px solid transparent';
+      d.style.background = 'var(--card2)';
+    });
+    el.style.border = '2px solid var(--acc)';
+    el.style.background = 'var(--acc-s)';
+  }
+  toast('头像已更新 ✓', 'ok');
+}
+
+var _cardBgOriginalUrl = null; // ★ 存储原图完整数据URL，避免质量损失
+
+function handleCardBgUpload(inp) {
+  var file = inp.files ? inp.files[0] : null;
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    _cardBgOriginalUrl = ev.target.result; // ★ 保存原始数据
+    _cardBgCropImg = new Image();
+    _cardBgCropImg.onload = function() {
+      var area = document.getElementById('card-bg-crop-area');
+      if (area) area.style.display = 'block';
+      _updateCropOverlay(); // ★ 将玩家信息填入卡片参考层
+      var fitW = 480 / _cardBgCropImg.width;
+      var fitH = 200 / _cardBgCropImg.height;
+      var fitScale = Math.max(fitW, fitH);
+      _cardBgZ = Math.round(fitScale * 100);
+      _cardBgX = 0; _cardBgY = 0;
+      var sl = document.getElementById('card-bg-zoom');
+      if (sl) { sl.min = Math.max(10, Math.round(fitScale * 50)); sl.max = Math.round(fitScale * 400); sl.value = _cardBgZ; }
+      _redrawCardBg();
+      var cv = document.getElementById('card-bg-canvas');
+      if (cv) {
+        cv.onpointerdown = function(e) { _cardBgDrag = true; _cardBgDragS = { x: e.clientX - _cardBgX, y: e.clientY - _cardBgY }; cv.setPointerCapture(e.pointerId); e.preventDefault(); };
+        cv.onpointermove = function(e) { if (!_cardBgDrag) return; _cardBgX = e.clientX - _cardBgDragS.x; _cardBgY = e.clientY - _cardBgDragS.y; _redrawCardBg(); };
+        cv.onpointerup = cv.onpointercancel = function() { _cardBgDrag = false; };
+      }
+    };
+    _cardBgCropImg.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+  inp.value = '';
+}
+
+function _redrawCardBg() {
+  var cv = document.getElementById('card-bg-canvas');
+  if (!cv || !_cardBgCropImg) return;
+  var ctx = cv.getContext('2d');
+  var sl = document.getElementById('card-bg-zoom');
+  if (sl) _cardBgZ = parseInt(sl.value);
+  var z = _cardBgZ / 100;
+  var w = _cardBgCropImg.width * z, h = _cardBgCropImg.height * z;
+  var ox = (480 - w) / 2 + _cardBgX * (480 / cv.clientWidth);
+  var oy = (200 - h) / 2 + _cardBgY * (200 / cv.clientHeight);
+  ctx.clearRect(0, 0, 480, 200);
+  ctx.drawImage(_cardBgCropImg, ox, oy, w, h);
+}
+
+// ★ 更新裁剪区卡片信息覆盖层
+function _updateCropOverlay() {
+  var avaEl = document.getElementById('crop-ov-ava');
+  if (avaEl) {
+    if (_playerProfile.avatarImg) {
+      avaEl.style.backgroundImage = "url('" + _playerProfile.avatarImg + "')";
+      avaEl.style.backgroundSize = 'cover';
+      avaEl.style.backgroundPosition = 'center';
+      avaEl.textContent = '';
+    } else {
+      avaEl.style.backgroundImage = '';
+      avaEl.textContent = _playerProfile.avatar || '👑';
+    }
+  }
+  var n = document.getElementById('crop-ov-name');   if (n) n.textContent = _playerProfile.name || '主人';
+  var g = document.getElementById('crop-ov-gender'); if (g) g.textContent = '性别：' + (_playerProfile.gender || '未设定');
+  var s = document.getElementById('crop-ov-sta');    if (s) s.textContent = '⚡ 体力 ' + Math.round(_playerProfile.stamina || 2000) + '/' + (_playerProfile.staminaMax || 2000);
+  var d = document.getElementById('crop-ov-day');    if (d) d.textContent = '📅 第 ' + (typeof State !== 'undefined' ? (State.day || 1) : 1) + ' 天';
+  var m = document.getElementById('crop-ov-money');  if (m) m.textContent = '💰 ' + (typeof fmtMoney === 'function' ? fmtMoney(typeof State !== 'undefined' ? (State.money || 0) : 0) : '$0');
+}
+
+function _confirmCardBg() {
+  // ★ 始终将裁剪结果烘焙为高倍率 canvas 输出，彻底避免 CSS background-size 平铺问题
+  if (!_cardBgCropImg) return;
+  var cvEl = document.getElementById('card-bg-canvas');
+  var cvW = cvEl ? cvEl.clientWidth  : 480;
+  var cvH = cvEl ? cvEl.clientHeight : 200;
+  var scaleUp = 2; // 2× 分辨率输出，兼顾画质与文件大小
+  var hqW = 480 * scaleUp, hqH = 200 * scaleUp;
+  var hqCanvas = document.createElement('canvas');
+  hqCanvas.width = hqW; hqCanvas.height = hqH;
+  var hqCtx = hqCanvas.getContext('2d');
+  var z = _cardBgZ / 100;
+  var w = _cardBgCropImg.width  * z * scaleUp;
+  var h = _cardBgCropImg.height * z * scaleUp;
+  var ox = (hqW - w) / 2 + _cardBgX * (hqW / cvW);
+  var oy = (hqH - h) / 2 + _cardBgY * (hqH / cvH);
+  hqCtx.drawImage(_cardBgCropImg, ox, oy, w, h);
+  var url = hqCanvas.toDataURL('image/jpeg', 0.95);
+  _playerProfile.cardBgImg  = url;
+  _playerProfile.cardBgCrop = null; // ★ 不再需要 CSS 参数
+  localStorage.setItem('era_profile', JSON.stringify(_playerProfile));
+  renderPlayerCard();
+  _renderCardBgPreview();
+  var st = document.getElementById('card-bg-status');
+  if (st) st.innerHTML = '&#x2705; 已设置自定义背景';
+  var area = document.getElementById('card-bg-crop-area');
+  if (area) area.style.display = 'none';
+  _cardBgOriginalUrl = null;
+  toast('卡片背景已更新 ✓', 'ok');
+}
+
+function _cancelCardBg() {
+  var area = document.getElementById('card-bg-crop-area');
+  if (area) area.style.display = 'none';
+}
+
+
 
 function openAvaModal() {
   const grid = document.getElementById('ava-grid');
   if (grid) {
-    // 上传按钮
     const uploadBtn = `<div class="ava-opt ava-upload" onclick="document.getElementById('ava-file-inp').click()" title="上传图片">📁<div style="font-size:.55rem;margin-top:2px">上传</div></div>`;
-    grid.innerHTML = uploadBtn + AVATARS.map(a => `
-      <div class="ava-opt ${a === _playerProfile.avatar ? 'on' : ''}"
-           onclick="pickAvatar('${a}',this)">${a}</div>`).join('');
+    grid.innerHTML = uploadBtn + PLAYER_AVATARS_PRESET.map(a => {
+      if (typeof a === 'object' && a.img) {
+        var isOn = _playerProfile.avatarImg === a.img;
+        return `<div class="ava-opt ${isOn ? 'on' : ''}" title="${a.title||''}"
+          style="background-image:url('${a.img}');background-size:cover;background-position:center;"
+          onclick="_pickImgPresetAva('${a.img}',this)"></div>`;
+      } else {
+        return `<div class="ava-opt ${(!_playerProfile.avatarImg && a === _playerProfile.avatar) ? 'on' : ''}"
+          onclick="pickAvatar('${a}',this)">${a}</div>`;
+      }
+    }).join('');
   }
   openOv('ov-ava');
 }
@@ -1004,6 +1526,7 @@ function doRest() {
 
   // 3. 推进天数
   State.day = (State.day || 1) + 1;
+  if (typeof _saveDay === 'function') _saveDay(); // ★ 修复：立即持久化防止刷新倒退
 
   // 4. 恢复主人体力和精力 - 恢复上限的一半
   if (typeof _playerProfile !== 'undefined') {
@@ -1050,6 +1573,9 @@ function doRest() {
       title: '🌙 休息 · ' + rs.title, 
       story: displayStory 
     }, '休息剧情', {});
+    // ★ 新天卡片排入队列：openStoryModal 有 _storyQueue 机制，
+    //   休息故事点"完成"后会自动弹出新天卡片
+    if (typeof showNewDayCard === 'function') showNewDayCard(State.day, 0);
   } else {
     alert("弹窗函数不存在，请检查 story.js");
   }
@@ -1122,6 +1648,10 @@ window.navTo = function(tab) {
   if (tab === 'home') {
     renderPlayerCard();
   }
+  // 进庄园消红点
+  if (tab === 'manor') {
+    if(typeof _dismissAlertDot==='function') _dismissAlertDot();
+  }
 };
 
 
@@ -1159,6 +1689,12 @@ document.addEventListener('DOMContentLoaded', () => {
     try { if (typeof initFeatures === 'function') initFeatures(); } catch(e) {}
     try { if (typeof updateLogCounts === 'function') updateLogCounts(); } catch(e) {}
     try { renderPlayerCard(); } catch(e) {}
+    // 初始化新天卡片设置显示
+    try {
+      var _ndSub = document.getElementById('newday-card-sub');
+      if(_ndSub) _ndSub.textContent = (typeof getNewDayCardEnabled==='function'&&!getNewDayCardEnabled()) ? '已关闭' : '每天显示';
+      if(typeof _checkNewDayAlert==='function') _checkNewDayAlert(window.State&&State.day||1);
+    } catch(e) {}
   }, 50);
 });
 
@@ -1168,50 +1704,11 @@ function startTraining() {
   // 嫉妒检测在选中角色时触发 (patched below)
 }
 
-// ── 道具图标映射 ─────────────────────────────────────────
-const ITEM_ICONS = {
-  standard: '📦', consumable: '💊', special: '✨',
-  1:'🔔', 2:'⛓️', 3:'💊', 4:'🌹', 5:'📷', 6:'👗', 7:'💎',
-  10:'🍵', 11:'🍷', 12:'💉', 20:'📜', 21:'🔮', 30:'🎭',
-  80:'✨', 81:'💊', 82:'🌿',
-};
-function getItemIcon(item) {
-  return ITEM_ICONS[item.id] || ITEM_ICONS[item.category] || '📦';
-}
-
-// ── 背包 override：点道具打开使用弹窗 ──────────────────
-const _origOpenBag = openBag;
-function openBag() {
-  const list = document.getElementById('bag-list');
-  if (!list) { _origOpenBag && _origOpenBag(); return; }
-  const inv = State.inventory || {};
-  // Support both numeric and string keys (e.g. 'date_voucher')
-  const keys = Object.keys(inv).filter(k => inv[k] > 0);
-  if (!keys.length) {
-    list.innerHTML = '<div class="empty"><div class="empty-ico">🎒</div><p>背包是空的</p></div>';
-  } else {
-    list.innerHTML = keys.map(id => {
-      // Try numeric id first, then string id
-      const numId = isNaN(id) ? id : Number(id);
-      const item = ITEMS_DATA?.find(i => i.id === numId) || ITEMS_DATA?.find(i => String(i.id) === String(id));
-      if (!item) return '';
-      const cnt  = inv[id];
-      const isConsumable = item.category !== 'standard';
-      return `<div class="bag-item" onclick="openItemUseFromBag(${JSON.stringify(numId)})">
-        <div style="font-size:1.5rem">${item.icon||'📦'}</div>
-        <div style="flex:1;min-width:0">
-          <div class="bag-item-name">${esc(item.name)}</div>
-          <div class="bag-item-desc">${esc((item.desc||'').slice(0,40))}</div>
-        </div>
-        <div style="text-align:right;flex-shrink:0">
-          ${isConsumable ? `<div class="bag-item-cnt">× ${cnt}</div>` : '<div class="bag-item-cnt" style="color:var(--sg)">已拥有</div>'}
-          <div style="font-size:.65rem;color:var(--acc);margin-top:3px">点击使用</div>
-        </div>
-      </div>`;
-    }).join('');
-  }
-  openOv('ov-bag');
-}
+// ── 道具背包说明 ─────────────────────────────────────────
+// openBag 使用 shop.js 的原版实现：
+//   - 图标由 getItemIcon() 提供（60+ 映射，含字符串ID药水）
+//   - onclick 已修复支持字符串ID（stamina_up_potion 等）
+//   - 显示分类标签、装备状态、数量等，无需 override
 
 // ── 选角色时：嫉妒检测 ─────────────────────────────────
 // Override selectChar (defined in game.js) to add jealousy check
@@ -1506,8 +2003,22 @@ window.buyItem = function(itemId) {
     <div class="s-hdl"></div>
     <div class="s-hdr"><span class="s-ttl-modal">💾 存档菜单</span><button class="s-x" onclick="closeOv('ov-save-menu')">✕</button></div>
     <div class="s-body">
-      <button class="btn btn-p btn-full" onclick="doSaveGame()">💾 更新自动存档</button>
-      <button class="btn btn-full" style="margin-top:8px;background:var(--card);border:1px solid var(--acc);color:var(--acc)" onclick="doManualSave()">📝 新建手动存档</button>
+      <!-- 文件夹存档状态栏 -->
+      <div id="fss-bar" style="display:flex;flex-direction:column;gap:6px;padding:8px 10px;background:var(--card2);border:1px solid var(--bdr2);border-radius:10px;margin-bottom:10px">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:.72rem;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <span id="fss-status-icon">📁</span>
+            <span id="fss-status-text" style="color:var(--muted);margin-left:4px">未选择存档文件夹</span>
+          </span>
+          <button id="fss-btn" class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:3px 9px;flex-shrink:0;display:none" onclick="openFolderPicker()">选择文件夹</button>
+          <button id="fss-sync-btn" class="btn btn-sm btn-ghost" style="font-size:.68rem;padding:3px 9px;flex-shrink:0;display:none" onclick="syncSaveFolder()">🔄 同步</button>
+        </div>
+        <div id="fss-universal-row" style="display:flex;gap:6px">
+          <button class="btn btn-sm btn-ghost btn-full" style="font-size:.7rem;padding:4px 0" onclick="importSaveFilePicker()">📂 导入 .sav 文件</button>
+          <button class="btn btn-sm btn-ghost" style="font-size:.7rem;padding:4px 10px;flex-shrink:0" onclick="showSaveSetupGuide()" title="如何把存档文件夹设置到游戏目录">❓ 配置向导</button>
+        </div>
+      </div>
+      <button class="btn btn-full" style="margin-top:0;background:var(--card);border:1px solid var(--acc);color:var(--acc)" onclick="doManualSave()">📝 新建手动存档</button>
       <div class="s-ttl" style="margin-top:14px;margin-bottom:8px">已有存档</div>
       <div id="save-slot-list" style="display:grid;gap:8px;max-height:320px;overflow-y:auto"></div>
       <button class="btn btn-full" style="margin-top:14px;background:#d35b5b;color:#fff" onclick="newGamePlus()">开始新周目</button>
@@ -1523,6 +2034,34 @@ window.buyItem = function(itemId) {
       <input class="inp" id="rename-input" maxlength="8" placeholder="输入新的名字">
       <button class="btn btn-p btn-full" style="margin-top:12px" onclick="confirmPrettyRename()">确认修改</button>
     </div>
+<!-- 路线标签详情弹窗 -->
+
+<!-- 庄园属性详情弹窗 -->
+<div class="ov" id="ov-stat-detail">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">📊 属性详情</span><button class="s-x" onclick="closeOv('ov-stat-detail')">✕</button></div>
+    <div class="s-body" style="padding-bottom:20px"></div>
+  </div>
+</div>
+
+<!-- 道具未持有购买提示弹窗 -->
+<div class="ov" id="ov-buy-item-prompt" style="z-index:500">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🔒 道具未持有</span><button class="s-x" onclick="closeOv('ov-buy-item-prompt')">✕</button></div>
+    <div class="s-body" style="padding-bottom:20px"></div>
+  </div>
+</div>
+
+<div class="ov" id="ov-tag-detail">
+  <div class="sheet">
+    <div class="s-hdl"></div>
+    <div class="s-hdr"><span class="s-ttl-modal">🏷️ 路线标签</span><button class="s-x" onclick="closeOv('ov-tag-detail')">✕</button></div>
+    <div class="s-body" style="padding-bottom:20px"></div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -1539,7 +2078,16 @@ function confirmPrettyRename(){
   closeOv('ov-rename');
   toast('名字已更新 ✓','ok');
 }
-function openSaveMenu(){ renderSaveSlots(); openOv('ov-save-menu'); }
+function openSaveMenu(){
+  _updateFolderBar();
+  // 若已选文件夹，先同步再渲染（异步，不阻塞 UI）
+  if(typeof FileSaveSystem!=='undefined' && FileSaveSystem.hasFolder()){
+    FileSaveSystem.syncWithLocalStorage().then(function(){ renderSaveSlots(); });
+  } else {
+    renderSaveSlots();
+  }
+  openOv('ov-save-menu');
+}
 
 // ── 事件概率管理 ──
 var _eventProbs={jealousy:15,reverse:8,affair:25,manor:25};
@@ -1576,7 +2124,7 @@ function openEventProbModal(){
   body.innerHTML=html;openOv('ov-event-prob');
 }
 function doSaveGame(){
-  if(writeSave()){ toast('自动存档已更新 ✓','ok'); renderSaveSlots(); }
+  if(manualWriteSave()){ toast('存档成功 ✓','ok'); renderSaveSlots(); }
   else toast('存档失败','err');
 }
 function _setExpDetailTitle(t){var el=document.getElementById('exp-detail-title');if(el)el.textContent=t;}
@@ -1597,41 +2145,84 @@ function _doManualSaveConfirm(){
   var name=inp?inp.value.trim():'存档';
   if(!name)name='存档';
   closeOv('ov-exp-detail');
-  if(writeNamedSave(name)){ toast('手动存档成功 ✓','ok'); renderSaveSlots(); }
-  else toast('存档失败','err');
+
+  // ── Step 1: 写 localStorage（原有逻辑）
+  if(!writeNamedSave(name)){ toast('存档失败','err'); return; }
+
+  // 取刚写入的最新存档数据
+  var latestKey=null, latestTime=0;
+  for(var i=0;i<localStorage.length;i++){
+    var k=localStorage.key(i);
+    if(k&&k.startsWith('era_msv_')){
+      var t=parseInt(k.replace('era_msv_',''))||0;
+      if(t>latestTime){latestTime=t;latestKey=k;}
+    }
+  }
+
+  var fss = typeof FileSaveSystem!=='undefined' ? FileSaveSystem : null;
+  var fname = fss ? fss.makeSaveFilename(name) : name.replace(/[^\w\u4e00-\u9fa5]/g,'_')+'_'+Date.now().toString(36).toUpperCase()+'.sav';
+
+  if(latestKey){
+    try{
+      var saveData=JSON.parse(localStorage.getItem(latestKey)||'{}');
+      saveData._fsvFilename=fname;
+      localStorage.setItem(latestKey,JSON.stringify(saveData));
+
+      // ── Step 2A: FSAPI 文件夹模式 → 静默写文件
+      if(fss && fss.hasFolder()){
+        fss.writeSaveFile(fname, saveData)
+          .then(function(){toast('存档成功 ✓（已写入文件夹）','ok');renderSaveSlots();})
+          .catch(function(e){toast('文件写入失败：'+e.message,'err');renderSaveSlots();});
+        return;
+      }
+
+      // ── Step 2B: 通用模式 → 自动下载 .sav 文件
+      if(fss){
+        fss.downloadSaveFile(fname, saveData);
+        toast('存档成功 ✓（已下载 .sav 文件，请保存到固定位置）','ok');
+      } else {
+        toast('手动存档成功 ✓','ok');
+      }
+    }catch(e){}
+  } else {
+    toast('手动存档成功 ✓','ok');
+  }
+  renderSaveSlots();
 }
 function renderSaveSlots(){
   var list=document.getElementById('save-slot-list');
   if(!list)return;
   var saves=[];
-  // 读取单个自动存档镜像
-  try{var ar=localStorage.getItem('era_auto_save');if(ar){var as2=JSON.parse(ar);if(as2&&as2.char)saves.push({key:'era_auto_save',data:as2,isManual:false});}}catch(e){}
-  // 如果没有新格式自动存档，兜底显示旧格式的（取最新的一个）
-  if(!saves.length){
-    var bestAuto=null,bestTime=0;
-    for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
-      if(k&&k.startsWith('era_sv_')){try{var s=JSON.parse(localStorage.getItem(k));if(s&&s.char&&(s.saveTime||0)>bestTime){bestAuto={key:k,data:s,isManual:false};bestTime=s.saveTime||0;}}catch(e){}}
-    }
-    if(bestAuto)saves.push(bestAuto);
-  }
-  // 读取手动存档
+
+  // ── 读取手动存档（era_msv_*）
   for(var i2=0;i2<localStorage.length;i2++){var k2=localStorage.key(i2);
-    if(k2&&k2.startsWith('era_msv_')){try{var s2=JSON.parse(localStorage.getItem(k2));if(s2&&s2.char)saves.push({key:k2,data:s2,isManual:true});}catch(e){}}
+    if(k2&&k2.startsWith('era_msv_')){try{var s2=JSON.parse(localStorage.getItem(k2));if(s2&&s2.char)saves.push({key:k2,data:s2,isManual:true,isFile:false});}catch(e){}}
   }
-  if(!saves.length){list.innerHTML='<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--muted)">暂无存档</div>';return;}
+  // ── 读取文件存档缓存（era_fsv_*）
+  var _fsvPfx=(typeof FileSaveSystem!=='undefined')?FileSaveSystem.lsPrefix:'era_fsv_';
+  for(var i3=0;i3<localStorage.length;i3++){var k3=localStorage.key(i3);
+    if(k3&&k3.startsWith(_fsvPfx)){try{var s3=JSON.parse(localStorage.getItem(k3));if(s3&&s3.char)saves.push({key:k3,data:s3,isManual:true,isFile:true,filename:k3.slice(_fsvPfx.length)});}catch(e){}}
+  }
+
+  if(!saves.length){list.innerHTML='<div style="text-align:center;padding:16px;font-size:.8rem;color:var(--muted)">暂无存档<br><span style="font-size:.68rem;opacity:.55">选择存档文件夹后，外部 .sav 文件也会出现在这里</span></div>';return;}
   saves.sort(function(a,b){return(b.data.saveTime||0)-(a.data.saveTime||0);});
   list.innerHTML=saves.map(function(sv){
     var c=sv.data.char;
-    var label=sv.data.saveName||(sv.isManual?'手动存档':'自动存档');
+    var label = sv.data.saveName||'手动存档';
     var timeStr=sv.data.saveTime?new Date(sv.data.saveTime).toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'';
-    return '<div style="background:var(--card);border:1px solid var(--bdr2);border-radius:10px;padding:10px 12px;position:relative">'+
-      '<div style="position:absolute;top:6px;left:8px;display:flex;gap:6px">'+(sv.isManual?'<span onclick="renameSaveSlot(\''+sv.key+'\')" style="cursor:pointer;font-size:.75rem;opacity:.5" title="重命名">✏️</span>':'')+'</div>'+
+    var svIcon = sv.isFile ? '🗂️' : '📝';
+    var svBadge = sv.isFile ? '<span style="font-size:.6rem;background:#4a9eff22;color:#4a9eff;border:1px solid #4a9eff44;border-radius:4px;padding:0 4px;margin-left:4px;vertical-align:middle">文件</span>' : '';
+    return '<div style="background:var(--card);border:1px solid '+(sv.isFile?'#4a9eff44':'var(--bdr2)')+';border-radius:10px;padding:10px 12px;position:relative">'+
+      '<div style="position:absolute;top:6px;left:8px;display:flex;gap:6px">'+
+        (sv.isManual&&!sv.isFile?'<span onclick="renameSaveSlot(\''+sv.key+'\')" style="cursor:pointer;font-size:.75rem;opacity:.5" title="重命名">✏️</span>':'')+
+      '</div>'+
       '<div style="position:absolute;top:6px;right:8px"><span onclick="deleteSaveSlot(\''+sv.key+'\',this)" style="cursor:pointer;font-size:.7rem;opacity:.4;color:#e53935" title="删除">✕</span></div>'+
       '<div style="display:flex;align-items:center;gap:10px">'+
-        '<div style="font-size:1.2rem;flex-shrink:0">'+(sv.isManual?'📝':'💾')+'</div>'+
+        '<div style="font-size:1.2rem;flex-shrink:0">'+svIcon+'</div>'+
         '<div style="flex:1;min-width:0">'+
-          '<div style="font-size:.8rem;font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:40px">'+esc(label)+'</div>'+
+          '<div style="font-size:.8rem;font-weight:700;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:40px">'+esc(label)+svBadge+'</div>'+
           '<div style="font-size:.64rem;color:var(--muted);margin-top:3px">'+esc(c.name)+' · 第'+(sv.data.day||1)+'天 · ❤'+Math.round(c.affection||0)+(timeStr?' · '+timeStr:'')+'</div>'+
+          (sv.isFile?'<div style="font-size:.58rem;color:#4a9eff;margin-top:1px;opacity:.7">📄 '+esc(sv.filename||'')+'</div>':'')+
         '</div>'+
         '<div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">'+
           '<button class="btn btn-sm btn-ghost" onclick="_exportSingleSave(\''+sv.key+'\')" style="font-size:.62rem;padding:2px 8px">📤导出</button>'+
@@ -1664,11 +2255,37 @@ function loadSaveSlot(key){
   try{
     var s=JSON.parse(localStorage.getItem(key));
     if(!s||!s.char)return;
+
+    // ★ 修复：如果存档包含完整奴隶列表快照，先清空旧的再还原
+    if(s.allCharSaves){
+      var _oldSvKeys=[];
+      for(var _li=0;_li<localStorage.length;_li++){
+        var _lk=localStorage.key(_li);
+        if(_lk&&_lk.startsWith('era_sv_')) _oldSvKeys.push(_lk);
+      }
+      _oldSvKeys.forEach(function(k){localStorage.removeItem(k);});
+      for(var _ck in s.allCharSaves){
+        localStorage.setItem(_ck,JSON.stringify(s.allCharSaves[_ck]));
+      }
+    }
+    // ★ 还原奴隶关系快照
+    if(s.relationships){
+      localStorage.setItem('era_relationships',JSON.stringify(s.relationships));
+    }
+
     State.currentChar=s.char;
     State.gameLog=s.log||[];
     State.day=s.day||1;
+    // ★ 同步持久化天数，防止读档后刷新回退
+    if(typeof _saveDay==='function') _saveDay();
     State.money=s.money||10000;
     State.inventory=s.inventory||{};
+    // ★ 手动存档读取后，同步背包到全局存储
+    if(typeof saveGlobalInventory==='function') saveGlobalInventory();
+    // ★ 读档后重置节日弹窗标记，使节日弹窗在新存档中能重新触发
+    if(typeof HolidayManager!=='undefined'&&typeof HolidayManager.resetPopupFlag==='function'){
+      HolidayManager.resetPopupFlag();
+    }
     closeOv('ov-save-menu');
     navTo('play');
     renderPlay();
@@ -1702,11 +2319,33 @@ function _doRenameSave(key){
   }catch(e){}
 }
 function deleteSaveSlot(key,btn){
-  openCustomConfirm('🗑️ 删除存档','<div style="text-align:center;padding:8px 0"><div style="font-size:2rem;margin-bottom:8px">⚠️</div><div style="font-size:.88rem;color:var(--txt2);line-height:1.7">确定要删除此存档吗？<br><span style="color:#e53935;font-weight:600">此操作不可撤销。</span></div></div>','确认删除',function(){
-    localStorage.removeItem(key);
-    toast('存档已删除','');
-    renderSaveSlots();
-  });
+  var _fsvPfxDel=(typeof FileSaveSystem!=='undefined')?FileSaveSystem.lsPrefix:'era_fsv_';
+  var isFileSave = key && key.startsWith(_fsvPfxDel);
+  var filename   = isFileSave ? key.slice(_fsvPfxDel.length) : null;
+  var extraNote  = isFileSave
+    ? '<br><span style="font-size:.75rem;color:#4a9eff;opacity:.8">同时删除本地 .sav 文件：'+esc(filename)+'</span>'
+    : '';
+
+  openCustomConfirm('🗑️ 删除存档',
+    '<div style="text-align:center;padding:8px 0">'+
+      '<div style="font-size:2rem;margin-bottom:8px">⚠️</div>'+
+      '<div style="font-size:.88rem;color:var(--txt2);line-height:1.7">确定要删除此存档吗？'+extraNote+'<br><span style="color:#e53935;font-weight:600">此操作不可撤销。</span></div>'+
+    '</div>',
+    '确认删除',
+    function(){
+      // 删除 localStorage 缓存
+      localStorage.removeItem(key);
+      // 若是文件存档，同时删除实际文件
+      if(isFileSave && filename && typeof FileSaveSystem!=='undefined'){
+        FileSaveSystem.deleteSaveFile(filename)
+          .then(function(){ toast('存档及文件已删除',''); renderSaveSlots(); })
+          .catch(function(){ toast('存档已删除（文件删除失败）',''); renderSaveSlots(); });
+      } else {
+        toast('存档已删除','');
+        renderSaveSlots();
+      }
+    }
+  );
 }
 
 // ── 金币弹窗 ─────────────────────────────────────────────
@@ -1729,6 +2368,29 @@ function clearMoneyLog(){
 var _slaveAvaEditId = null;
 const SLAVE_AVATARS = ['👩','🧑','🐾','🐉','👼','😈','🧝','🌸','🦊','🐺','🦋','🌙',
                        '⚔️','🔮','💎','🌹','✨','💫','🎭','🌺','🌊','🔥','⚡','🎪'];
+// ★ 统一头像刷新：更新庄园、训练页头部、奴隶卡等所有展示位置
+function _refreshAllAvatarDisplays(charId){
+  // 1. 庄园页
+  if(typeof renderManor==='function') try{renderManor();}catch(e){}
+  // 2. 训练页（包含顶部头像 p-ava-icon）
+  if(typeof renderPlay==='function'&&State.currentChar&&State.currentChar.id===charId) try{renderPlay();}catch(e){}
+  // 3. 直接更新顶部头像（p-ava-icon），无论在哪个页面
+  var c=CHARS_DATA.find(function(x){return x.id===charId;});
+  var sv=loadSave(charId);
+  if(c&&sv){
+    var profile=sv.charProfile||{};
+    var avaEl=document.getElementById('p-ava-icon');
+    if(avaEl&&State.currentChar&&State.currentChar.id===charId){
+      var img=profile.avaImg||(profile._presetAvaUrl||'');
+      if(!img&&typeof CharRegistry!=='undefined'){var cr=CharRegistry.get(charId);if(cr&&cr._presetAvaUrl)img=cr._presetAvaUrl;}
+      if(img){avaEl.textContent='';avaEl.style.backgroundImage='url('+img+')';avaEl.style.backgroundSize='cover';avaEl.style.backgroundPosition='center';avaEl.style.borderRadius='50%';}
+      else{avaEl.textContent=profile.ava||(typeof cEmoji==='function'?cEmoji(c):'👤');avaEl.style.backgroundImage='';}
+    }
+  }
+  // 4. 奴隶列表卡片
+  if(typeof renderChars==='function') try{renderChars();}catch(e){}
+}
+
 function openSlaveAvaModal(charId){
   _slaveAvaEditId = charId;
   const c = CHARS_DATA.find(x=>x.id===charId);
@@ -1738,16 +2400,31 @@ function openSlaveAvaModal(charId){
   // 标题
   const ttl=document.getElementById('slave-ava-title');
   if(ttl) ttl.textContent=c.name+' · 更换头像';
+  // ★ 修复：与 renderManor/_buildSlaveAvaHtml 保持相同优先级链
+  //    用户上传 > charProfile预设URL > CharRegistry预设URL > emoji
+  let _avaImgSrc = profile.avaImg || profile._presetAvaUrl || '';
+  if(!_avaImgSrc && typeof CharRegistry!=='undefined'){
+    const _cr = CharRegistry.get(charId);
+    if(_cr && _cr._presetAvaUrl) _avaImgSrc = _cr._presetAvaUrl;
+  }
   // 预览
   const prev=document.getElementById('slave-ava-preview');
   if(prev){
-    if(profile.avaImg){ prev.style.backgroundImage=`url('${profile.avaImg}')`; prev.style.backgroundSize='cover'; prev.textContent=''; }
-    else { prev.textContent=profile.ava||cEmoji(c); prev.style.backgroundImage=''; }
+    if(_avaImgSrc){
+      prev.style.backgroundImage=`url('${_avaImgSrc}')`;
+      prev.style.backgroundSize='cover';
+      prev.style.backgroundPosition='center';
+      prev.textContent='';
+    } else {
+      prev.textContent=profile.ava||cEmoji(c);
+      prev.style.backgroundImage='';
+    }
   }
-  // 表情格
+  // 表情格（仅当前使用的是emoji时高亮，使用图片头像则不高亮任何格）
   const grid=document.getElementById('slave-ava-grid');
   if(grid){
-    grid.innerHTML=SLAVE_AVATARS.map(a=>`<div class="ava-opt${a===(profile.ava||cEmoji(c))?' on':''}" onclick="pickSlaveAva('${a}',this)">${a}</div>`).join('');
+    const activeEmo = _avaImgSrc ? '' : (profile.ava||cEmoji(c));
+    grid.innerHTML=SLAVE_AVATARS.map(a=>`<div class="ava-opt${a===activeEmo?' on':''}" onclick="pickSlaveAva('${a}',this)">${a}</div>`).join('');
   }
   openOv('ov-slave-ava');
 }
@@ -1758,15 +2435,19 @@ function pickSlaveAva(ava, el){
   sv.charProfile.ava=ava;
   sv.charProfile.avaImg=null;
   localStorage.setItem('era_sv_'+_slaveAvaEditId, JSON.stringify(sv));
-  // 刷新预览
+  // ★ 修复：同步到 State.currentChar，确保当前角色立即生效
+  if(State.currentChar&&State.currentChar.id===_slaveAvaEditId){
+    State.currentChar.charProfile=sv.charProfile;
+    State._charProfile=sv.charProfile;
+  }
+  // 刷新弹窗内大预览
   const prev=document.getElementById('slave-ava-preview');
-  if(prev){ prev.textContent=ava; prev.style.backgroundImage=''; }
+  if(prev){ prev.textContent=ava; prev.style.backgroundImage=''; prev.style.backgroundSize=''; }
   document.querySelectorAll('#slave-ava-grid .ava-opt').forEach(b=>b.classList.remove('on'));
   if(el) el.classList.add('on');
-  // 刷新庄园&训练页
-  if(typeof renderManor==='function') try{renderManor();}catch(e){}
-  if(typeof renderPlay==='function'&&State.currentChar&&State.currentChar.id===_slaveAvaEditId) try{renderPlay();}catch(e){}
-  toast('头像已更新 ✓','ok');
+  // ★ 修复：全面刷新所有展示头像的区域
+  _refreshAllAvatarDisplays(_slaveAvaEditId);
+  toast('头像已更新 ✓（点击关闭后生效）','ok');
 }
 var _avaCropImg=null,_avaCropZoom=100,_avaCropX=0,_avaCropY=0,_avaDrag=false,_avaDragS={x:0,y:0};
 function handleSlaveAvaUpload(inp){
@@ -1821,10 +2502,13 @@ function confirmAvaCrop(){
   sv.charProfile.avaImg=dataUrl;
   sv.charProfile.ava=null;
   localStorage.setItem('era_sv_'+_slaveAvaEditId, JSON.stringify(sv));
-  // 同步到当前角色
-  if(State.currentChar&&State.currentChar.id==_slaveAvaEditId) State._charProfile=sv.charProfile;
-  if(typeof renderManor==='function') try{renderManor();}catch(e){}
-  if(typeof renderPlay==='function'&&State.currentChar) try{renderPlay();}catch(e){}
+  // ★ 修复：同步到 State.currentChar，确保立即生效
+  if(State.currentChar&&State.currentChar.id==_slaveAvaEditId){
+    State.currentChar.charProfile=sv.charProfile;
+    State._charProfile=sv.charProfile;
+  }
+  // ★ 修复：全面刷新所有展示头像的区域
+  _refreshAllAvatarDisplays(_slaveAvaEditId);
   toast('头像已更新 ✓','ok');
   closeOv('ov-slave-ava');
 }
@@ -1873,10 +2557,11 @@ function newGamePlus(){
       var keysToRemove=[];
       for(var i=0;i<localStorage.length;i++){
         var k=localStorage.key(i);
-        if(k&&(k.startsWith('era_sv_')||k.startsWith('era_msv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children')){
+        if(k&&(k.startsWith('era_sv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children'||k==='era_global_inv'||k==='era_day')){
           keysToRemove.push(k);
         }
       }
+      // ★ 注意：era_msv_（手动存档槽）刻意保留，不清除
       keysToRemove.forEach(function(k){localStorage.removeItem(k);});
       // ── 新周目：完整重置玩家档案（名字/头像/体力/金币全部归位）──
       if(typeof _playerProfile!=='undefined'){
@@ -2047,6 +2732,64 @@ function setFontStyle(id,el){
 })();
 
 // ── 人称切换弹窗 ──────────────────────────────────────────
+// ── 阅读设置 ─────────────────────────────────────────────
+var _READ_MODES = [
+  { id: 'scroll',   label: '滚动模式',   icon: '📜', desc: '默认模式，上下滚动查看全文' },
+  { id: 'flip',     label: '翻页模式',   icon: '📖', desc: '左右翻页/滑动，按屏幕自动分段' },
+  { id: 'both',     label: '混合模式',   icon: '📚', desc: '翻页+左右滑动均可，兼顾两种习惯' },
+];
+function _getReadMode() { return localStorage.getItem('era_read_mode') || 'scroll'; }
+function _setReadMode(m) {
+  localStorage.setItem('era_read_mode', m);
+  var sub = document.getElementById('read-mode-sub');
+  var rm = _READ_MODES.find(function(x){return x.id===m;})||_READ_MODES[0];
+  if(sub) sub.textContent = rm.label;
+}
+// 计算翻页模式下每页显示几段（依据 story-body 高度估算）
+function _calcLinesPerPage() {
+  var vhPx = window.innerHeight;
+  // story-body max-height 约 48vh（留出余量防止末段被截断），每段约 46px（含margin+行高）
+  var bodyH = Math.floor(vhPx * 0.48);
+  var lineH = 46; // 实测每段平均高度（line-height:1.8 + 上下margin + 多行叠加）
+  return Math.max(2, Math.floor(bodyH / lineH));
+}
+// 初始化 sub 文字
+(function(){ var rm = _READ_MODES.find(function(x){return x.id===_getReadMode();})||_READ_MODES[0]; var el=document.getElementById('read-mode-sub'); if(el)el.textContent=rm.label; })();
+// 监听字体大小变化时重新初始化（延迟）
+window.addEventListener('load', function(){
+  var rm = _READ_MODES.find(function(x){return x.id===_getReadMode();})||_READ_MODES[0];
+  var el=document.getElementById('read-mode-sub'); if(el)el.textContent=rm.label;
+});
+
+function openReadModeModal() {
+  var cur = _getReadMode();
+  var ov = document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9000;display:flex;align-items:flex-end;justify-content:center;backdrop-filter:blur(6px)';
+  ov.onclick = function(e){if(e.target===ov)ov.remove();};
+  var sheet = document.createElement('div');
+  sheet.style.cssText='background:var(--card);border-radius:20px 20px 0 0;padding:22px 18px 32px;width:100%;max-width:480px;animation:slideUp .25s ease';
+  sheet.innerHTML=
+    '<div style="font-size:1rem;font-weight:800;color:var(--txt);margin-bottom:4px">📖 阅读设置</div>'+
+    '<div style="font-size:.7rem;color:var(--muted);margin-bottom:18px">选择剧情弹窗的阅读方式</div>'+
+    _READ_MODES.map(function(m){
+      var active = m.id === cur;
+      return '<div onclick="window._setReadModeFromModal(\''+m.id+'\')" style="display:flex;align-items:center;gap:12px;padding:13px 14px;border-radius:13px;border:2px solid '+(active?'var(--acc)':'var(--bdr2)')+';background:'+(active?'rgba(var(--acc-rgb),.07)':'var(--card2)')+';margin-bottom:9px;cursor:pointer">'+
+        '<div style="font-size:1.5rem">'+m.icon+'</div>'+
+        '<div style="flex:1"><div style="font-size:.85rem;font-weight:700;color:var(--txt)">'+m.label+'</div>'+
+        '<div style="font-size:.65rem;color:var(--muted)">'+m.desc+'</div></div>'+
+        (active?'<div style="color:var(--acc);font-size:1.1rem">✓</div>':'')+
+        '</div>';
+    }).join('')+
+    '<button onclick="this.closest(\'div[style*=fixed]\').remove()" style="width:100%;padding:11px;border-radius:12px;border:none;background:var(--card2);color:var(--txt2);font-size:.85rem;margin-top:4px;cursor:pointer">关闭</button>';
+  window._setReadModeFromModal = function(id){
+    _setReadMode(id);
+    ov.remove();
+    toast('已切换：'+(_READ_MODES.find(function(x){return x.id===id;})||{}).label,'ok');
+  };
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+}
+
 function openPerspectiveModal(){
   _setExpDetailTitle('👤 改变人称');
   var cur=localStorage.getItem('era_perspective')||'first';
@@ -2132,22 +2875,21 @@ function startNewGame(){
     var keysToRemove=[];
     for(var i=0;i<localStorage.length;i++){
       var k=localStorage.key(i);
-      if(k&&(k.startsWith('era_sv_')||k.startsWith('era_msv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children')){
+      if(k&&(k.startsWith('era_sv_')||k.startsWith('era_msv_')||k==='era_auto_save'||k==='era_mini_state'||k==='era_last_char'||k==='era_money_log'||k==='era_stamina_log'||k==='era_player_exp'||k==='era_player_detail'||k==='era_relationships'||k==='era_story_log'||k==='era_pregnancy'||k==='era_children'||k==='era_global_inv'||k==='era_day')){
         keysToRemove.push(k);
       }
     }
     keysToRemove.forEach(function(k){localStorage.removeItem(k);});
-    // 重置游戏状态
-    State.currentChar=null;State.gameLog=[];State.day=1;State.money=10000;State.inventory={};
-    State.workLog=[];State.wanderLog=[];State.corveeLog=[];State.dateLog=[];State.storyLog=[];State.playerExp=0;
-    // 重置玩家体力
-    _playerProfile.stamina=_playerProfile.staminaMax||2000;
-    _playerProfile.energy=_playerProfile.energyMax||3000;
-    localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
-    toast('新周目开始！所有数据已重置','ok');
-    if(typeof renderPlayerCard==='function')renderPlayerCard();
-    if(typeof renderHome==='function')renderHome();
-    navTo('home');
+    // 重置玩家档案
+    if(typeof _playerProfile!=='undefined'){
+      _playerProfile.name='主人';_playerProfile.avatar='👑';_playerProfile.avatarImg=null;
+      _playerProfile.gender='男';
+      _playerProfile.stamina=_playerProfile.staminaMax||2000;
+      _playerProfile.energy=_playerProfile.energyMax||3000;
+      localStorage.setItem('era_profile',JSON.stringify(_playerProfile));
+    }
+    toast('新周目开始！即将重新加载……','ok');
+    setTimeout(function(){ location.reload(); }, 800);
   });
 }
 
@@ -2243,13 +2985,51 @@ function disconnectApi(){
 </div>
 
 <!-- 奴隶房间弹窗 -->
-<div class="ov" id="ov-slave-room" style="z-index:400">
-  <div class="sheet">
-    <div class="s-hdl"></div>
-    <div class="s-hdr"><span class="s-ttl-modal">🛏️ 奴隶房间</span><button class="s-x" onclick="closeOv('ov-slave-room')">✕</button></div>
-    <div class="s-body" id="slave-room-body"></div>
-  </div>
-</div>
+    <div class="ov" id="ov-slave-room">
+      <div class="sheet" style="padding:0;overflow:hidden;max-height:90vh">
+       <div class="s-hdl"></div>
+        <div id="slave-room-body" style="overflow-y:auto;max-height:90vh"></div>
+      </div>
+   </div>
+
+
+
+
+<!-- ★ 装备条件修复补丁：把 State.equippedItems 同步到 State.currentChar.equips -->
+<script>
+// ── 装备条件剧情触发修复 ──────────────────────────────────────────
+// 问题根因：char_loader.js 的 _checkStoryCondition 读 sv.equips（道具名数组），
+//           但 game.js 把装备存在 State.equippedItems[charId]（item.id 数组），
+//           getCharCommandStory 传入的 State.currentChar 上没有 .equips 字段。
+// 修复方案：重写 getCharCommandStory，调用前自动注入 equips。
+window.addEventListener('load', function() {
+  // 等所有 js 加载完毕后打补丁
+  setTimeout(function() {
+    var _origGetCharCommandStory = (typeof getCharCommandStory === 'function') ? getCharCommandStory : null;
+    if (!_origGetCharCommandStory) return;
+
+    window.getCharCommandStory = function(charId, commandName, saveData) {
+      // ★ 注入当前装备道具名到 saveData.equips
+      if (saveData && typeof State !== 'undefined' && State.equippedItems) {
+        var _eqIds = State.equippedItems[charId] || [];
+        if (_eqIds.length && typeof ITEMS_DATA !== 'undefined') {
+          // 把 item.id 数组转成 item.name 数组
+          saveData.equips = _eqIds.map(function(id) {
+            var it = ITEMS_DATA.find(function(i) { return i.id === id || String(i.id) === String(id); });
+            return it ? it.name : String(id);
+          });
+        } else {
+          saveData.equips = [];
+        }
+        // 同时注入 activeEquips（兼容两种写法）
+        saveData.activeEquips = saveData.equips;
+      }
+      return _origGetCharCommandStory(charId, commandName, saveData);
+    };
+    console.log('[ERA] 装备条件剧情触发补丁已注入 ✓');
+  }, 500);
+});
+</script>
 
 <!-- ★ PWA Service Worker 注册 -->
 <script>
@@ -2301,5 +3081,574 @@ function triggerPwaInstall() {
 }
 </script>
 
+<!-- ★ 文件夹存档系统 -->
+<script src="js/core/file_save.js"></script>
+<!-- ★ 节日 / 生日功能脚本 -->
+<script src="js/data/holidays.js"></script>
+<script>
+// ══════════════════════════════════════════════════════════════
+//  功能补丁总初始化（在所有 JS 加载完毕后执行）
+// ══════════════════════════════════════════════════════════════
+window.addEventListener('load', function () {
+  setTimeout(function () {
+
+    // ──────────────────────────────────────────────────────
+    //  A. 庄园顶部栏修正
+    //     nav.js 进入庄园时会把 hdr-h1 设为"🏯 我的庄园"、
+    //     hdr-sub 设为"已购奴隶一览"，用 MutationObserver 实时清理。
+    // ──────────────────────────────────────────────────────
+    var hdrH1  = document.getElementById('hdr-h1');
+    var hdrSub = document.getElementById('hdr-sub');
+
+    if (hdrH1) {
+      new MutationObserver(function () {
+        if (hdrH1.textContent.includes('🏯')) {
+          hdrH1.textContent = hdrH1.textContent.replace(/🏯\s*/g, '');
+        }
+      }).observe(hdrH1, { childList: true, characterData: true, subtree: true });
+    }
+
+    if (hdrSub) {
+      new MutationObserver(function () {
+        if (hdrSub.textContent.trim() === '已购奴隶一览') {
+          hdrSub.style.display = 'none';
+          // 进入庄园 → 触发节日横幅
+          setTimeout(_maybeInitHoliday, 80);
+        } else {
+          hdrSub.style.display = '';
+        }
+      }).observe(hdrSub, { childList: true, characterData: true, subtree: true });
+    }
+
+    // 底部导航"庄园"tab 点击也触发
+    var manorTab = document.querySelector('#nav .ni[data-tab="manor"]');
+    if (manorTab) manorTab.addEventListener('click', function () {
+      setTimeout(_maybeInitHoliday, 300);
+    });
+
+    // ──────────────────────────────────────────────────────
+    //  B. 节日 / 生日系统
+    //     使用游戏内日期（pc-date-actual，如"2月14日"），
+    //     而非真实世界日期。
+    // ──────────────────────────────────────────────────────
+    function _getGameDate() {
+      // 优先从 pc-date-actual 读"M月D日"
+      var el = document.getElementById('pc-date-actual');
+      if (el && el.textContent) {
+        var m = el.textContent.match(/(\d+)\s*月\s*(\d+)\s*日/);
+        if (m) return { month: parseInt(m[1]), day: parseInt(m[2]) };
+      }
+      // 次选：调用游戏内函数 _dayToMD(State.day)
+      try {
+        if (typeof _dayToMD === 'function' && typeof State !== 'undefined') {
+          var dm = _dayToMD(State.day || 1);
+          if (dm) return { month: dm.month, day: dm.day };
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    function _getOwnedIds() {
+      // 从 localStorage 的 era_sv_* 键里收集已购奴隶 id
+      // ★ 修复：存档结构是 {char:{id,...}, ...}，应读 sv.char.id 而非 sv.id
+      var ids = [];
+      try {
+        for (var i = 0; i < localStorage.length; i++) {
+          var key = localStorage.key(i);
+          if (key && key.startsWith('era_sv_')) {
+            var sv = JSON.parse(localStorage.getItem(key) || '{}');
+            if (sv && sv.char && sv.char.id) ids.push(sv.char.id);
+          }
+        }
+      } catch (e) {}
+      return ids;
+    }
+
+    function _maybeInitHoliday() {
+      if (typeof HolidayManager === 'undefined') return;
+      var gd  = _getGameDate();
+      var ids = _getOwnedIds();
+
+      // 收集奴隶名字，用于节日剧情个性化（有奴隶显示完整剧情，无奴隶截短）
+      var slaveNames = [];
+      ids.forEach(function(id) {
+        try {
+          var sv = JSON.parse(localStorage.getItem('era_sv_' + id) || '{}');
+          if (sv && sv.char && sv.char.name) slaveNames.push(sv.char.name);
+        } catch(e) {}
+      });
+
+      HolidayManager.init(ids, gd ? gd.month : null, gd ? gd.day : null, slaveNames);
+      HolidayManager.showBannerIfNeeded('s-manor');
+      HolidayManager.checkAndShowPopup();
+    }
+
+    // ──────────────────────────────────────────────────────
+    //  C. 剧情记录：去重 + 面板增强
+    //
+    //  去重：monkey-patch pushStoryLog，同标题只记一条，后续触发 +count
+    //  面板：
+    //    · 移除大号"📖 类型名 N条记录"卡片，改为顶部紧凑摘要行
+    //    · 点击"管理删除"后，在 取消/确认删除 按钮旁注入"全选"按钮
+    // ──────────────────────────────────────────────────────
+
+    // ── C1. 去重 ──────────────────────────────────────────
+    var _origPush = window.pushStoryLog;
+    if (typeof _origPush === 'function') {
+      window.pushStoryLog = function (type, entry) {
+        var uid = (type || '') + '|' + ((entry && entry.title) || '') + '|' +
+                  ((entry && (entry.charId || entry.char || entry.charName || '')) || '');
+        try {
+          var raw = localStorage.getItem('era_story_log');
+          var log = raw ? JSON.parse(raw) : [];
+          for (var i = 0; i < log.length; i++) {
+            if (log[i]._uid === uid) {
+              // 已存在：只更新触发次数和日期，不新增条目
+              log[i]._count = (log[i]._count || 1) + 1;
+              if (entry && entry.date) log[i].date = entry.date;
+              localStorage.setItem('era_story_log', JSON.stringify(log));
+              return; // 不调用原函数
+            }
+          }
+        } catch (e) {}
+        // 全新记录：调用原函数写入，再补 _uid/_count
+        _origPush.apply(this, arguments);
+        try {
+          var raw2 = localStorage.getItem('era_story_log');
+          if (raw2) {
+            var log2 = JSON.parse(raw2);
+            if (log2.length && !log2[0]._uid) {
+              log2[0]._uid   = uid;
+              log2[0]._count = 1;
+              localStorage.setItem('era_story_log', JSON.stringify(log2));
+            }
+          }
+        } catch (e) {}
+      };
+    }
+
+    // ── C2. 面板增强 ───────────────────────────────────────
+    var _origOpen = window.openStoryLogModal;
+    if (typeof _origOpen === 'function') {
+      window.openStoryLogModal = function () {
+        _origOpen.apply(this, arguments);
+        setTimeout(_enhanceStoryLogPanel, 150);
+      };
+    }
+
+    function _enhanceStoryLogPanel() {
+      var list = document.getElementById('story-log-list');
+      if (!list || list._slpEnhanced) return;
+      list._slpEnhanced = true;
+
+      // ① 找并隐藏大号"📖 类型名 N条记录"卡片
+      //    特征：在 list 的前几个子元素中，textContent 含"条记录"
+      //    且不含分类数据（如具体故事文字）
+      var topEls = Array.prototype.slice.call(list.children, 0, 6);
+      var bigCard = null;
+      topEls.forEach(function (el) {
+        var t = (el.textContent || '').trim();
+        if (t.includes('条记录') && t.length < 40) {
+          bigCard = el;
+        }
+      });
+      if (bigCard) bigCard.style.display = 'none';
+
+      // ② 添加紧凑摘要行（各类别名称 + 条数）
+      if (!list.querySelector('.slp-summary')) {
+        var cats = {};
+        // 遍历所有子元素，找分类标题（通常含"N条"的短行）
+        Array.prototype.forEach.call(list.children, function (el) {
+          var t = (el.textContent || '').trim();
+          // 分类标题特征：较短，末尾有"N条"或"N 条"
+          var m = t.match(/^(.{1,10}?)\s+(\d+)\s*条\s*[▼▶]?\s*$/);
+          if (m && m[1] !== '管理删除') {
+            cats[m[1].trim()] = parseInt(m[2]);
+          }
+        });
+
+        if (Object.keys(cats).length) {
+          var summary = document.createElement('div');
+          summary.className = 'slp-summary';
+          summary.style.cssText = [
+            'padding:6px 14px',
+            'font-size:.73rem',
+            'color:var(--txt2)',
+            'background:var(--card2)',
+            'border-bottom:1px solid var(--bdr)',
+            'display:flex',
+            'flex-wrap:wrap',
+            'gap:6px'
+          ].join(';');
+          Object.keys(cats).forEach(function (name) {
+            var chip = document.createElement('span');
+            chip.style.cssText = 'background:var(--bdr);border-radius:10px;padding:1px 8px';
+            chip.textContent = name + ' ' + cats[name];
+            summary.appendChild(chip);
+          });
+          // 插到最前面（或 bigCard 隐藏之后的位置）
+          list.insertBefore(summary, list.firstChild);
+        }
+      }
+
+      // ③ 监听"管理删除"按钮的点击，注入"全选"
+      _watchManageDeleteBtn(list);
+    }
+
+    function _watchManageDeleteBtn(list) {
+      // 找到"管理删除"按钮（通过文本内容）
+      var manageBtn = null;
+      Array.prototype.forEach.call(list.querySelectorAll('*'), function (el) {
+        if (!manageBtn && (el.textContent || '').includes('管理删除')
+            && el.childElementCount === 0) {
+          manageBtn = el.parentNode || el;
+        }
+      });
+      if (!manageBtn) return;
+      if (manageBtn._slpWatched) return;
+      manageBtn._slpWatched = true;
+
+      // 点击管理删除后，原 JS 会把该按钮区域切换为"取消 | 确认删除"
+      // 用 MutationObserver 监听 list 变化，找到确认删除按钮后注入全选
+      var mo = new MutationObserver(function () {
+        _injectSelectAll(list);
+      });
+      mo.observe(list, { childList: true, subtree: true });
+
+      // 关闭弹窗时重置标志（以便下次重新 enhance）
+      var closeBtn = document.querySelector('#ov-story-log .s-x');
+      if (closeBtn && !closeBtn._slpReset) {
+        closeBtn._slpReset = true;
+        closeBtn.addEventListener('click', function () {
+          var l = document.getElementById('story-log-list');
+          if (l) { l._slpEnhanced = false; delete l._slpEnhanced; }
+        });
+      }
+    }
+
+    function _injectSelectAll(list) {
+      // 只在有 checkbox 时才注入全选
+      var checkboxes = list.querySelectorAll('input[type="checkbox"]');
+      if (!checkboxes.length) return;
+      if (list.querySelector('.slp-select-all-btn')) return; // 防重复
+
+      // 找到"取消"/"确认删除"所在的行容器
+      var confirmRow = null;
+      Array.prototype.forEach.call(list.querySelectorAll('*'), function (el) {
+        var t = (el.textContent || '').trim();
+        if (!confirmRow && (t === '确认删除' || t.includes('确认删除'))
+            && el.tagName !== 'DIV') {
+          confirmRow = el.closest('div') || el.parentNode;
+        }
+      });
+      if (!confirmRow) return;
+
+      var btn = document.createElement('button');
+      btn.className = 'btn btn-sm slp-select-all-btn';
+      btn.style.cssText = 'font-size:.75rem;padding:3px 12px;margin-right:6px';
+      btn.textContent = '全选';
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        list.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+          cb.checked = true;
+        });
+      };
+      confirmRow.insertBefore(btn, confirmRow.firstChild);
+    }
+
+    // ── C3. 次数徽章：在剧情条目旁显示"×N次" ──────────────
+    //    在每次面板打开后延迟执行（等原 JS 渲染完毕）
+    var _origOpen2 = window.openStoryLogModal;
+    if (typeof _origOpen2 === 'function' && !_origOpen2._countPatched) {
+      _origOpen2._countPatched = true;
+      var _prev = _origOpen2;
+      window.openStoryLogModal = function () {
+        _prev.apply(this, arguments);
+        setTimeout(_addCountBadges, 200);
+      };
+    }
+
+    function _addCountBadges() {
+      var list = document.getElementById('story-log-list');
+      if (!list) return;
+      try {
+        var raw = localStorage.getItem('era_story_log');
+        if (!raw) return;
+        var log = JSON.parse(raw);
+        var countMap = {};
+        log.forEach(function (e) {
+          if (e._uid && e._count > 1) countMap[e._uid] = e._count;
+        });
+        if (!Object.keys(countMap).length) return;
+        // 遍历带 data-uid 属性的条目
+        list.querySelectorAll('[data-uid]').forEach(function (el) {
+          var uid = el.getAttribute('data-uid');
+          if (!uid || !countMap[uid]) return;
+          if (el.querySelector('.slp-count-badge')) return;
+          var badge = document.createElement('span');
+          badge.className = 'slp-count-badge';
+          badge.textContent = '×' + countMap[uid] + '次';
+          badge.style.cssText = 'margin-left:5px;padding:1px 6px;background:var(--acc);color:#fff;border-radius:9px;font-size:.66rem;font-weight:600;opacity:.85;vertical-align:middle';
+          el.appendChild(badge);
+        });
+      } catch (e) {}
+    }
+
+  }, 600);
+
+  // ══════════════════════════════════════════════════════════
+  //  文件夹存档系统初始化（在 load 后立即尝试恢复上次的文件夹）
+  // ══════════════════════════════════════════════════════════
+  if (typeof FileSaveSystem !== 'undefined') {
+    FileSaveSystem.tryRestoreFolder().then(function (ok) {
+      if (ok) {
+        // 成功恢复：同步文件夹 → localStorage
+        FileSaveSystem.syncWithLocalStorage().then(function (res) {
+          if ((res.added + res.removed) > 0) {
+            console.log('[FileSave] 同步完成：新增 ' + res.added + '，移除 ' + res.removed);
+          }
+          _updateFolderBar();
+        });
+      }
+    });
+  }
+});
+</script>
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  文件夹存档 UI 辅助函数（需在全局可访问）
+// ══════════════════════════════════════════════════════════════
+
+/** 更新存档菜单内的文件夹状态栏 */
+function _updateFolderBar() {
+  var icon    = document.getElementById('fss-status-icon');
+  var text    = document.getElementById('fss-status-text');
+  var btn     = document.getElementById('fss-btn');
+  var syncBtn = document.getElementById('fss-sync-btn');
+  if (!icon || !text) return;
+
+  var fss = typeof FileSaveSystem !== 'undefined' ? FileSaveSystem : null;
+
+  if (!fss) {
+    icon.textContent = '⚠️';
+    text.textContent = '存档系统未加载';
+    return;
+  }
+
+  if (fss.isFSAPISupported()) {
+    // Chrome / Edge：支持文件夹模式
+    if (btn) btn.style.display = '';
+    if (fss.hasFolder()) {
+      icon.textContent = '✅';
+      text.textContent = '存档文件夹：' + fss.getFolderName();
+      text.style.color = 'var(--txt)';
+      if (btn) btn.textContent = '更换文件夹';
+      if (syncBtn) syncBtn.style.display = '';
+    } else {
+      icon.textContent = '📁';
+      text.textContent = '未选择文件夹（存档保存在浏览器 + 自动下载文件）';
+      text.style.color = 'var(--muted)';
+      if (btn) btn.textContent = '选择文件夹';
+      if (syncBtn) syncBtn.style.display = 'none';
+    }
+  } else {
+    // UC / QQ / Safari / 系统浏览器等：仅通用模式
+    if (btn) btn.style.display = 'none';
+    if (syncBtn) syncBtn.style.display = 'none';
+    icon.textContent = '💾';
+    text.textContent = '存档时自动下载 .sav 文件，可通过下方按钮导入';
+    text.style.color = 'var(--muted)';
+  }
+}
+
+/** 选择文件夹（FSAPI，仅 Chrome/Edge） */
+function openFolderPicker() {
+  if (typeof FileSaveSystem === 'undefined') return;
+  FileSaveSystem.requestFolder().then(function (ok) {
+    if (!ok) return;
+    toast('文件夹已选择，正在同步存档…', 'ok');
+    FileSaveSystem.syncWithLocalStorage().then(function (res) {
+      _updateFolderBar();
+      renderSaveSlots();
+      if (res.added > 0) toast('从文件夹读入 ' + res.added + ' 个存档 ✓', 'ok');
+      else toast('文件夹已就绪，后续存档将自动写入文件 ✓', 'ok');
+    });
+  });
+}
+
+/** 同步按钮（FSAPI 模式） */
+function syncSaveFolder() {
+  if (typeof FileSaveSystem === 'undefined' || !FileSaveSystem.hasFolder()) return;
+  FileSaveSystem.syncWithLocalStorage().then(function (res) {
+    renderSaveSlots();
+    toast('同步完成：新增 ' + res.added + '，移除 ' + res.removed, 'ok');
+  });
+}
+
+/**
+ * 通用：打开文件选择器导入 .sav 文件（所有浏览器均支持）
+ * 用户在下载目录里找到之前保存的 .sav 文件，导入后出现在存档列表里。
+ */
+function importSaveFilePicker() {
+  if (typeof FileSaveSystem === 'undefined') { toast('存档系统未加载', 'err'); return; }
+  FileSaveSystem.importSaveFromPicker()
+    .then(function (result) {
+      toast('已导入存档：' + result.filename + ' ✓', 'ok');
+      renderSaveSlots();
+    })
+    .catch(function (e) {
+      if (e.message && e.message !== '用户取消') toast('导入失败：' + e.message, 'err');
+    });
+}
+
+// ══════════════════════════════════════════════════════════════
+//  存档文件夹配置向导
+//  自动检测游戏路径 → 拼出 save/ 完整路径 → 引导玩家设置浏览器下载位置
+// ══════════════════════════════════════════════════════════════
+
+/** 从 window.location 推算 save/ 文件夹路径 */
+function _detectSaveFolderPath() {
+  try {
+    var href = window.location.href;
+    // file:// 协议：直接解析路径
+    if (href.startsWith('file://')) {
+      var dir = decodeURIComponent(href.replace(/\/[^\/]*(\?.*)?$/, ''));
+      return dir.replace('file://', '') + '/save/';
+    }
+    // http(s):// 部署情况（GitHub Pages 等）
+    if (href.startsWith('http')) {
+      var base = href.replace(/\/[^\/]*(\?.*)?$/, '');
+      return base + '/save/';
+    }
+  } catch(e) {}
+  return null;
+}
+
+/** 复制文本到剪贴板（兼容不支持 Clipboard API 的浏览器） */
+function _copyToClipboard(text, btn) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (btn) { var old = btn.textContent; btn.textContent = '✅ 已复制'; setTimeout(function(){ btn.textContent = old; }, 1500); }
+    }).catch(function() { _copyFallback(text, btn); });
+  } else {
+    _copyFallback(text, btn);
+  }
+}
+
+function _copyFallback(text, btn) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    if (btn) { var old = btn.textContent; btn.textContent = '✅ 已复制'; setTimeout(function(){ btn.textContent = old; }, 1500); }
+  } catch(e) {
+    if (btn) btn.textContent = '复制失败，请手动长按选择';
+  }
+  document.body.removeChild(ta);
+}
+
+/** 显示存档位置配置向导弹窗 */
+function showSaveSetupGuide() {
+  // 移除旧弹窗
+  var old = document.getElementById('save-guide-overlay');
+  if (old) old.remove();
+
+  var savePath = _detectSaveFolderPath();
+  var hasFSAPI = typeof FileSaveSystem !== 'undefined' && FileSaveSystem.isFSAPISupported();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'save-guide-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;display:flex;align-items:center;justify-content:center;padding:14px;box-sizing:border-box';
+
+  var pathHtml = savePath
+    ? '<div style="background:var(--card2);border-radius:8px;padding:10px 12px;margin:12px 0">'
+      + '<div style="font-size:.68rem;color:var(--muted);margin-bottom:5px">📂 目标路径（设为浏览器下载位置）</div>'
+      + '<div id="sgg-path" style="font-size:.72rem;word-break:break-all;color:var(--txt);font-family:monospace;user-select:all;line-height:1.5">' + savePath + '</div>'
+      + '<button id="sgg-copy-btn" class="btn btn-sm btn-ghost" style="margin-top:8px;font-size:.7rem;padding:3px 14px">📋 复制路径</button>'
+      + '</div>'
+    : '<div style="background:#ff444422;border:1px solid #ff4444;border-radius:8px;padding:10px 12px;margin:12px 0;font-size:.75rem;color:#ff6666">'
+      + '⚠️ 无法自动检测路径（可能通过 content:// 打开）。<br>请在文件管理器里找到游戏文件夹，手动确认 save/ 的位置。'
+      + '</div>';
+
+  var fsapiHtml = hasFSAPI
+    ? '<div style="background:#4a9eff18;border:1px solid #4a9eff44;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:.75rem;color:var(--txt2);line-height:1.7">'
+      + '💡 <b>当前浏览器支持直接选择文件夹（推荐）</b><br>'
+      + '点击存档菜单里的「选择文件夹」，直接选 <code>Era/save/</code> 文件夹即可，无需修改浏览器下载设置。'
+      + '</div>'
+    : '';
+
+  var box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg,#1a1a2e);border-radius:16px;padding:18px 16px;max-width:420px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5)';
+
+  box.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">'
+    + '<span style="font-size:.95rem;font-weight:700;color:var(--txt)">📁 存档位置配置向导</span>'
+    + '<button id="sgg-close" style="background:none;border:none;font-size:1.2rem;color:var(--muted);cursor:pointer;padding:2px 6px;line-height:1">✕</button>'
+    + '</div>'
+    + '<p style="font-size:.75rem;color:var(--muted);margin:0 0 4px;line-height:1.6">将浏览器下载位置改为游戏的 <b>save/</b> 文件夹，之后每次存档生成的 .sav 文件会自动落在那里。</p>'
+
+    + pathHtml
+    + fsapiHtml
+
+    // UC 浏览器
+    + '<details style="margin-bottom:8px">'
+    + '<summary style="cursor:pointer;font-size:.78rem;font-weight:600;color:var(--txt);padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px">📱 UC 浏览器设置步骤</summary>'
+    + '<ol style="font-size:.75rem;color:var(--txt2);line-height:2;margin:6px 0 0 16px;padding:0">'
+    + '<li>右下角 ☰ → <b>工具</b></li>'
+    + '<li>→ <b>下载管理</b> → 右上角 <b>⚙️ 设置</b></li>'
+    + '<li>→ <b>文件保存位置</b> → 选择 / 输入上方路径</li>'
+    + '<li>返回游戏，下次存档文件就会出现在 save/ 里</li>'
+    + '</ol>'
+    + '</details>'
+
+    // 系统浏览器
+    + '<details style="margin-bottom:8px">'
+    + '<summary style="cursor:pointer;font-size:.78rem;font-weight:600;color:var(--txt);padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px">📱 系统自带浏览器</summary>'
+    + '<ol style="font-size:.75rem;color:var(--txt2);line-height:2;margin:6px 0 0 16px;padding:0">'
+    + '<li>浏览器右上角菜单 → <b>设置</b></li>'
+    + '<li>→ <b>高级</b>（或隐私与安全）→ <b>下载内容</b></li>'
+    + '<li>→ <b>下载位置</b> → 更改 → 选择 save/ 文件夹</li>'
+    + '</ol>'
+    + '</details>'
+
+    // QQ / 搜狗浏览器
+    + '<details style="margin-bottom:8px">'
+    + '<summary style="cursor:pointer;font-size:.78rem;font-weight:600;color:var(--txt);padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px">📱 QQ / 搜狗浏览器</summary>'
+    + '<ol style="font-size:.75rem;color:var(--txt2);line-height:2;margin:6px 0 0 16px;padding:0">'
+    + '<li>右下角 ⋯ → <b>设置</b></li>'
+    + '<li>→ <b>下载设置</b> → <b>下载路径</b></li>'
+    + '<li>→ 选择 save/ 文件夹</li>'
+    + '</ol>'
+    + '</details>'
+
+    // 完成提示
+    + '<div style="background:var(--card2);border-radius:8px;padding:10px 12px;font-size:.73rem;color:var(--muted);line-height:1.7;margin-top:4px">'
+    + '✅ 设置完成后：<br>'
+    + '• 存档 → .sav 文件自动下载到 save/ 文件夹<br>'
+    + '• 读档 → 点「📂 导入 .sav 文件」从 save/ 文件夹选择<br>'
+    + '• 玩家删除 save/ 里的 .sav 文件 → 游戏存档同步消失'
+    + '</div>'
+
+    + '<button id="sgg-ok" class="btn btn-p btn-full" style="margin-top:14px;font-size:.85rem">我知道了</button>';
+
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  // 事件绑定
+  document.getElementById('sgg-close').onclick = function() { overlay.remove(); };
+  document.getElementById('sgg-ok').onclick    = function() { overlay.remove(); };
+  overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
+
+  var copyBtn = document.getElementById('sgg-copy-btn');
+  if (copyBtn && savePath) {
+    copyBtn.onclick = function() { _copyToClipboard(savePath, copyBtn); };
+  }
+}
+</script>
+<script src="js/ui/slave_room.js"></script>
 </body>
 </html>

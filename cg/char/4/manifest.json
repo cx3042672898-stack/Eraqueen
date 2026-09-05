@@ -1,0 +1,14 @@
+{
+  "images": [
+    {
+      "file": "normal.jpg",
+      "ratio": "16-9",
+      "album": "默认立绘"
+    },
+    {
+      "file": "avatar.jpg",
+      "ratio": "1-1",
+      "album": "头像"
+    }
+  ]
+}

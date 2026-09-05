@@ -47,10 +47,11 @@ function renderShopItems() {
     const canBuy  = State.money >= it.price;
     const isOwned = it.category === 'standard' && owned > 0;
 
+    const icon = (typeof getItemIcon === 'function' && getItemIcon(it)) || '📦';
     return `
       <div class="shop-item ${isOwned ? 'owned' : ''}">
         <div class="shop-item-header">
-          <div class="shop-item-name">${esc(it.name)}</div>
+          <div class="shop-item-name"><span style="margin-right:6px">${icon}</span>${esc(it.name)}</div>
           <div class="shop-item-price">${fmtMoney(it.price)}</div>
         </div>
         <div class="shop-item-desc">${esc(it.desc)}</div>
@@ -114,6 +115,8 @@ function buyItem(itemId) {
   State.money -= item.price;
   State.inventory[itemId] = (State.inventory[itemId] || 0) + 1;
   if(typeof _logMoney==='function') _logMoney('购买·'+item.name, -item.price);
+  // ★ 同步背包到全局存储（防止切换角色时丢失）
+  if(typeof saveGlobalInventory==='function') saveGlobalInventory();
 
   // NPC 购买评价 → 随机抽取一条（重点修复）
   const npcLine = getRandomNpcSay(item);
@@ -276,8 +279,12 @@ function openBag() {
     .map(([id, cnt]) => ({ item: ITEMS_DATA.find(it => String(it.id) === String(id) || it.id === parseInt(id)), cnt }))
     .filter(e => e.item);
 
+  // 当前角色已装备列表
+  var charId = State.currentChar ? State.currentChar.id : null;
+  var equipped = (charId && State.equippedItems && State.equippedItems[charId]) || [];
+
   if (!owned.length) {
-    list.innerHTML = `<div class="empty"><div class="empty-ico">🎒</div><p>背包空空如也……去商店逛逛吧。</p></div>`;
+    list.innerHTML = '<div class="empty"><div class="empty-ico">🎒</div><p>背包空空如也……去商店逛逛吧。</p></div>';
   } else {
     const cats = [
       { key: 'standard',   label: '通常道具' },
@@ -287,22 +294,47 @@ function openBag() {
     list.innerHTML = cats.map(cat => {
       const items = owned.filter(e => e.item.category === cat.key);
       if (!items.length) return '';
-      return `
-        <div class="s-ttl" style="margin-top:\( {cat.key==='standard'?'0':'14px'}"> \){cat.label}</div>
-        ${items.map(({ item, cnt }) => `
-          <div class="bag-item" onclick="openItemUseFromBag(${item.id})" style="cursor:pointer">
-            <div style="font-size:1.4rem;margin-right:8px">${getItemIcon&&getItemIcon(item)||'📦'}</div>
-            <div style="flex:1;min-width:0">
-              <div class="bag-item-name">${esc(item.name)}</div>
-              <div class="bag-item-desc">${esc(item.desc.slice(0,38))}…</div>
-            </div>
-            <div style="text-align:right;flex-shrink:0">
-              ${item.category !== 'standard'
-                ? `<div class="bag-item-cnt">× ${cnt}</div>`
-                : '<div class="bag-item-cnt" style="color:var(--sg)">已拥有</div>'}
-              <div style="font-size:.65rem;color:var(--acc);margin-top:2px">点击使用</div>
-            </div>
-          </div>`).join('')}`;
+      var ttlStyle = cat.key === 'standard' ? '0' : '14px';
+      return '<div class="s-ttl" style="margin-top:' + ttlStyle + '">' + cat.label + '</div>' +
+        items.map(function(entry) {
+          var item = entry.item; var cnt = entry.cnt;
+          var isEquip = item.equippable;
+          var isEquipped = isEquip && equipped.indexOf(item.id) >= 0;
+          var statusHtml = '';
+          var actionHint = '点击使用';
+          if (isEquip) {
+            if (isEquipped) {
+              statusHtml = '<div class="bag-item-cnt" style="color:#e57373">⚙️ 已装备</div>';
+              actionHint = '点击卸下';
+            } else {
+              statusHtml = '<div class="bag-item-cnt" style="color:var(--sg)">已拥有</div>';
+              actionHint = '点击装备';
+            }
+          } else if (item.category !== 'standard') {
+            statusHtml = '<div class="bag-item-cnt">× ' + cnt + '</div>';
+          } else {
+            statusHtml = '<div class="bag-item-cnt" style="color:var(--sg)">已拥有</div>';
+          }
+          var borderStyle = isEquipped ? 'border:1px solid rgba(229,115,115,.35);background:rgba(229,115,115,.06)' : '';
+          var icon = (typeof getItemIcon === 'function' && getItemIcon(item)) || '📦';
+          var badge = isEquipped ? '<span style="font-size:.7rem;position:relative;top:-6px;color:#e57373">▲</span>' : '';
+          // ★ 修复：字符串ID（stamina_up_potion等）用单引号传参，
+          //         数字ID直接传数字，避免双引号破坏onclick属性
+          var _idArg = (typeof item.id === 'number')
+            ? item.id
+            : "'" + String(item.id).replace(/'/g, "\\'") + "'";
+          return '<div class="bag-item" onclick="openItemUseFromBag(' + _idArg + ')" style="cursor:pointer;' + borderStyle + '">' +
+            '<div style="font-size:1.4rem;margin-right:8px">' + icon + badge + '</div>' +
+            '<div style="flex:1;min-width:0">' +
+              '<div class="bag-item-name">' + esc(item.name) + '</div>' +
+              '<div class="bag-item-desc">' + esc(item.desc.slice(0,38)) + '…</div>' +
+            '</div>' +
+            '<div style="text-align:right;flex-shrink:0">' +
+              statusHtml +
+              '<div style="font-size:.65rem;color:' + (isEquipped ? '#e57373' : 'var(--acc)') + ';margin-top:2px">' + actionHint + '</div>' +
+            '</div>' +
+            '</div>';
+        }).join('');
     }).join('');
   }
 
@@ -322,6 +354,7 @@ function openItemUseFromBag(itemId) {
   }, 120);
 }
 
+
 // ── 道具图标 ──────────────────────────────────────────────
 function getItemIcon(item) {
   const iconMap = {
@@ -333,7 +366,7 @@ function getItemIcon(item) {
     45:'🩺',46:'🕯️',47:'💉',50:'🧦',51:'🕸️',
     60:'🌊',71:'💎',72:'💎',73:'🍼',75:'🌸',76:'⬇️',77:'💊',
     78:'💧',79:'💊',80:'✨',81:'👼',82:'😈',83:'📖',84:'📖',
-    91:'💉',92:'🛡️',93:'💉',94:'💊',
+    91:'💉',92:'🛡️',93:'💉',94:'💊',95:'🔐',
     'stamina_up_potion':'💪','stamina_down_potion':'😵',
     'energy_up_potion':'🧠','energy_down_potion':'😶‍🌫️',
     'date_voucher':'💌',

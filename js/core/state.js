@@ -9,6 +9,7 @@ const State = {
   day:           1,          // 当前天数
   money:         10000,      // 持有金币
   inventory:     {},         // 拥有的道具 { itemId: count }
+  equippedItems: {},         // 已装备的道具 { charId: [itemId, ...] }
   currentNav:    'home',     // 当前底部标签
   currentCat:    'basic',    // 当前指令分类
   isProcessing:  false,      // 是否正在处理指令
@@ -17,6 +18,12 @@ const State = {
   charPage:      0,
   achievements:  JSON.parse(localStorage.getItem('era_ach') || '[]'),
   tipIndex:      0,          // 当前小贴士索引
+  // ── 助手系统 ──────────────────────────────────────
+  assistantMode:     false,  // 当前调教是否为助手模式
+  activeAssistantId: null,   // 当前活跃助手的 charId（训练时消耗其体力）
+  // ── 剧情多角色占位符 ──────────────────────────────────────────
+  storyCharA: null,          // { id, name, gender } — 剧情中奴隶A，供 {A}/{ta_A} 替换
+  storyCharB: null,          // { id, name, gender } — 剧情中奴隶B，供 {B}/{ta_B} 替换
 };
 
 // ── 工具函数 ──────────────────────────────────────────────
@@ -129,47 +136,89 @@ function loadSave(charId) {
   } catch (e) { return null; }
 }
 
-// 写入存档（保留按角色存档+镜像到单个自动存档槽）
-function writeSave() {
+// ── 存档开关：true = 禁止自动存档，只允许手动存档 ────────────
+var _ERA_AUTOSAVE_DISABLED = false; // ★ 修复：重新启用自动存档
+
+// 内部实际写入函数（私有，不对外暴露）
+function _writeSaveInternal(saveName) {
   if (!State.currentChar) return false;
   try {
     var existingSave = loadSave(State.currentChar.id);
     var profile = (existingSave && existingSave.charProfile) || State._charProfile || {};
     var saveObj = {
-      char:      State.currentChar,
-      log:       State.gameLog.slice(-15),
-      day:       State.day,
-      money:     State.money,
-      inventory: State.inventory,
-      charProfile: profile,
-      saveName:  '自动存档',
-      saveTime:  Date.now(),
+      char:         State.currentChar,
+      log:          State.gameLog.slice(-15),
+      day:          State.day,
+      money:        State.money,
+      inventory:    State.inventory,
+      equippedItems:State.equippedItems,
+      charProfile:  profile,
+      saveName:     saveName || '手动存档',
+      saveTime:     Date.now(),
     };
-    // 按角色ID存档（庄园、房间等功能依赖此key）
     localStorage.setItem('era_sv_' + State.currentChar.id, JSON.stringify(saveObj));
-    // 同时镜像到单个自动存档槽（存档菜单只显示这一个自动档）
-    localStorage.setItem('era_auto_save', JSON.stringify(saveObj));
     return true;
   } catch (e) { return false; }
+}
+
+// writeSave() — 已被重定向为"静默跳过"，防止任何模块自动覆盖存档
+// 如需强制写入（仅限手动存档按钮），请调用 manualWriteSave()
+function writeSave() {
+  if (_ERA_AUTOSAVE_DISABLED) {
+    // 自动存档已全局禁用，静默跳过
+    return true; // 返回true避免调用方报错
+  }
+  return _writeSaveInternal('存档');
+}
+
+// manualWriteSave() — 手动存档专用，绕过禁用开关
+function manualWriteSave(saveName) {
+  return _writeSaveInternal(saveName || '手动存档');
 }
 
 // 写入手动命名存档
 function writeNamedSave(name) {
   if (!State.currentChar) return false;
   try {
+    // ★ 修复：快照所有已购角色存档，读取时可完整还原奴隶列表
+    var _allCharSaves = {};
+    for (var _i = 0; _i < localStorage.length; _i++) {
+      var _k = localStorage.key(_i);
+      if (_k && _k.startsWith('era_sv_')) {
+        try { _allCharSaves[_k] = JSON.parse(localStorage.getItem(_k)); } catch(e) {}
+      }
+    }
+    var _relSnap = {};
+    try { _relSnap = JSON.parse(localStorage.getItem('era_relationships') || '{}'); } catch(e) {}
+
     var key = 'era_msv_' + Date.now();
     localStorage.setItem(key, JSON.stringify({
-      char:      State.currentChar,
-      log:       State.gameLog.slice(-15),
-      day:       State.day,
-      money:     State.money,
-      inventory: State.inventory,
-      saveName:  name || ('手动存档 - ' + (State.currentChar.name || '')),
-      saveTime:  Date.now(),
-      isManual:  true,
+      char:          State.currentChar,
+      log:           State.gameLog.slice(-15),
+      day:           State.day,
+      money:         State.money,
+      inventory:     State.inventory,
+      equippedItems: State.equippedItems,
+      saveName:      name || ('手动存档 - ' + (State.currentChar.name || '')),
+      saveTime:      Date.now(),
+      isManual:      true,
+      // ★ 完整快照：所有奴隶存档 + 奴隶间关系
+      allCharSaves:  _allCharSaves,
+      relationships: _relSnap,
     }));
     return true;
   } catch (e) { return false; }
+}
+
+// ── 全局背包持久化（与角色存档解耦，防止切角色丢道具）──────────
+function saveGlobalInventory() {
+  try { localStorage.setItem('era_global_inv', JSON.stringify(State.inventory || {})); } catch(e) {}
+}
+function loadGlobalInventory() {
+  try {
+    var r = localStorage.getItem('era_global_inv');
+    return r ? JSON.parse(r) : null;
+  } catch(e) { return null; }
 }
 
 // 小贴士轮播
@@ -182,3 +231,17 @@ function nextTip() {
 
 // 每隔8秒换一条贴士
 setInterval(nextTip, 8000);
+
+// ★ 修复：天数独立持久化（防止刷新丢失进度）
+// 天数保存在独立的 era_day key，不依赖角色存档
+function _saveDay() {
+  try { localStorage.setItem('era_day', String(State.day || 1)); } catch(e) {}
+}
+function _loadDay() {
+  try {
+    var d = parseInt(localStorage.getItem('era_day') || '1', 10);
+    return isNaN(d) ? 1 : Math.max(1, d);
+  } catch(e) { return 1; }
+}
+// 代理 State.day 的赋值——每次改变都自动持久化
+// （通过包装 consumeTime 和 doRest 调用点实现，不用 Proxy 避免兼容问题）

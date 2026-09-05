@@ -1,0 +1,1085 @@
+// slave_room.js v5 — 如隶房间（全面修整版）
+
+;(function(){
+
+var RW=360, RH=420, CEIL=32, FLOOR=372;
+
+var FD = {
+  window:{name:'窗户',icon:'🪟',costs:[200,400,800],levels:['木板封死','气窗','旧木窗','玻璃窗'],area:{x:12,y:74,w:68,h:108}},
+  lamp:  {name:'灯',  icon:'🕯️',costs:[100,300,600],levels:['无灯（黑暗）','烛台','油灯','吊灯'],area:{x:132,y:0,w:92,h:78}},
+  shelf: {name:'书架',icon:'📚',costs:[300,600,1200],levels:['无书架','地上书堆','木书架','满架书卷'],area:{x:8,y:192,w:82,h:178}},
+  bed:   {name:'床铺',icon:'🛏️',costs:[500,1000,2000],levels:['稻草席','薄褥子','木床架','软大床'],area:{x:175,y:250,w:165,h:122}},
+  ward:  {name:'衣柜',icon:'👗',costs:[300,700,1500],levels:['无衣柜','挂衣杆','木柜','雕花衣橱'],area:{x:278,y:150,w:80,h:222}},
+  fun:   {name:'娱乐',icon:'🎵',costs:[400,900,1800],levels:['无','残棋','书册与棋','古筝'],area:{x:78,y:300,w:92,h:70}},
+};
+
+var SLAVE_ACTIONS = [
+  {label:'聊天',    icon:'💬', type:'chat'},
+  {label:'共餐',    icon:'🍽️',  type:'meal'},
+  {label:'送礼',    icon:'🎁', type:'gift'},
+  {label:'夜间探望', icon:'🌙', type:'night'},
+];
+
+// 简单模式专用附加家具（不在房间SVG中渲染，仅列表展示）
+var _SIMPLE_EXTRA = {
+  decor:{name:'装饰',icon:'🎀',costs:[200,1000,4000],levels:['空荡荡','零星小物','温馨布置','奢华装潢']},
+};
+
+// ══════════════════════════════════════════════════════════
+// 【家具剧情总表 — 所有文本都在这里，改这里就够了】
+//
+// FLAVOR[家具]  氛围描述（按等级0/1/2/3），在长按面板里显示
+// IS[家具]      互动剧情，单击家具时随机抽一条播放
+//
+// 🪟 窗户: IS.window[0]=推开窗 IS.window[1]=关上窗 IS.window[2]=靠近
+// 🕯 灯:   IS.lamp[0]=点灯   IS.lamp[1]=熄灯
+// 其余家具只有一个动作，在 IS.xxx[0] 里加文本即可
+// ══════════════════════════════════════════════════════════
+var FLAVOR = {
+
+  // 🪟 窗户 — 氛围描述（按等级）
+  window:['木板将窗户钉死，连一丝光都透不进来。','窗缝中挤进一线天光，是与外界唯一的联系。','推开木窗，新鲜空气流了进来，她下意识深吸一口气。','紫色纱帘随风轻摆，阳光将整间屋子染成暖橙色。'],
+
+  // 🕯 灯 — 氛围描述
+  lamp:  ['漆黑的房间里什么都看不清。','烛火摇曳，将她的影子拉得很长。','油灯的暖黄光晕弥散，填满每一个角落。','吊灯将五道火光洒向室内，一切纤毫毕现。'],
+
+  // 📚 书架
+  shelf: ['光秃秃的墙角，什么都没有。','几本旧书散落在地，翻得起了毛边。','木书架上放着些书，她整理得很整齐。','满架书卷按序排列，书脊上贴着她自制的标签。'],
+
+  // 🛏 床铺
+  bed:   ['草席铺在地上，散发着淡淡的霉味。','薄薄的褥子叠在墙角，睡前才会展开。','木床架撑起了一张像样的床，枕头折叠整齐。','华盖的流苏垂落下来，软床宽阔，配着厚实被褥。'],
+
+  // 👗 衣柜
+  ward:  ['衣物随意堆在角落，虽乱，但算整洁。','一根木杆横在墙边，几件朴素衣服挂着。','木质衣柜关着，她说里面按季节分区摆放。','雕花衣橱占了半面墙，她对每件衣服的位置了如指掌。'],
+
+  // 🎵 娱乐
+  fun:   ['什么消遣都没有，只能坐着发呆。','残缺棋盘上散落几枚棋子，凑不成完整对弈。','小桌上放着书册和一副棋，偶尔还有棋谱痕迹。','古筝摆在窗边，琴弦崭新，看得出经常弹奏。'],
+};
+
+var IS = {
+
+  // ── 🪟 窗户互动剧情 ───────────────────────────────────
+  // IS.window[0] = 推开窗（等级2+，窗关着时触发）
+  // IS.window[1] = 关上窗（等级2+，窗开着时触发）
+  // IS.window[2] = 靠近  （等级0-1 时触发）
+  window:[
+    ['推开窗',[
+      '你拉开纱帘，风将她的发丝轻轻撩起，她望着窗外，有片刻的出神。',
+      '你推开窗，带着泥土气息的风吹进来。她眯起眼睛，像是享受。',
+      // 在这里继续添加推开窗的剧情 ↓
+    ],'推开窗'],
+    ['关上窗',[
+      '你关上窗，室内安静下来，只剩她均匀的呼吸声和地板的轻响。',
+      '你拉上纱帘，阳光被柔化成朦胧的光晕，洒在地板上。',
+      // 在这里继续添加关上窗的剧情 ↓
+    ],'关上窗'],
+    ['靠近',[
+      '你伸手推了推木板，纹丝不动。她在这样的黑暗里住了多久？',
+      '你从缝隙向外看，只见一片灰白的天空，她走过来，默默站在你身后。',
+      // 在这里继续添加靠近窗的剧情 ↓
+    ],'靠近'],
+  ],
+
+  // ── 🕯 灯互动剧情 ─────────────────────────────────────
+  // IS.lamp[0] = 点灯（灯熄着时触发）
+  // IS.lamp[1] = 熄灯（灯亮着时触发）
+  lamp:[
+    ['点灯',[
+      '你点亮烛台，两人在火光里对视了一秒。',
+      '灯亮了，她的脸从阴影中浮现，神情平静。',
+      '你划亮火柴，整个房间随之明亮，她微微眨了眨眼。',
+      // 在这里继续添加点灯的剧情 ↓
+    ],'点灯'],
+    ['熄灯',[
+      '你吹灭烛火，黑暗瞬间涌来，你听见她屏住了呼吸。',
+      '最后一点光消失的瞬间，室内彻底沉寂。',
+      // 在这里继续添加熄灯的剧情 ↓
+    ],'熄灯'],
+  ],
+
+  // ── 📚 书架互动剧情 ───────────────────────────────────
+  shelf:[ ['翻书',[
+    '你随手抽出一本，她走过来低声说这本她已经看了三遍了。',
+    '你取了一本游记递给她，她接过来，认真地翻开第一页。',
+    '你念了一句诗，她接下去续了下一句，声音很轻。',
+    // 在这里继续添加书架剧情 ↓
+  ],'翻书'] ],
+
+  // ── 🛏 床铺互动剧情 ───────────────────────────────────
+  bed:  [ ['坐下',[
+    '你在床边坐下，拍了拍枕头。她迟疑片刻，走过来在旁边坐下，两人就这么沉默地待着。',
+    '你仰躺上去，华盖的流苏轻轻摆动。你抬眼，发现她在偷偷看你。',
+    '你坐在草席旁，她有些窘迫地低下头，小声问要不要换个稍微厚一点的褥子。',
+    // 在这里继续添加床铺剧情 ↓
+  ],'坐下'] ],
+
+  // ── 👗 衣柜互动剧情 ───────────────────────────────────
+  ward: [ ['查看衣物',[
+    '你打开柜门，她在旁边小声介绍哪件是日常穿的，哪件是见客用的，说得一板一眼。',
+    '你取出一件衣服递给她，让她换上。她接过去，脸微微红了。',
+    '你翻了翻角落里的旧衣物，折叠得整整齐齐，是她自己叠的。',
+    // 在这里继续添加衣柜剧情 ↓
+  ],'查看衣物'] ],
+
+  // ── 🎵 娱乐互动剧情 ───────────────────────────────────
+  fun:  [ ['互动',[
+    '你在她对面坐下，两人就残局对弈，她下得比你预期的更沉稳。',
+    '你执黑，她执白，片刻后她走出一步出人意料的棋，抬头等你回应。',
+    '你示意她弹一曲，她轻轻拨动琴弦，音色清澈，在房间里漫开。',
+    // 在这里继续添加娱乐剧情 ↓
+  ],'互动'] ],
+};
+
+// ── 状态（viewMode: 'room' | 'interact' | 'simple'）────────
+var _s = {charId:null, viewMode:'room', showMaster:true, showSlave:true, modal:null, action:null, story:null, speech:null, animOn:false};
+var _speakTimer=null, _dragData=null;
+var _animTimer=null, _animT=0;
+var _lpt=null, _didTouch=false;
+
+// ── 人物点击对话台词（在这里随意添加更多条）────────────────
+var SPEECH = {
+  master:[
+    '最近怎么样？',
+    '好好休息。',
+    '有事跟我说。',
+    '……嗯。',
+    '不必紧张。',
+  ],
+  slave:[
+    '……',
+    '谢谢您。',
+    '我明白了。',
+    '是。',
+    '……好的。',
+  ],
+};
+
+function _pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+// ── 房间主题色板 ──────────────────────────────────────────
+// header = 状态栏背景（比墙深）
+// ceil   = 天花板
+// wall   = 墙壁
+// wallD  = 墙壁纹路线
+// beam   = 横梁
+// fa/fb  = 地板交替色
+function _roomPalette(){
+  var theme=document.documentElement.getAttribute('data-theme')||'dark-rose';
+  var p={
+    // acc=强调色  txt=正文  sub=次要文字  card=卡片背景  cardBrd=卡片边框
+    // modal=弹窗背景  modalH=弹窗顶部渐变  dot=进度条空格
+    // mTxt=弹窗主文字  mSub=弹窗次要文字（弹窗背景永远暗，所以这两个永远是亮色）
+    'dark-rose':   {header:'#0e0610',ceil:'#1a0c16',wall:'#261220',wallD:'#1e0e18',beam:'#4a1830',fa:'#301525',fb:'#200f18',
+                    acc:'#c7395a',txt:'#ede6f8',sub:'rgba(237,230,248,0.5)',card:'rgba(255,255,255,0.05)',cardBrd:'rgba(255,255,255,0.08)',
+                    modal:'#3a1828',modalH:'linear-gradient(135deg,#5a2040,#c7395a,#5a2040)',dot:'rgba(255,255,255,0.1)',
+                    mTxt:'#ede6f8',mSub:'rgba(220,200,235,0.8)'},
+    'warm-wood':   {header:'#8a6030',ceil:'#b89060',wall:'#f0e8d0',wallD:'#e0d8b8',beam:'#7a5028',fa:'#9a7040',fb:'#8a6030',
+                    acc:'#8a4020',txt:'#3a2010',sub:'rgba(58,32,16,0.55)',card:'rgba(0,0,0,0.06)',cardBrd:'rgba(0,0,0,0.12)',
+                    modal:'#9a6838',modalH:'linear-gradient(135deg,#7a5028,#c07030,#7a5028)',dot:'rgba(0,0,0,0.12)',
+                    mTxt:'#fff8ee',mSub:'rgba(255,235,200,0.8)'},
+    'night-blue':  {header:'#050812',ceil:'#0a1025',wall:'#0e1832',wallD:'#0a1228',beam:'#1a2c50',fa:'#102038',fb:'#0a1428',
+                    acc:'#3a7cc0',txt:'#d0e4f8',sub:'rgba(208,228,248,0.5)',card:'rgba(255,255,255,0.05)',cardBrd:'rgba(255,255,255,0.08)',
+                    modal:'#1a2e50',modalH:'linear-gradient(135deg,#1a2e50,#3a70b8,#1a2e50)',dot:'rgba(255,255,255,0.1)',
+                    mTxt:'#d8eef8',mSub:'rgba(200,225,248,0.8)'},
+    'summer-snow': {header:'#6090b0',ceil:'#90bcd8',wall:'#d0eaf8',wallD:'#c0e0f0',beam:'#406880',fa:'#507898',fb:'#406888',
+                    acc:'#3070a0',txt:'#103050',sub:'rgba(16,48,80,0.55)',card:'rgba(0,0,0,0.05)',cardBrd:'rgba(0,0,0,0.1)',
+                    modal:'#3a6080',modalH:'linear-gradient(135deg,#3a6080,#5898c0,#3a6080)',dot:'rgba(0,0,0,0.12)',
+                    mTxt:'#eef6fc',mSub:'rgba(210,235,250,0.8)'},
+    'autumn-gold': {header:'#906020',ceil:'#b88040',wall:'#f0e8d4',wallD:'#e0d8b8',beam:'#7a5020',fa:'#9a7040',fb:'#8a6028',
+                    acc:'#c07020',txt:'#3a2010',sub:'rgba(58,32,16,0.55)',card:'rgba(0,0,0,0.06)',cardBrd:'rgba(0,0,0,0.12)',
+                    modal:'#9a6820',modalH:'linear-gradient(135deg,#7a5020,#c08030,#7a5020)',dot:'rgba(0,0,0,0.12)',
+                    mTxt:'#fff5e0',mSub:'rgba(255,230,175,0.8)'},
+    'sakura':      {header:'#b84878',ceil:'#d880a8',wall:'#f8e0ef',wallD:'#eecce0',beam:'#602040',fa:'#a85878',fb:'#904868',
+                    acc:'#c04878',txt:'#3a1028',sub:'rgba(58,16,40,0.55)',card:'rgba(0,0,0,0.05)',cardBrd:'rgba(0,0,0,0.1)',
+                    modal:'#fce4f2',modalH:'linear-gradient(135deg,#c04878,#e878b0,#c04878)',dot:'rgba(0,0,0,0.12)',
+                    mTxt:'#4a1030',mSub:'rgba(74,16,48,0.75)'},
+  };
+  return p[theme]||p['dark-rose'];
+}
+
+// ── 亮度：通过暗度遮罩控制，无光晕效果 ─────────────────
+function _darkness(r){
+  if(!r||r.lamp===0||r.lampOn===false)return 0.42;
+  return [0.22,0.06,0][r.lamp-1]||0;
+}
+
+// ── 数据接口 ─────────────────────────────────────────────
+function _getChar(){
+  var arr=(typeof CHARS_DATA!=='undefined')?CHARS_DATA:[];
+  var c=arr.find(function(c){return c.id===_s.charId;});
+  if(!c) return null;
+  if(!c.room) c.room={window:0,lamp:0,shelf:0,bed:0,ward:0,fun:0};
+  var r=c.room;
+  if(r.masterX==null) r.masterX=124;
+  if(r.slaveX==null)  r.slaveX=162;
+  if(r.winOpen==null) r.winOpen=false;
+  if(r.lampOn==null)  r.lampOn=true;
+  return c;
+}
+function _getMoney(){
+  try{var d=getPlayerDetail();if(d&&d.money!=null)return d.money;}catch(e){}
+  if(typeof State!=='undefined'&&State.money!=null)return State.money;
+  return 0;
+}
+function _spendMoney(n){
+  if(typeof State!=='undefined'&&State.money!=null){State.money-=n;return;}
+  try{var d=getPlayerDetail();if(d)d.money-=n;}catch(e){}
+}
+function _save(){ if(typeof savePlayerDetail==='function')savePlayerDetail(); }
+function _masterName(){
+  try{var d=getPlayerDetail();if(d&&d.name)return d.name;}catch(e){}
+  if(typeof _playerProfile!=='undefined'&&_playerProfile&&_playerProfile.name)return _playerProfile.name;
+  return '主人';
+}
+function _isMale(c){
+  if(!c) return false;
+  var g=c.gender||c.sex||'';
+  return g==='male'||g==='男'||g===1||g==='1'||c.isMale===true;
+}
+
+// ── 入口 ─────────────────────────────────────────────────
+window.openSlaveRoom=function(charId){
+  _s.charId=charId; _s.viewMode='room'; _s.modal=null; _s.action=null; _s.story=null;
+  _render(); openOv('ov-slave-room');
+};
+
+// ── 触摸/点击 ────────────────────────────────────────────
+window._srTS=function(key,e){ if(e){e.preventDefault();e.stopPropagation();} _didTouch=false; _lpt=setTimeout(function(){_lpt=null;_didTouch=true;_s.action=key;_s.story=null;_s.modal=null;_render();},500); };
+window._srTE=function(key,e){ if(e){e.preventDefault();e.stopPropagation();} if(_lpt!==null){clearTimeout(_lpt);_lpt=null;_didTouch=true;_srQuick(key);} };
+window._srCK=function(key){ if(_didTouch){_didTouch=false;return;} _srQuick(key); };
+window._srQuick=function(key){
+  var c=_getChar(); if(!c)return;
+  var r=c.room, l=r[key];
+  if(key==='window')         _srInteract('window', l>=2?(r.winOpen?1:0):2);
+  else if(key==='lamp'&&l>0) _srInteract('lamp', r.lampOn?1:0);
+  else if(l>0&&IS[key])      _srInteract(key,0);
+};
+window._srInteract=function(key,idx){
+  var c=_getChar(); if(!c)return;
+  var entry=IS[key]&&IS[key][idx]; if(!entry)return;
+  if(entry[0]==='推开窗') c.room.winOpen=true;
+  if(entry[0]==='关上窗') c.room.winOpen=false;
+  if(entry[0]==='点灯')   c.room.lampOn=true;
+  if(entry[0]==='熄灯')   c.room.lampOn=false;
+  _s.story={title:entry[2],text:_pick(entry[1])};
+  _s.action=null; _save(); _render();
+};
+window._srUpgrade=function(key){
+  var c=_getChar(); if(!c)return;
+  var l=c.room[key]; if(l>=3)return;
+  _portalClear('_srActionPortal');
+  _s.modal={key:key,from:l,to:l+1}; _s.action=null; _render();
+};
+
+window._srConfirm=function(){
+  var m=_s.modal; if(!m)return;
+  var c=_getChar(); if(!c)return;
+  var fd=FD[m.key];
+  var cost=fd.costs[m.from];
+  if(_getMoney()<cost)return;
+  _spendMoney(cost); c.room[m.key]=m.to; _save(); _s.modal=null;
+  var flavorTxt=FLAVOR[m.key]?FLAVOR[m.key][m.to]:'';
+  _s.story={
+    title: fd.icon+' '+fd.name+'  ·  升级完成',
+    text:  '<div style="text-align:center;font-size:1.6rem;margin:4px 0 14px">✨</div>'
+          +'<div style="display:flex;align-items:center;justify-content:center;gap:10px;font-size:.9rem;margin-bottom:'+(flavorTxt?'16px':'4px')+'">'
+          +'<span style="opacity:.65">'+fd.levels[m.from]+'</span>'
+          +'<span style="font-size:1.1rem;opacity:.5">→</span>'
+          +'<span style="font-weight:700;color:#f0c050">'+fd.levels[m.to]+'</span>'
+          +'</div>'
+          +(flavorTxt?'<div style="font-size:.8rem;line-height:1.85;opacity:.72;border-top:1px solid rgba(255,255,255,0.12);padding-top:14px">'+flavorTxt+'</div>':'')
+  };
+  _render();
+};
+
+
+
+window._srDirectUpgrade=function(key){
+  var c=_getChar(); if(!c)return;
+  if(c.room[key]==null) c.room[key]=0;
+  var l=c.room[key]; if(l>=3)return;
+  var fd=FD[key]||_SIMPLE_EXTRA[key]; if(!fd)return;
+  var cost=fd.costs[l];
+  if(_getMoney()<cost){
+    _s.story={title:'⚠ 金币不足',text:'升级「'+fd.name+'」需要 ¥'+cost+'，当前持有金币不足。'};
+    _render(); return;
+  }
+  _spendMoney(cost); c.room[key]=l+1; _save();
+  _s.story={title:'✨ 升级成功',text:'「'+fd.name+'」已从「'+fd.levels[l]+'」升级为「'+fd.levels[l+1]+'」！'};
+  _render();
+};
+function _portal(id,html){var el=document.getElementById(id);if(!el){el=document.createElement('div');el.id=id;document.body.appendChild(el);}el.innerHTML=html;}
+function _portalClear(id){var el=document.getElementById(id);if(el)el.innerHTML='';}
+window._srCloseModal=function(){ _portalClear('_srUpgradePortal'); _s.modal=null; _render(); };
+window._srCloseAction=function(){ _portalClear('_srActionPortal'); _s.action=null; _render(); };
+window._srCloseStory=function(){ _portalClear('_srStoryPortal'); _s.story=null; _render(); };
+window._srSetMode=function(m){ _s.viewMode=m; _render(); };
+window._srToggleMaster=function(){ _s.showMaster=!_s.showMaster; _render(); };
+window._srToggleSlave=function(){  _s.showSlave=!_s.showSlave;   _render(); };
+window._srMove=function(who,dir){
+  var c=_getChar(); if(!c)return;
+  c.room[who==='master'?'masterX':'slaveX']=Math.max(30,Math.min(310,c.room[who==='master'?'masterX':'slaveX']+dir*22));
+  _save(); _render();
+};
+
+window._srOpenSettings=function(){
+  var c=_getChar();if(!c)return;
+  var r=c.room,rp=_roomPalette(),mn=_masterName(),sn=c.name||'奴隶';
+  var ms=Math.round((r.masterImgScale||1.0)*100);
+  var ss=Math.round((r.slaveImgScale||1.0)*100);
+  var sRow=function(who,pct,has){
+    if(!has)return '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-top:8px;padding:8px 12px;background:rgba(0,0,0,0.15);border-radius:10px">'
+      +'<span style="font-size:.74rem;color:'+rp.mSub+';flex:1">大小</span>'
+      +'<button onclick="_srScaleImg(\''+who+'\',-0.1)" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:'+rp.mTxt+';cursor:pointer;font-size:1.2rem;line-height:1">－</button>'
+      +'<span style="font-size:.82rem;color:'+rp.mTxt+';min-width:44px;text-align:center">'+pct+'%</span>'
+      +'<button onclick="_srScaleImg(\''+who+'\',0.1)" style="width:34px;height:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.08);color:'+rp.mTxt+';cursor:pointer;font-size:1.2rem;line-height:1">＋</button>'
+      +'</div>';
+  };
+  _portal('_srSettingsPortal',
+    // 点击灰色遮罩（且 target 就是遮罩本身）才关闭，不影响内部按钮
+    '<div onclick="if(event.target===this)_srCloseSettings()" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;z-index:9999;backdrop-filter:blur(3px)">'
+    // 内部面板：无 stopPropagation，靠上面的 target 判断隔离
+    +'<div style="position:relative;background:'+rp.modal+';border-radius:26px 26px 0 0;padding:22px 20px 38px;width:100%;box-sizing:border-box;border-top:2px solid '+rp.acc+'40;box-shadow:0 -24px 64px rgba(0,0,0,0.6);max-height:85vh;overflow-y:auto">'
+    // ✕ 改为真正的 button，触摸区 36×36
+    +'<button onclick="_srCloseSettings()" style="position:absolute;top:12px;right:14px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(255,255,255,0.12);color:'+rp.mTxt+';cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center">✕</button>'
+    +'<div style="width:44px;height:4px;background:'+rp.acc+'30;border-radius:2px;margin:0 auto 20px"></div>'
+    +'<div style="font-size:.96rem;font-weight:bold;color:'+rp.mTxt+';margin-bottom:8px">⚙ 形象设置</div>'
+    +'<div style="font-size:.74rem;color:'+rp.mSub+';margin-bottom:18px;line-height:1.75">上传 PNG（支持透明底），将替换房间内对应小人的显示形象。</div>'
+    // 主人
+    +'<div style="margin-bottom:12px">'
+    +'<div style="display:flex;gap:10px">'
+    +'<button onclick="_srUploadImg(\'master\')" style="flex:1;padding:14px 10px;border-radius:13px;border:1px solid '+rp.acc+'30;background:'+rp.acc+'14;color:'+rp.mTxt+';cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:bold">🖼 '+mn+'（主人）</button>'
+    +(r.masterImg?'<button onclick="_srClearImg(\'master\')" style="padding:14px 13px;border-radius:13px;border:1px solid '+rp.cardBrd+';background:'+rp.card+';color:'+rp.mSub+';cursor:pointer;font-size:.78rem;font-family:inherit">↩ 还原</button>':'')
+    +'</div>'
+    +sRow('master',ms,!!r.masterImg)
+    +'</div>'
+    // 奴隶
+    +'<div style="margin-bottom:14px">'
+    +'<div style="display:flex;gap:10px">'
+    +'<button onclick="_srUploadImg(\'slave\')" style="flex:1;padding:14px 10px;border-radius:13px;border:1px solid '+rp.acc+'30;background:'+rp.acc+'14;color:'+rp.mTxt+';cursor:pointer;font-size:.85rem;font-family:inherit;font-weight:bold">🖼 '+sn+'（奴隶）</button>'
+    +(r.slaveImg?'<button onclick="_srClearImg(\'slave\')" style="padding:14px 13px;border-radius:13px;border:1px solid '+rp.cardBrd+';background:'+rp.card+';color:'+rp.mSub+';cursor:pointer;font-size:.78rem;font-family:inherit">↩ 还原</button>':'')
+    +'</div>'
+    +sRow('slave',ss,!!r.slaveImg)
+    +'</div>'
+    // 动画
+    +'<div style="padding-top:14px;border-top:1px solid rgba(255,255,255,0.08)">'
+    +'<button onclick="_srToggleAnim()" style="width:100%;padding:14px;border-radius:13px;border:1px solid '+(_s.animOn?rp.acc:rp.cardBrd)+';background:'+(_s.animOn?rp.acc+'22':rp.card)+';color:'+(_s.animOn?rp.acc:rp.mSub)+';cursor:pointer;font-size:.86rem;font-family:inherit;font-weight:bold">'+(_s.animOn?'⏸ 关闭动画':'▶ 开启动画（小人自动走动）')+'</button>'
+    +'</div>'
+    +'</div></div>');
+};
+window._srScaleImg=function(who,delta){
+  var c=_getChar();if(!c)return;
+  var key=who==='master'?'masterImgScale':'slaveImgScale';
+  var cur=c.room[key]||1.0;
+  c.room[key]=Math.max(0.2,Math.min(3.0,Math.round((cur+delta)*10)/10));
+  _save();_portalClear('_srSettingsPortal');_srOpenSettings();
+};
+
+
+
+
+window._srClearImg=function(who){
+  var c=_getChar();if(!c)return;
+  c.room[who==='master'?'masterImg':'slaveImg']=null;
+  _save();_render();
+};
+function _startAnim(){
+  if(_animTimer)clearInterval(_animTimer);
+  _animT=0;
+  _animTimer=setInterval(function(){
+    if(!_s.animOn||_s.viewMode!=='room'||_dragData)return;
+    _animT+=0.035;
+    var mo=Math.sin(_animT)*34;
+    var so=Math.sin(_animT+Math.PI)*27;
+    var mg=document.getElementById('_srMG');
+    var sg=document.getElementById('_srSG');
+    if(mg)mg.setAttribute('transform','translate('+mo+',0)');
+    if(sg)sg.setAttribute('transform','translate('+so+',0)');
+  },50);
+}
+function _stopAnim(){
+  if(_animTimer){clearInterval(_animTimer);_animTimer=null;}
+  var mg=document.getElementById('_srMG'),sg=document.getElementById('_srSG');
+  if(mg)mg.setAttribute('transform','translate(0,0)');
+  if(sg)sg.setAttribute('transform','translate(0,0)');
+}
+window._srToggleAnim=function(){
+  _s.animOn=!_s.animOn;
+  if(_s.animOn)_startAnim(); else _stopAnim();
+  _portalClear('_srSettingsPortal');_srOpenSettings();
+};
+// ── 人物点击说话 ──────────────────────────────────────────
+window._srSpeak=function(who){
+  if(_speakTimer){clearTimeout(_speakTimer);_speakTimer=null;}
+  var lines=SPEECH[who]||[];
+  _s.speech={who:who,text:_pick(lines)};
+  _speakTimer=setTimeout(function(){_s.speech=null;_render();},2800);
+  _render();
+};
+// ── 人物拖拽移动 ──────────────────────────────────────────
+window._srDragS=function(who,e){
+  if(e){e.stopPropagation();e.preventDefault();}
+  var c=_getChar(); if(!c)return;
+  var svgEl=document.querySelector('#slave-room-body svg');
+  _dragData={who:who,sx0:e.touches[0].clientX,cx0:c.room[who==='master'?'masterX':'slaveX'],svgW:svgEl?svgEl.getBoundingClientRect().width:340};
+};
+window._srDragM=function(e){
+  if(!_dragData)return;
+  if(e)e.preventDefault();
+  var dx=e.touches[0].clientX-_dragData.sx0;
+  var svgDx=dx/_dragData.svgW*RW;
+  var newX=Math.max(30,Math.min(310,_dragData.cx0+svgDx));
+  var gid=_dragData.who==='master'?'_srMG':'_srSG';
+  var g=document.getElementById(gid);
+  if(g)g.setAttribute('transform','translate('+(newX-_dragData.cx0)+',0)');
+};
+window._srDragE=function(e){
+  if(!_dragData)return;
+  var t=e.changedTouches?e.changedTouches[0]:null;
+  var moved=t?Math.abs(t.clientX-_dragData.sx0):0;
+  if(moved<14){
+    // 短触 → 说话
+    var w=_dragData.who; _dragData=null; _srSpeak(w); return;
+  }
+  var c=_getChar();
+  if(c&&t){
+    var svgDx=(t.clientX-_dragData.sx0)/_dragData.svgW*RW;
+    var key=_dragData.who==='master'?'masterX':'slaveX';
+    c.room[key]=Math.max(30,Math.min(310,_dragData.cx0+svgDx));
+    _save();
+  }
+  _dragData=null; _render();
+};
+// 切换简单/房间模式
+window._srToggleSimple=function(){
+  _s.viewMode=_s.viewMode==='simple'?'room':'simple';
+  _s.action=null; _s.story=null; _render();
+};
+// 互动按钮：在新房间内直接播放剧情，不触发旧系统
+window._srSlaveAction=function(type){
+  var c=_getChar(); if(!c)return;
+  var name=c.name||'她';
+  var stories={
+    chat: ['你在'+name+'的房间里坐了下来，随意找了个话题。',
+           '「……今天外面下雨了。」你说。',
+           '「是吗。」'+name+'淡淡地回应，随即沉默。',
+           '两人就这样坐着，没有再说更多——但气氛比以前少了一分剑拔弩张。'],
+    meal: ['你带来了两份饭食，放在'+name+'桌上。',
+           '「吃吧。」你说。',
+           '对方沉默片刻，还是动了筷子。',
+           '「……这个不难吃。」声音很小，几乎像是说给自己听的。'],
+    gift: ['你把那件东西递给'+name+'，没有多余的解释。',
+           '「……给我的？」对方看起来有些意外。',
+           '「嗯。」',
+           '那件礼物就这样留了下来，连同一点点说不清道不明的情绪。'],
+    night:['深夜，你推开'+name+'的房门。',
+           '烛火已经熄灭，只有月光透过窗格洒进来。',
+           '你站在门口片刻，没有进去，也没有开口。',
+           '只是确认了一下——她还在，还好。'],
+  };
+  var gain={chat:2,meal:3,gift:5,night:2};
+  var titleMap={chat:'💬 聊天',meal:'🍽️ 共餐',gift:'🎁 送礼',night:'🌙 夜间探望'};
+  var story=stories[type]||['你与'+name+'进行了一次互动。'];
+  if(c.favor!=null) c.favor=Math.min(100,(c.favor||0)+(gain[type]||2));
+  _save();
+  _s.story={title:titleMap[type]||'互动',text:story.join('<br><br>')};
+  _render();
+};
+
+// ── 主渲染 ────────────────────────────────────────────────
+function _render(){
+  var el=document.getElementById('slave-room-body'); if(!el)return;
+  var c=_getChar();
+  if(!c){el.innerHTML='<p style="padding:20px;color:var(--acc)">找不到角色数据</p>';return;}
+  if(!_s.modal)  _portalClear('_srUpgradePortal');
+  if(!_s.action) _portalClear('_srActionPortal');
+  if(!_s.story)  _portalClear('_srStoryPortal');
+  el.innerHTML=_html(c,_getMoney());
+}
+
+function _html(c,money){
+  var r=c.room, dark=_darkness(r), rp=_roomPalette(), mn=_masterName();
+  var isSimple=_s.viewMode==='simple';
+  return (
+    // 整体容器
+    '<div style="font-family:\'Noto Serif SC\',serif;min-height:100%;display:flex;flex-direction:column;color:var(--txt,#ede6f8)">'
+
+    // ── 顶栏 ──
+    +'<div style="display:flex;align-items:center;padding:8px 4px 8px 14px;background:'+rp.header+';flex-shrink:0">'
+    +'<div style="flex:1"><div style="font-size:1.05rem;font-weight:bold;color:#fff">🛏️ 奴隶房间</div></div>'
+    +(isSimple
+      ?'<button onclick="_srSetMode(\'room\')" style="padding:4px 11px;border-radius:16px;border:1px solid rgba(255,255,255,0.3);background:rgba(255,255,255,0.12);color:#fff;cursor:pointer;font-size:.76rem;font-family:inherit;margin-right:4px">🏠 房间</button>'
+      :'<span style="font-size:.82rem;color:rgba(255,255,255,0.7);margin-right:4px;white-space:nowrap">💰 '+money.toLocaleString()+'</span>'
+    )
+    +'<button onclick="closeOv(\'ov-slave-room\')" style="flex-shrink:0;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:none;color:rgba(255,255,255,0.4);font-size:.88rem;cursor:pointer">✕</button>'
+    +'</div>'
+
+    // ── 标签栏（简单模式下隐藏）──
+    +(isSimple?''
+      :'<div style="display:flex;gap:5px;padding:6px 10px;background:'+rp.header+';align-items:center;border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0">'
+      +_tab('room','🏠 房间',_s.viewMode)+_tab('interact','💬 互动',_s.viewMode)
+      +'<button onclick="_srToggleSimple()" style="padding:4px 10px;border-radius:16px;border:1px solid transparent;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);cursor:pointer;font-size:.75rem;font-family:inherit">≡ 简单</button>'
+      +'<button onclick="_srOpenSettings()" style="padding:4px 10px;border-radius:16px;border:1px solid transparent;background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.5);cursor:pointer;font-size:.75rem;font-family:inherit">⚙ 设置</button>'
+      +'<div style="flex:1"></div>'
+      +'</div>'
+    )
+    
+    
+    // ── 内容区 ──
+    +'<div style="flex:1;overflow-y:auto">'
+    +(isSimple?_simpleView(r,money,rp)
+      :_s.viewMode==='room'?_roomSVG(r,dark,c,rp)
+      :_interactView(rp))
+    +'</div>'
+
+    // ── 弹层 ──
+    +(_s.action?_actionSheet(_s.action,r,money,rp):'')
+    +(_s.story?_storyModal(_s.story,rp):'')
+    +(_s.modal?_upgradeModal(_s.modal,money,rp):'')
+    +'</div>'
+  );
+}
+
+function _tab(m,l,cur){
+  var a=cur===m;
+  var bg=a?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.08)';
+  var fc=a?'#fff':'rgba(255,255,255,0.55)';
+  return '<button onclick="_srSetMode(\''+m+'\')" style="padding:5px 12px;border-radius:16px;border:'+(a?'1px solid rgba(255,255,255,0.4)':'1px solid transparent')+';background:'+bg+';color:'+fc+';cursor:pointer;font-size:.78rem;font-family:inherit">'+l+'</button>';
+}
+function _tog(on,fn,l){
+  return '<button onclick="'+fn+'" style="padding:4px 9px;border-radius:14px;border:1px solid rgba(255,255,255,0.2);background:'+(on?'rgba(255,255,255,0.2)':'transparent')+';color:'+(on?'#fff':'rgba(255,255,255,0.4)')+';cursor:pointer;font-size:.72rem;font-family:inherit">'+l+'</button>';
+}
+
+// ── 简单模式（设施列表 + 家具互动 + 装饰 + 奴隶互动）──────
+function _simpleView(r,money,rp){
+  var allKeys=Object.keys(FD).concat(Object.keys(_SIMPLE_EXTRA));
+  var rows=allKeys.map(function(key){
+    var fd=FD[key]||_SIMPLE_EXTRA[key];
+    var l=r[key]||0;
+    var cost=l<3?fd.costs[l]:null, ok=cost!=null&&money>=cost;
+    var ib='';
+    if(key==='window'&&l>=2){ib='<button onclick="_srQuick(\'window\')" style="'+_siBs(rp)+'">'+( r.winOpen?'🔒 关窗':'🌬️ 开窗')+'</button>';}
+    else if(key==='lamp'&&l>0){ib='<button onclick="_srQuick(\'lamp\')" style="'+_siBs(rp)+'">'+(r.lampOn!==false?'🌑 关灯':'💡 开灯')+'</button>';}
+    else if(key==='bed'&&l>0) {ib='<button onclick="_srQuick(\'bed\')"   style="'+_siBs(rp)+'">🛏️ 一起躺</button>';}
+    else if(key==='ward'&&l>0){ib='<button onclick="_srQuick(\'ward\')"  style="'+_siBs(rp)+'">👗 查看</button>';}
+    else if(key==='fun'&&l>0) {ib='<button onclick="_srQuick(\'fun\')"   style="'+_siBs(rp)+'">🎵 互动</button>';}
+    else if(key==='shelf'&&l>0){ib='<button onclick="_srQuick(\'shelf\')" style="'+_siBs(rp)+'">📚 看书</button>';}
+    var ub=cost!=null
+      ?'<button onclick="_srDirectUpgrade(\''+key+'\')" style="padding:7px 10px;border-radius:9px;border:'+(ok?'none':'1px solid '+rp.cardBrd)+';background:'+(ok?rp.acc:rp.card)+';color:'+(ok?'#fff':rp.sub)+';cursor:'+(ok?'pointer':'not-allowed')+';font-size:.71rem;font-weight:bold;font-family:inherit;white-space:nowrap">'+(ok?'↑ ':'⚠ ')+'升级 ¥'+cost+'</button>'
+      :'<span style="font-size:.67rem;color:'+rp.acc+';padding:4px 8px;background:'+rp.acc+'18;border-radius:7px;white-space:nowrap">✓ 满级</span>';
+    var dots='<div style="display:flex;gap:3px;margin-top:5px">'
+      +[0,1,2,3].map(function(i){return '<div style="width:12px;height:2.5px;border-radius:2px;background:'+(i<l?rp.acc:i===l&&l<3?rp.acc+'40':rp.dot)+'"></div>';}).join('')
+      +'</div>';
+    return '<div style="display:flex;align-items:center;gap:9px;padding:11px 13px;margin-bottom:7px;background:'+rp.card+';border-radius:14px;border:1px solid '+rp.cardBrd+'">'
+      +'<div style="font-size:1.5rem;flex-shrink:0">'+fd.icon+'</div>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:.84rem;font-weight:bold;color:'+rp.txt+';white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+fd.name+'</div>'
+      +'<div style="font-size:.68rem;color:'+rp.sub+';margin-top:1px">'+fd.levels[l]+'</div>'
+      +dots+'</div>'
+      +(ib?'<div style="flex-shrink:0">'+ib+'</div>':'')
+      +'<div style="flex-shrink:0">'+ub+'</div></div>';
+  }).join('');
+  var abts=SLAVE_ACTIONS.map(function(a){
+    return '<button onclick="_srSlaveAction(\''+a.type+'\')" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px 6px;border-radius:14px;border:1px solid '+rp.cardBrd+';background:'+rp.card+';color:'+rp.txt+';cursor:pointer;font-family:inherit;font-size:.78rem;font-weight:bold;min-height:68px;width:100%">'
+      +'<span style="font-size:1.6rem">'+a.icon+'</span><span>'+a.label+'</span></button>';
+  }).join('');
+  return '<div style="padding:12px 13px 24px;background:'+rp.wall+';min-height:100%">'
+    +'<div style="display:flex;align-items:center;margin-bottom:9px">'
+    +'<div style="font-size:.64rem;font-weight:600;color:'+rp.sub+';letter-spacing:.14em;flex:1;padding-left:2px">🏠  房间设施</div>'
+    +'<span style="font-size:.8rem;color:'+rp.sub+';padding-right:2px">💰 '+money.toLocaleString()+'</span>'
+    +'</div>'
+    +rows
+    +'<div style="font-size:.64rem;font-weight:600;color:'+rp.sub+';letter-spacing:.14em;margin:18px 0 9px;padding-left:2px">💬  与奴隶互动</div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'+abts+'</div>'
+    +'</div>';
+}
+function _siBs(rp){return 'padding:6px 10px;border-radius:9px;border:1px solid '+rp.acc+'40;background:'+rp.acc+'18;color:'+rp.acc+';cursor:pointer;font-size:.72rem;font-family:inherit;white-space:nowrap';}
+
+// ── 动作面板（长按触发）────────────────────────────────
+function _actionSheet(key,room,money,rp){
+  var fd=FD[key], l=room[key]||0, flavor=FLAVOR[key]?FLAVOR[key][l]:'', btns='';
+  if(key==='window'){
+    if(l>=2){var oi=room.winOpen?1:0;btns+='<button onclick="_srInteract(\'window\','+oi+')" style="'+_bs(rp.acc,false,rp)+'">'+(room.winOpen?'🔒 关上窗户':'🌬️ 推开窗户')+'</button>';}
+    else btns+='<button onclick="_srInteract(\'window\',2)" style="'+_bs(rp.card,true,rp)+'">👀 靠近窗边</button>';
+  } else if(key==='lamp'){
+    if(l>0){var li=room.lampOn?1:0;btns+='<button onclick="_srInteract(\'lamp\','+li+')" style="'+_bs(rp.acc,false,rp)+'">'+(room.lampOn!==false?'🌑 熄灭灯火':'💡 点亮灯火')+'</button>';}
+  } else if(l>0&&IS[key]){
+    btns+='<button onclick="_srInteract(\''+key+'\',0)" style="'+_bs(rp.acc,false,rp)+'">'+IS[key][0][0]+'</button>';
+  }
+  if(l<3){var cost=fd.costs[l],ok=money>=cost;
+    btns+='<button onclick="_srUpgrade(\''+key+'\')" style="'+_bs(ok?'linear-gradient(135deg,rgba(50,140,50,0.9),rgba(30,100,30,0.9))':rp.card,ok?false:true,rp)+'">'+(ok?'⬆ ':'⚠ ')+'升级 ¥'+cost+'</button>';
+  }
+  var btnCnt=btns.split('<button').length-1;
+  _portal('_srActionPortal','<div onclick="_srCloseAction()" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;z-index:9999;backdrop-filter:blur(3px)">'
+    +'<div onclick="event.stopPropagation()" style="position:relative;background:'+rp.modal+';border-radius:26px 26px 0 0;padding:22px 20px 32px;width:100%;box-sizing:border-box;border-top:2px solid '+rp.acc+'40;box-shadow:0 -24px 64px rgba(0,0,0,0.6)">'
+    +'<div onclick="_srCloseAction()" style="position:absolute;top:14px;right:16px;cursor:pointer;color:'+rp.mSub+';font-size:1.1rem;line-height:1;padding:4px 8px;border-radius:50%;background:'+rp.card+'">✕</div>'
+    +'<div style="width:44px;height:4px;background:'+rp.acc+'30;border-radius:2px;margin:0 auto 22px"></div>'
+    +'<div style="display:flex;align-items:center;gap:13px;margin-bottom:16px">'
+    +'<div style="width:52px;height:52px;border-radius:16px;background:'+rp.acc+'18;border:1px solid '+rp.acc+'35;display:flex;align-items:center;justify-content:center;font-size:1.7rem;flex-shrink:0">'+fd.icon+'</div>'
+    +'<div><div style="font-size:.96rem;font-weight:bold;color:'+rp.mTxt+'">'+fd.name+'</div>'
+    +'<div style="font-size:.73rem;color:'+rp.acc+';margin-top:4px">'+fd.levels[l]+(l>=3?' · ✓ 满级':'')+'</div></div></div>'
+    +(flavor?'<div style="font-size:.8rem;color:'+rp.mSub+';margin-bottom:18px;padding:13px 15px;background:'+rp.card+';border-radius:13px;line-height:1.75;border-left:3px solid '+rp.acc+'55">'+flavor+'</div>':'')
+    +'<div style="display:grid;grid-template-columns:'+(btnCnt>1?'1fr 1fr':'1fr')+';gap:10px">'
+    +btns
+    +'</div></div></div>');
+  return '';
+}
+function _bs(bg,g,rp){ var bc=g&&rp?'1px solid '+rp.cardBrd:g?'1px solid rgba(255,255,255,0.09)':'none'; var tc=g&&rp?rp.sub:'#fff'; return 'padding:13px 10px;border-radius:13px;border:'+bc+';background:'+bg+';color:'+tc+';cursor:pointer;font-size:.84rem;font-family:inherit;font-weight:'+(g?'normal':'bold')+';text-align:center'; }
+
+// ── 故事弹窗 ──────────────────────────────────────────────
+function _storyModal(s,rp){
+  _portal('_srStoryPortal','<div onclick="_srCloseStory()" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:center;padding:24px 16px;z-index:9999;backdrop-filter:blur(3px);box-sizing:border-box">'
+    +'<div onclick="event.stopPropagation()" style="width:100%;max-width:400px;margin:0 auto;border-radius:22px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.7),0 0 0 1px '+rp.acc+'30;background:'+rp.modal+';display:flex;flex-direction:column;max-height:calc(100dvh - 48px)">'
+    +'<div style="background:'+rp.modalH+';padding:18px 22px;position:relative;overflow:hidden;flex-shrink:0">'
+    +'<div style="position:absolute;right:-30px;top:-30px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,0.06)"></div>'
+    +'<div style="position:absolute;left:35px;bottom:-30px;width:70px;height:70px;border-radius:50%;background:rgba(255,255,255,0.04)"></div>'
+    +'<div onclick="_srCloseStory()" style="position:absolute;top:10px;right:12px;cursor:pointer;color:rgba(255,255,255,0.8);font-size:1.1rem;line-height:1;z-index:2">✕</div>'
+    +'<div style="font-size:.56rem;color:rgba(255,255,255,0.5);letter-spacing:.22em;margin-bottom:5px;position:relative">✦ S T O R Y ✦</div>'
+    +'<div style="font-size:1rem;font-weight:bold;color:#fff;position:relative">'+s.title+'</div>'
+    +'</div>'
+    +'<div style="padding:20px 22px;font-size:.87rem;line-height:2;color:'+rp.mSub+';overflow-y:auto;flex:1">'+s.text+'</div>'
+    +'</div></div>');
+  return '';
+}
+// ── 升级确认弹窗 ──────────────────────────────────────────
+function _upgradeModal(m,money,rp){
+  var fd=FD[m.key], cost=fd.costs[m.from], ok=money>=cost;
+  _portal('_srUpgradePortal','<div onclick="_srCloseModal()" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;z-index:9999;backdrop-filter:blur(3px)">'
+    +'<div onclick="event.stopPropagation()" style="background:'+rp.modal+';border-radius:26px 26px 0 0;padding:26px 22px 36px;width:100%;box-sizing:border-box;border-top:2px solid '+rp.acc+'40;box-shadow:0 -24px 64px rgba(0,0,0,0.6)">'
+    +'<div style="width:44px;height:4px;background:'+rp.acc+'30;border-radius:2px;margin:0 auto 26px"></div>'
+    +'<div style="display:flex;align-items:center;gap:14px;margin-bottom:22px">'
+    +'<div style="width:60px;height:60px;border-radius:18px;flex-shrink:0;background:'+rp.acc+'18;border:1px solid '+rp.acc+'35;display:flex;align-items:center;justify-content:center;font-size:2rem">'+fd.icon+'</div>'
+    +'<div><div style="font-size:1.05rem;font-weight:bold;color:'+rp.mTxt+'">升级「'+fd.name+'」</div>'
+    +'<div style="display:flex;gap:4px;margin-top:8px">'
+    +[0,1,2,3].map(function(i){return '<div style="width:18px;height:3px;border-radius:2px;background:'+(i<=m.from?rp.acc:rp.dot)+'"></div>';}).join('')
+    +'</div></div></div>'
+    +'<div style="display:flex;align-items:stretch;border-radius:16px;overflow:hidden;border:1px solid '+rp.cardBrd+';margin-bottom:16px">'
+    +'<div style="flex:1;padding:13px 15px;background:'+rp.card+'">'
+    +'<div style="font-size:.6rem;color:'+rp.mSub+';letter-spacing:.1em;margin-bottom:7px">当前</div>'
+    +'<div style="font-size:.84rem;color:'+rp.mSub+'">'+fd.levels[m.from]+'</div></div>'
+    +'<div style="width:1px;background:'+rp.cardBrd+'"></div>'
+    +'<div style="font-size:1.1rem;padding:0 12px;display:flex;align-items:center;color:'+rp.acc+'80">→</div>'
+    +'<div style="width:1px;background:'+rp.cardBrd+'"></div>'
+    +'<div style="flex:1;padding:13px 15px;background:'+rp.acc+'12">'
+    +'<div style="font-size:.6rem;color:'+rp.acc+';letter-spacing:.1em;margin-bottom:7px">升级后</div>'
+    +'<div style="font-size:.9rem;font-weight:bold;color:'+rp.acc+'">'+fd.levels[m.to]+'</div></div></div>'
+    +'<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 15px;background:'+rp.card+';border-radius:12px;margin-bottom:22px;border:1px solid '+rp.cardBrd+'">'
+    +'<span style="font-size:.82rem;color:'+rp.mSub+'">费用</span>'
+    +'<div style="display:flex;align-items:baseline;gap:8px">'
+    +'<span style="font-size:1.12rem;font-weight:bold;color:'+(ok?'#f0c050':rp.acc)+'">¥ '+cost.toLocaleString()+'</span>'
+    +'<span style="font-size:.7rem;color:'+rp.mSub+'">持有 '+money.toLocaleString()+'</span>'
+    +'</div></div>'
+    +'<div style="display:flex;gap:10px">'
+    +'<button onclick="_srCloseModal()" style="flex:1;padding:13px;border-radius:14px;border:1px solid '+rp.cardBrd+';background:transparent;color:'+rp.mSub+';cursor:pointer;font-size:.87rem;font-family:inherit">取消</button>'
+    +'<button onclick="'+(ok?'_srConfirm()':'void 0')+'" style="flex:2;padding:13px;border-radius:14px;border:none;background:'+(ok?rp.acc:rp.card)+';color:'+(ok?'#fff':rp.mSub)+';cursor:'+(ok?'pointer':'not-allowed')+';font-size:.9rem;font-weight:bold;font-family:inherit">'+(ok?'✓ 确认升级':'⚠ 金币不足')+'</button>'
+    +'</div></div></div>');
+  return '';
+}
+// ── 互动 Tab ──────────────────────────────────────────────
+function _interactView(rp){
+  var btns=SLAVE_ACTIONS.map(function(a){
+    return '<button onclick="_srSlaveAction(\''+a.type+'\')" style="width:calc(50% - 6px);padding:22px 8px;border-radius:14px;border:none;background:'+rp.header+';color:#fff;cursor:pointer;font-family:inherit;display:flex;flex-direction:column;align-items:center;gap:10px">'
+      +'<span style="font-size:2.2rem">'+a.icon+'</span>'
+      +'<span style="font-size:.9rem;font-weight:bold">'+a.label+'</span>'
+      +'</button>';
+  }).join('');
+  return '<div style="padding:16px 12px;background:'+rp.wall+';min-height:100%">'
+    +'<div style="display:flex;flex-wrap:wrap;gap:12px">'+btns+'</div>'
+    +'</div>';
+}
+
+
+function _charSVG(who,cx,r,c){
+  var img=r[who==='master'?'masterImg':'slaveImg'];
+  if(img){
+    var scale=r[who==='master'?'masterImgScale':'slaveImgScale']||1.0;
+    var iw=Math.round(96*scale), ih=Math.round(138*scale);
+    return '<image href="'+img+'" x="'+(cx-iw/2)+'" y="'+(FLOOR-ih)+'" width="'+iw+'" height="'+ih+'" preserveAspectRatio="xMidYMax meet"/>';
+  }
+  return who==='master'?_svgMaster(cx,FLOOR):_svgSlave(cx,FLOOR,c);
+}
+
+// ── 房间 SVG ──────────────────────────────────────────────
+function _roomSVG(r,dark,c,rp){
+  var mx=r.masterX, sx=r.slaveX, mn=_masterName();
+  var showM=_s.showMaster, showS=_s.showSlave;
+  var areas=Object.keys(FD).map(function(key){
+    var a=FD[key].area;
+    return '<g ontouchstart="_srTS(\''+key+'\',event)" ontouchend="_srTE(\''+key+'\',event)" onclick="_srCK(\''+key+'\')" style="cursor:pointer">'
+      +'<rect x="'+a.x+'" y="'+a.y+'" width="'+a.w+'" height="'+a.h+'" fill="rgba(0,0,0,0.001)"/></g>';
+  }).join('');
+  var marr=''; var sarr=''; // 箭头已替换为拖拽
+  var wind=r.winOpen&&r.window>=2
+    ?'<path d="M90,125 Q102,120 114,125 Q126,130 138,125" fill="none" stroke="#a0c8e0" stroke-width="1.5" opacity="0.5"/>'
+     +'<path d="M95,140 Q109,135 123,140" fill="none" stroke="#a0c8e0" stroke-width="1" opacity="0.35"/>':'';
+
+  return '<div style="padding:0">'
+    +'<svg viewBox="0 0 '+RW+' '+RH+'" width="100%" style="display:block;user-select:none;touch-action:manipulation" preserveAspectRatio="xMidYMid meet">'
+    // 背景填充
+    +'<rect width="'+RW+'" height="'+RH+'" fill="'+rp.wall+'"/>'
+    // 天花板（明显比墙深）
+    +'<rect width="'+RW+'" height="'+CEIL+'" fill="'+rp.ceil+'"/>'
+    +'<rect x="0"   y="0" width="7"  height="'+CEIL+'" fill="'+rp.beam+'" opacity="0.8"/>'
+    +'<rect x="95"  y="0" width="7"  height="'+CEIL+'" fill="'+rp.beam+'" opacity="0.8"/>'
+    +'<rect x="190" y="0" width="7"  height="'+CEIL+'" fill="'+rp.beam+'" opacity="0.8"/>'
+    +'<rect x="285" y="0" width="7"  height="'+CEIL+'" fill="'+rp.beam+'" opacity="0.8"/>'
+    // 主人/奴隶名字标签——墙壁右上，可点击切换显示/隐藏
+    +'<g onclick="_srToggleMaster()" style="cursor:pointer">'
+    +'<rect x="'+(RW-74)+'" y="'+(CEIL+6)+'" width="70" height="30" rx="7" fill="rgba(255,255,255,'+(showM?'0.22':'0.06')+')" stroke="rgba(255,255,255,'+(showM?'0.50':'0.15')+')" stroke-width="0.8"/>'
+    +'<text x="'+(RW-39)+'" y="'+(CEIL+26)+'" text-anchor="middle" font-size="13" font-weight="bold" fill="rgba(255,255,255,'+(showM?'0.92':'0.28')+')" font-family="Noto Serif SC,serif">'+mn+'</text>'
+    +'</g>'
+    +'<g onclick="_srToggleSlave()" style="cursor:pointer">'
+    +'<rect x="'+(RW-74)+'" y="'+(CEIL+40)+'" width="70" height="30" rx="7" fill="rgba(255,255,255,'+(showS?'0.22':'0.06')+')" stroke="rgba(255,255,255,'+(showS?'0.50':'0.15')+')" stroke-width="0.8"/>'
+    +'<text x="'+(RW-39)+'" y="'+(CEIL+60)+'" text-anchor="middle" font-size="13" font-weight="bold" fill="rgba(255,255,255,'+(showS?'0.92':'0.28')+')" font-family="Noto Serif SC,serif">'+(c.name||'奴隶')+'</text>'
+    +'</g>'
+    // 墙壁纹路
+    +'<line x1="0" y1="'+(CEIL+58)+'"  x2="'+RW+'" y2="'+(CEIL+58)+'"  stroke="'+rp.wallD+'" stroke-width="0.8" opacity="0.6"/>'
+    +'<line x1="0" y1="'+(CEIL+114)+'" x2="'+RW+'" y2="'+(CEIL+114)+'" stroke="'+rp.wallD+'" stroke-width="0.8" opacity="0.6"/>'
+    +'<line x1="0" y1="'+(CEIL+170)+'" x2="'+RW+'" y2="'+(CEIL+170)+'" stroke="'+rp.wallD+'" stroke-width="0.8" opacity="0.6"/>'
+    +'<line x1="0" y1="'+(CEIL+226)+'" x2="'+RW+'" y2="'+(CEIL+226)+'" stroke="'+rp.wallD+'" stroke-width="0.8" opacity="0.6"/>'
+    +'<line x1="0" y1="'+(CEIL+282)+'" x2="'+RW+'" y2="'+(CEIL+282)+'" stroke="'+rp.wallD+'" stroke-width="0.8" opacity="0.6"/>'
+    // 地板（明显比墙深）
+    +'<rect x="0"   y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fa+'"/>'
+    +'<rect x="46"  y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fb+'"/>'
+    +'<rect x="92"  y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fa+'"/>'
+    +'<rect x="138" y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fb+'"/>'
+    +'<rect x="184" y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fa+'"/>'
+    +'<rect x="230" y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fb+'"/>'
+    +'<rect x="276" y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fa+'"/>'
+    +'<rect x="322" y="'+FLOOR+'" width="46" height="'+(RH-FLOOR)+'" fill="'+rp.fb+'"/>'
+    +'<line x1="0" y1="'+FLOOR+'" x2="'+RW+'" y2="'+FLOOR+'" stroke="'+rp.beam+'" stroke-width="3"/>'
+    // 家具
+    +_svgWindow(r.window,r.winOpen)
+    +_svgLamp(r.lamp,r.lampOn)
+    +_svgShelf(r.shelf)
+    +_svgWard(r.ward)
+    +_svgFun(r.fun)
+    +_svgBed(r.bed)
+    +wind
+    // 家具点击区（在人物下层，不再遮挡人物）
+    +areas+marr+sarr
+    // 人物（在家具热区上层，触摸事件优先响应）
+    +(_s.showSlave?'<g id="_srSG" ontouchstart="_srDragS(\'slave\',event)" ontouchmove="_srDragM(event)" ontouchend="_srDragE(event)" style="cursor:grab;touch-action:none">'
+      +'<rect x="'+(sx-24)+'" y="'+(FLOOR-88)+'" width="48" height="88" fill="rgba(0,0,0,0.001)"/>'
+      +_charSVG('slave',sx,r,c)+'</g>':'')
+    +(_s.showMaster?'<g id="_srMG" ontouchstart="_srDragS(\'master\',event)" ontouchmove="_srDragM(event)" ontouchend="_srDragE(event)" style="cursor:grab;touch-action:none">'
+      +'<rect x="'+(mx-24)+'" y="'+(FLOOR-88)+'" width="48" height="88" fill="rgba(0,0,0,0.001)"/>'
+      +_charSVG('master',mx,r,c)+'</g>':'')
+    // 亮度遮罩（无光晕，只整体暗度）
+    +(dark>0?'<rect width="'+RW+'" height="'+RH+'" fill="black" opacity="'+dark+'" pointer-events="none"/>':'')
+    // 对话气泡
+    +(_s.speech?_svgBubble(_s.speech,mx,sx):'')
+    +'<text x="'+RW/2+'" y="'+(RH-5)+'" text-anchor="middle" font-size="8.5" fill="rgba(255,255,255,0.35)">拖拽移动 · 点击说话 · 长按升级</text>'
+    +'</svg></div>';
+}
+
+function _svgBubble(sp,mx,sx){
+  var x=sp.who==='master'?mx:sx;
+  var bw=130, bh=38, br=12;
+  // 气泡在头顶上方，不遮挡人物
+  var by=FLOOR-bh-90;
+  var bx=Math.max(6,Math.min(RW-bw-6,x-bw/2));
+  var tx=bx+bw/2, ty=by+bh*0.63;
+  var px=Math.min(bx+bw-12,Math.max(bx+12,x));
+  var tipY=by+bh+12;
+  return '<g pointer-events="none">'
+    // 阴影层
+    +'<rect x="'+(bx+2)+'" y="'+(by+3)+'" width="'+bw+'" height="'+bh+'" rx="'+br+'" fill="rgba(0,0,0,0.18)"/>'
+    +'<polygon points="'+(px-5)+','+(by+bh+1)+' '+(px+5)+','+(by+bh+1)+' '+px+','+(tipY+3)+'" fill="rgba(0,0,0,0.18)"/>'
+    // 气泡主体
+    +'<rect x="'+bx+'" y="'+by+'" width="'+bw+'" height="'+bh+'" rx="'+br+'" fill="rgba(255,255,255,0.97)" stroke="rgba(150,80,110,0.2)" stroke-width="1"/>'
+    // 三角尾巴（指向头顶）
+    +'<polygon points="'+(px-5)+','+(by+bh)+' '+(px+5)+','+(by+bh)+' '+px+','+tipY+'" fill="rgba(255,255,255,0.97)"/>'
+    // 文字
+    +'<text x="'+tx+'" y="'+ty+'" text-anchor="middle" font-size="11.5" fill="#2a1028" font-family="Noto Serif SC,serif">'+sp.text+'</text>'
+    +'</g>';
+}
+
+
+
+// ── SVG 家具 ─────────────────────────────────────────────
+
+function _svgWindow(l,open){
+  var x=14,y=78,w=64,h=100;
+  if(l===0) return '<g>'
+    +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="#5c3816"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+5)+'"  width="'+(w-6)+'" height="13" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+23)+'" width="'+(w-6)+'" height="13" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+41)+'" width="'+(w-6)+'" height="13" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+59)+'" width="'+(w-6)+'" height="13" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+77)+'" width="'+(w-6)+'" height="13" fill="#7a5028" rx="1"/>'
+    +'<line x1="'+(x+5)+'" y1="'+(y+5)+'" x2="'+(x+w-5)+'" y2="'+(y+h-5)+'" stroke="#3a1808" stroke-width="3" stroke-linecap="round"/>'
+    +'<line x1="'+(x+w-5)+'" y1="'+(y+5)+'" x2="'+(x+5)+'" y2="'+(y+h-5)+'" stroke="#3a1808" stroke-width="3" stroke-linecap="round"/></g>';
+  if(l===1) return '<g>'
+    +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="#5c3816"/>'
+    +'<rect x="'+(x+8)+'" y="'+(y+5)+'" width="'+(w-16)+'" height="13" fill="#b8dff0" rx="2"/>'
+    +'<rect x="'+(x+8)+'" y="'+(y+5)+'" width="'+(w-16)+'" height="13" fill="none" stroke="#5a3818" stroke-width="1.5" rx="2"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+23)+'" width="'+(w-6)+'" height="14" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+45)+'" width="'+(w-6)+'" height="14" fill="#7a5028" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+67)+'" width="'+(w-6)+'" height="14" fill="#7a5028" rx="1"/></g>';
+  var pw=(w-8)/2, gc=open?'#90c8f0':'#78aed0';
+  if(l===2) return '<g>'
+    +'<rect x="'+(x-2)+'" y="'+(y-3)+'" width="'+(w+4)+'" height="'+(h+3)+'" fill="#5a3818" rx="3"/>'
+    +'<rect x="'+(x+2)+'" y="'+(y+2)+'" width="'+pw+'" height="'+(h-4)+'" fill="'+gc+'"/>'
+    +'<rect x="'+(x+2)+'" y="'+(y+2+(h-4)*0.52)+'" width="'+pw+'" height="'+((h-4)*0.48)+'" fill="#60a840"/>'
+    +'<rect x="'+(x+6+pw)+'" y="'+(y+2)+'" width="'+pw+'" height="'+(h-4)+'" fill="'+gc+'"/>'
+    +'<rect x="'+(x+6+pw)+'" y="'+(y+2+(h-4)*0.52)+'" width="'+pw+'" height="'+((h-4)*0.48)+'" fill="#60a840"/>'
+    +'<line x1="'+(x+w/2)+'" y1="'+(y-3)+'" x2="'+(x+w/2)+'" y2="'+(y+h)+'" stroke="#5a3818" stroke-width="3"/>'
+    +'<line x1="'+(x-2)+'" y1="'+(y+h/2)+'" x2="'+(x+w+2)+'" y2="'+(y+h/2)+'" stroke="#5a3818" stroke-width="2"/>'
+    +'<rect x="'+(x+4)+'" y="'+(y+4)+'" width="4" height="18" fill="rgba(255,255,255,0.45)" rx="1"/></g>';
+  var co=open?0.82:0.96;
+  return '<g>'
+    +'<rect x="'+(x-4)+'" y="'+(y-5)+'" width="'+(w+8)+'" height="'+(h+5)+'" fill="#5a3818" rx="4"/>'
+    +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="'+gc+'"/>'
+    +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+(h*0.5)+'" fill="#a0ccf0"/>'
+    +(open?'<ellipse cx="'+(x+20)+'" cy="'+(y+15)+'" rx="14" ry="6" fill="white" opacity="0.8"/><ellipse cx="'+(x+46)+'" cy="'+(y+25)+'" rx="11" ry="5" fill="white" opacity="0.65"/>':'')
+    +'<rect x="'+x+'" y="'+(y+h*0.5)+'" width="'+w+'" height="'+(h*0.5)+'" fill="#58a038"/>'
+    +'<line x1="'+(x+w/2)+'" y1="'+y+'" x2="'+(x+w/2)+'" y2="'+(y+h)+'" stroke="#5a3818" stroke-width="3"/>'
+    +'<line x1="'+x+'" y1="'+(y+h/2)+'" x2="'+(x+w)+'" y2="'+(y+h/2)+'" stroke="#5a3818" stroke-width="2"/>'
+    +'<rect x="'+(x+2)+'" y="'+(y+2)+'" width="4" height="22" fill="rgba(255,255,255,0.5)" rx="1"/>'
+    +'<path d="M'+(x-4)+','+(y-5)+' Q'+(x+13)+','+(y+h*0.36)+' '+(x-4)+','+(y+h)+'" fill="#7858a8" opacity="'+co+'"/>'
+    +'<path d="M'+(x+w+4)+','+(y-5)+' Q'+(x+w-13)+','+(y+h*0.36)+' '+(x+w+4)+','+(y+h)+'" fill="#7858a8" opacity="'+co+'"/>'
+    +'<circle cx="'+(x+7)+'" cy="'+(y+h*0.38)+'" r="5" fill="#c8a030"/>'
+    +'<circle cx="'+(x+w-7)+'" cy="'+(y+h*0.38)+'" r="5" fill="#c8a030"/></g>';
+}
+
+function _svgLamp(l,on){
+  var cx=175, gc=on?'#c8a030':'#6a5a40';
+  if(l===0) return '';
+  // 无光晕效果，只有灯体本身
+  var flame=on?'<ellipse cx="'+cx+'" cy="'+(CEIL+7)+'" rx="4" ry="5" fill="#ff8020" opacity="0.9"/><ellipse cx="'+cx+'" cy="'+(CEIL+10)+'" rx="2" ry="3" fill="#fff060" opacity="0.8"/>':'';
+  if(l===1) return '<g>'
+    +'<line x1="'+cx+'" y1="'+CEIL+'" x2="'+cx+'" y2="'+(CEIL+16)+'" stroke="#7a4c1e" stroke-width="2"/>'
+    +'<rect x="'+(cx-13)+'" y="'+(CEIL+16)+'" width="26" height="5" fill="'+gc+'" rx="1"/>'
+    +'<rect x="'+(cx-4)+'" y="'+(CEIL+9)+'" width="8" height="8" fill="#f0e0c0" rx="1"/>'+flame+'</g>';
+  if(l===2){
+    var f2=on?'<ellipse cx="'+cx+'" cy="'+(CEIL+23)+'" rx="4.5" ry="7" fill="#ff8020" opacity="0.85"/><ellipse cx="'+cx+'" cy="'+(CEIL+27)+'" rx="2.5" ry="3.5" fill="#fff060" opacity="0.8"/>':'';
+    return '<g>'
+      +'<line x1="'+cx+'" y1="'+CEIL+'" x2="'+cx+'" y2="'+(CEIL+30)+'" stroke="#9a8060" stroke-width="2" stroke-dasharray="3,2"/>'
+      +'<rect x="'+(cx-9)+'" y="'+(CEIL+27)+'" width="18" height="10" fill="'+gc+'" rx="2"/>'
+      +'<ellipse cx="'+cx+'" cy="'+(CEIL+40)+'" rx="14" ry="7" fill="'+gc+'"/>'
+      +'<path d="M'+(cx-11)+','+(CEIL+34)+' Q'+cx+','+(CEIL+52)+' '+(cx+11)+','+(CEIL+34)+'" fill="'+gc+'"/>'+f2+'</g>';
+  }
+  var arms='';
+  [-28,-14,0,14,28].forEach(function(dx){
+    var af=on?'<rect x="'+(cx+dx-3)+'" y="'+(CEIL+25)+'" width="6" height="8" fill="#f0e0c0" rx="1"/><ellipse cx="'+(cx+dx)+'" cy="'+(CEIL+23)+'" rx="3.5" ry="5" fill="#ff8020" opacity="0.9"/><ellipse cx="'+(cx+dx)+'" cy="'+(CEIL+27)+'" rx="2" ry="3" fill="#fff060" opacity="0.8"/>':'';
+    arms+='<path d="M'+cx+','+(CEIL+17)+' Q'+(cx+dx*0.7)+','+(CEIL+26)+' '+(cx+dx)+','+(CEIL+32)+'" fill="none" stroke="'+gc+'" stroke-width="2"/>'
+      +'<ellipse cx="'+(cx+dx)+'" cy="'+(CEIL+35)+'" rx="5" ry="4" fill="'+gc+'"/>'+af;
+  });
+  return '<g><line x1="'+cx+'" y1="'+CEIL+'" x2="'+cx+'" y2="'+(CEIL+14)+'" stroke="#4a2c10" stroke-width="3"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(CEIL+17)+'" rx="22" ry="7" fill="'+gc+'"/>'+arms
+    +'<rect x="'+(cx-4)+'" y="'+(CEIL+9)+'" width="8" height="10" fill="#f0e0c0" rx="1"/>'+flame+'</g>';
+}
+
+function _svgShelf(l){
+  var x=10,y=202,w=75;
+  if(l===0) return '';
+  if(l===1) return '<g>'
+    +'<rect x="'+(x+4)+'" y="'+(FLOOR-14)+'" width="24" height="12" fill="#882020" rx="1"/>'
+    +'<rect x="'+(x+4)+'" y="'+(FLOOR-26)+'" width="22" height="12" fill="#203860" rx="1"/>'
+    +'<rect x="'+(x+30)+'" y="'+(FLOOR-12)+'" width="20" height="10" fill="#285830" rx="1"/>'
+    +'<rect x="'+(x+30)+'" y="'+(FLOOR-22)+'" width="18" height="10" fill="#604018" rx="1"/>'
+    +'<rect x="'+(x+8)+'" y="'+(FLOOR-36)+'" width="17" height="10" fill="#882020" rx="1"/></g>';
+  if(l===2){var b='',bk=['#882020','#203860','#285830','#604018'];
+    for(var s=0;s<3;s++) for(var bi=0;bi<4;bi++) b+='<rect x="'+(x+6+bi*16)+'" y="'+(y+8+s*38)+'" width="13" height="27" fill="'+bk[bi]+'" rx="1"/>';
+    return '<g><rect x="'+x+'" y="'+y+'" width="'+w+'" height="162" fill="#7a4c1e" rx="2"/>'
+      +'<rect x="'+(x+4)+'" y="'+(y+4)+'" width="'+(w-8)+'" height="154" fill="#dfd0a8" rx="1"/>'
+      +'<rect x="'+x+'" y="'+(y+36)+'" width="'+w+'" height="5" fill="#7a4c1e"/>'
+      +'<rect x="'+x+'" y="'+(y+74)+'" width="'+w+'" height="5" fill="#7a4c1e"/>'
+      +'<rect x="'+x+'" y="'+(y+112)+'" width="'+w+'" height="5" fill="#7a4c1e"/>'+b+'</g>';}
+  var b3='',bk3=['#882020','#203860','#285830','#604018','#882020'];
+  for(var s2=0;s2<4;s2++) for(var bi2=0;bi2<5;bi2++) b3+='<rect x="'+(x+5+bi2*13)+'" y="'+(y-7+s2*33)+'" width="11" height="24" fill="'+bk3[bi2]+'" rx="1"/>';
+  return '<g><rect x="'+x+'" y="'+(y-14)+'" width="'+w+'" height="176" fill="#4a2c10" rx="3"/>'
+    +'<rect x="'+(x+4)+'" y="'+(y-10)+'" width="'+(w-8)+'" height="168" fill="#dfd0a8" rx="1"/>'
+    +'<rect x="'+(x-2)+'" y="'+(y-18)+'" width="'+(w+4)+'" height="6" fill="#4a2c10" rx="1"/>'
+    +'<rect x="'+x+'" y="'+(y-14)+'" width="'+w+'" height="11" fill="#7a4c1e" rx="2"/>'
+    +'<rect x="'+x+'" y="'+(y+8)+'" width="'+w+'" height="5" fill="#4a2c10"/>'
+    +'<rect x="'+x+'" y="'+(y+41)+'" width="'+w+'" height="5" fill="#4a2c10"/>'
+    +'<rect x="'+x+'" y="'+(y+74)+'" width="'+w+'" height="5" fill="#4a2c10"/>'
+    +'<rect x="'+x+'" y="'+(y+107)+'" width="'+w+'" height="5" fill="#4a2c10"/>'+b3
+    +'<ellipse cx="'+(x+18)+'" cy="'+(y-7)+'" rx="8" ry="4" fill="#c8a030"/></g>';
+}
+
+function _svgBed(l){
+  var x=178,w=155;
+  if(l===0) return '<g><rect x="'+x+'" y="'+(FLOOR-9)+'" width="'+w+'" height="9" fill="#c4b038" rx="1"/>'
+    +'<line x1="'+(x+10)+'" y1="'+FLOOR+'" x2="'+(x+20)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/>'
+    +'<line x1="'+(x+34)+'" y1="'+FLOOR+'" x2="'+(x+44)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/>'
+    +'<line x1="'+(x+58)+'" y1="'+FLOOR+'" x2="'+(x+68)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/>'
+    +'<line x1="'+(x+82)+'" y1="'+FLOOR+'" x2="'+(x+92)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/>'
+    +'<line x1="'+(x+106)+'" y1="'+FLOOR+'" x2="'+(x+116)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/>'
+    +'<line x1="'+(x+130)+'" y1="'+FLOOR+'" x2="'+(x+140)+'" y2="'+(FLOOR-9)+'" stroke="#a09008" stroke-width="1" opacity="0.5"/></g>';
+  if(l===1) return '<g>'
+    +'<rect x="'+x+'" y="'+(FLOOR-18)+'" width="'+w+'" height="18" fill="#d0c090" rx="2"/>'
+    +'<rect x="'+(x+4)+'" y="'+(FLOOR-16)+'" width="'+(w-8)+'" height="14" fill="#e0d0a0" rx="1"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-25)+'" width="'+(w*0.55)+'" height="9" fill="#9070b0" rx="2"/>'
+    +'<rect x="'+(x+w*0.68)+'" y="'+(FLOOR-22)+'" width="44" height="12" fill="#d0cce0" rx="4"/></g>';
+  if(l===2) return '<g>'
+    +'<rect x="'+(x+6)+'" y="'+(FLOOR-14)+'" width="8" height="14" fill="#4a2c10"/>'
+    +'<rect x="'+(x+w-14)+'" y="'+(FLOOR-14)+'" width="8" height="14" fill="#4a2c10"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-38)+'" width="'+w+'" height="26" fill="#7a4c1e" rx="2"/>'
+    +'<rect x="'+(x+3)+'" y="'+(FLOOR-47)+'" width="'+(w-6)+'" height="14" fill="#c0b8d0" rx="2"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-66)+'" width="22" height="38" fill="#7a4c1e" rx="2"/>'
+    +'<rect x="'+(x+3)+'" y="'+(FLOOR-63)+'" width="16" height="28" fill="#c88848" rx="1"/>'
+    +'<rect x="'+(x+26)+'" y="'+(FLOOR-51)+'" width="'+(w-45)+'" height="16" fill="#7060a0" rx="2"/>'
+    +'<rect x="'+(x+w*0.65)+'" y="'+(FLOOR-58)+'" width="50" height="14" fill="#d8d4e8" rx="4"/></g>';
+  return '<g>'
+    +'<rect x="'+(x+2)+'" y="'+(FLOOR-132)+'" width="6" height="126" fill="#4a2c10" rx="2"/>'
+    +'<rect x="'+(x+w-8)+'" y="'+(FLOOR-132)+'" width="6" height="126" fill="#4a2c10" rx="2"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-134)+'" width="'+w+'" height="8" fill="#4a2c10" rx="2"/>'
+    +'<rect x="'+(x+4)+'" y="'+(FLOOR-136)+'" width="'+(w-8)+'" height="7" fill="#7858a8" rx="1"/>'
+    +'<path d="M'+(x+2)+','+(FLOOR-126)+' Q'+(x+18)+','+(FLOOR-96)+' '+(x+2)+','+(FLOOR-42)+'" fill="#7858a8" opacity="0.5"/>'
+    +'<path d="M'+(x+w-2)+','+(FLOOR-126)+' Q'+(x+w-18)+','+(FLOOR-96)+' '+(x+w-2)+','+(FLOOR-42)+'" fill="#7858a8" opacity="0.5"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-46)+'" width="'+w+'" height="34" fill="#4a2c10" rx="3"/>'
+    +'<rect x="'+(x+4)+'" y="'+(FLOOR-60)+'" width="'+(w-8)+'" height="20" fill="#b8b0d0" rx="3"/>'
+    +'<rect x="'+(x+6)+'" y="'+(FLOOR-58)+'" width="'+(w-12)+'" height="16" fill="#d4d0e8" rx="2"/>'
+    +'<rect x="'+x+'" y="'+(FLOOR-92)+'" width="26" height="58" fill="#4a2c10" rx="3"/>'
+    +'<rect x="'+(x+3)+'" y="'+(FLOOR-89)+'" width="20" height="48" fill="#7a4c1e" rx="2"/>'
+    +'<ellipse cx="'+(x+13)+'" cy="'+(FLOOR-73)+'" rx="8" ry="11" fill="#c88848"/>'
+    +'<rect x="'+(x+w-22)+'" y="'+(FLOOR-74)+'" width="22" height="40" fill="#4a2c10" rx="2"/>'
+    +'<rect x="'+(x+w-19)+'" y="'+(FLOOR-71)+'" width="16" height="30" fill="#7a4c1e" rx="1"/>'
+    +'<rect x="'+(x+30)+'" y="'+(FLOOR-65)+'" width="'+(w-62)+'" height="18" fill="#7060a0" rx="3"/>'
+    +'<rect x="'+(x+34)+'" y="'+(FLOOR-63)+'" width="'+(w-72)+'" height="14" fill="#8878b8" rx="2"/>'
+    +'<rect x="'+(x+w*0.54)+'" y="'+(FLOOR-72)+'" width="46" height="18" fill="#eae6f8" rx="5"/>'
+    +'<rect x="'+(x+w*0.54+48)+'" y="'+(FLOOR-70)+'" width="36" height="14" fill="#dcd8f0" rx="5"/></g>';
+}
+
+function _svgWard(l){
+  var x=285,y=162,w=70,h=205;
+  if(l===0) return '';
+  if(l===1){var p='<line x1="'+x+'" y1="'+(y+22)+'" x2="'+(x+w)+'" y2="'+(y+22)+'" stroke="#7a4c1e" stroke-width="4"/>'
+    +'<line x1="'+(x+12)+'" y1="'+y+'" x2="'+(x+12)+'" y2="'+(y+22)+'" stroke="#7a4c1e" stroke-width="2"/>'
+    +'<line x1="'+(x+w-12)+'" y1="'+y+'" x2="'+(x+w-12)+'" y2="'+(y+22)+'" stroke="#7a4c1e" stroke-width="2"/>';
+    ['#7858a8','#a06040','#3870a0'].forEach(function(cl,i){var ox=x+14+i*20;
+      p+='<path d="M'+ox+','+(y+22)+' Q'+(ox-4)+','+(y+44)+' '+(ox-8)+','+(y+62)+' L'+(ox+8)+','+(y+62)+' Q'+(ox+12)+','+(y+44)+' '+(ox+8)+','+(y+22)+'" fill="'+cl+'" opacity="0.85"/>'
+        +'<path d="M'+(ox+4)+','+(y+24)+' Q'+(ox+8)+','+(y+16)+' '+(ox+4)+','+(y+22)+'" fill="none" stroke="#888" stroke-width="1.5"/>';
+    });
+    return '<g>'+p+'</g>';}
+  if(l===2){var hw=(w-20)/2;return '<g>'
+    +'<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="#7a4c1e" rx="3"/>'
+    +'<rect x="'+(x+4)+'" y="'+(y+4)+'" width="'+(w-8)+'" height="'+(h-8)+'" fill="#c88848" rx="2"/>'
+    +'<line x1="'+(x+w/2)+'" y1="'+y+'" x2="'+(x+w/2)+'" y2="'+(y+h)+'" stroke="#7a4c1e" stroke-width="3"/>'
+    +'<rect x="'+(x+6)+'" y="'+(y+12)+'" width="'+hw+'" height="40" fill="#7a4c1e" opacity="0.3" rx="1"/>'
+    +'<rect x="'+(x+9+hw)+'" y="'+(y+12)+'" width="'+hw+'" height="40" fill="#7a4c1e" opacity="0.3" rx="1"/>'
+    +'<circle cx="'+(x+w/2-5)+'" cy="'+(y+70)+'" r="4" fill="#c8a030"/>'
+    +'<circle cx="'+(x+w/2+5)+'" cy="'+(y+70)+'" r="4" fill="#c8a030"/>'
+    +'<line x1="'+x+'" y1="'+(y+h*0.55)+'" x2="'+(x+w)+'" y2="'+(y+h*0.55)+'" stroke="#7a4c1e" stroke-width="2"/>'
+    +'<rect x="'+(x+8)+'" y="'+(y+h*0.58)+'" width="'+(w-16)+'" height="20" fill="#7a4c1e" opacity="0.25" rx="1"/>'
+    +'<circle cx="'+(x+w/2)+'" cy="'+(y+h*0.58+10)+'" r="3" fill="#c8a030"/></g>';}
+  return '<g>'
+    +'<rect x="'+(x-3)+'" y="'+y+'" width="'+(w+6)+'" height="'+h+'" fill="#4a2c10" rx="4"/>'
+    +'<rect x="'+(x+3)+'" y="'+(y+5)+'" width="'+(w-6)+'" height="'+(h-10)+'" fill="#7a4c1e" rx="3"/>'
+    +'<path d="M'+(x-3)+','+y+' Q'+(x+w/2)+','+(y-24)+' '+(x+w+3)+','+y+'" fill="#4a2c10"/>'
+    +'<path d="M'+(x+4)+','+y+' Q'+(x+w/2)+','+(y-17)+' '+(x+w-4)+','+y+'" fill="#c88848"/>'
+    +'<ellipse cx="'+(x+w/4+2)+'" cy="'+(y+36)+'" rx="14" ry="20" fill="#4a2c10" opacity="0.35"/>'
+    +'<ellipse cx="'+(x+3*w/4-2)+'" cy="'+(y+36)+'" rx="14" ry="20" fill="#4a2c10" opacity="0.35"/>'
+    +'<line x1="'+(x+w/2)+'" y1="'+(y+5)+'" x2="'+(x+w/2)+'" y2="'+(y+h-5)+'" stroke="#4a2c10" stroke-width="3"/>'
+    +'<rect x="'+(x+w/2-12)+'" y="'+(y+76)+'" width="10" height="16" fill="#c8a030" rx="2"/>'
+    +'<rect x="'+(x+w/2+2)+'" y="'+(y+76)+'" width="10" height="16" fill="#c8a030" rx="2"/>'
+    +'<line x1="'+(x+3)+'" y1="'+(y+h*0.55)+'" x2="'+(x+w-3)+'" y2="'+(y+h*0.55)+'" stroke="#4a2c10" stroke-width="2"/>'
+    +'<line x1="'+(x+3)+'" y1="'+(y+h*0.72)+'" x2="'+(x+w-3)+'" y2="'+(y+h*0.72)+'" stroke="#4a2c10" stroke-width="2"/>'
+    +'<circle cx="'+(x+w/2)+'" cy="'+(y+h*0.580)+'" r="3" fill="#c8a030"/>'
+    +'<circle cx="'+(x+w/2)+'" cy="'+(y+h*0.735)+'" r="3" fill="#c8a030"/>'
+    +'<circle cx="'+(x+w/2)+'" cy="'+(y+h*0.890)+'" r="3" fill="#c8a030"/></g>';
+}
+
+function _svgFun(l){
+  var x=82,fy=FLOOR-52,w=84;
+  if(l===0) return '';
+  if(l===1) return '<g>'
+    +'<rect x="'+x+'" y="'+(fy+26)+'" width="'+w+'" height="8" fill="#7a4c1e" rx="1"/>'
+    +'<rect x="'+(x+3)+'" y="'+(fy+34)+'" width="8" height="16" fill="#4a2c10"/>'
+    +'<rect x="'+(x+w-11)+'" y="'+(fy+34)+'" width="8" height="16" fill="#4a2c10"/>'
+    +'<rect x="'+(x+10)+'" y="'+(fy+12)+'" width="'+(w-20)+'" height="14" fill="#b09040" opacity="0.7" rx="1"/>'
+    +'<circle cx="'+(x+14)+'" cy="'+(fy+18)+'" r="3.5" fill="#f0e0c0"/>'
+    +'<circle cx="'+(x+28)+'" cy="'+(fy+14)+'" r="3.5" fill="#2a1808"/>'
+    +'<circle cx="'+(x+50)+'" cy="'+(fy+18)+'" r="3.5" fill="#f0e0c0"/>'
+    +'<circle cx="'+(x+70)+'" cy="'+(fy+15)+'" r="3.5" fill="#2a1808"/></g>';
+  if(l===2) return '<g>'
+    +'<rect x="'+(x-18)+'" y="'+(fy+16)+'" width="32" height="10" fill="#203860" rx="1"/>'
+    +'<rect x="'+(x-16)+'" y="'+(fy+6)+'" width="28" height="10" fill="#882020" rx="1"/>'
+    +'<rect x="'+(x-14)+'" y="'+(fy-4)+'" width="24" height="10" fill="#285830" rx="1"/>'
+    +'<rect x="'+(x+18)+'" y="'+(fy+20)+'" width="62" height="8" fill="#7a4c1e" rx="2"/>'
+    +'<rect x="'+(x+21)+'" y="'+(fy+28)+'" width="8" height="20" fill="#4a2c10" rx="1"/>'
+    +'<rect x="'+(x+67)+'" y="'+(fy+28)+'" width="8" height="20" fill="#4a2c10" rx="1"/>'
+    +'<rect x="'+(x+22)+'" y="'+(fy+4)+'" width="50" height="16" fill="#d4bc60" rx="1"/>'
+    +'<rect x="'+(x+22)+'" y="'+(fy+4)+'" width="12.5" height="4" fill="#a07830"/>'
+    +'<rect x="'+(x+22)+'" y="'+(fy+12)+'" width="12.5" height="4" fill="#a07830"/>'
+    +'<rect x="'+(x+47)+'" y="'+(fy+4)+'" width="12.5" height="4" fill="#a07830"/>'
+    +'<rect x="'+(x+47)+'" y="'+(fy+12)+'" width="12.5" height="4" fill="#a07830"/>'
+    +'<circle cx="'+(x+28)+'" cy="'+(fy+10)+'" r="4" fill="#f0e8d0"/>'
+    +'<circle cx="'+(x+41)+'" cy="'+(fy+7)+'" r="4" fill="#201008"/>'
+    +'<circle cx="'+(x+55)+'" cy="'+(fy+10)+'" r="4" fill="#f0e8d0"/>'
+    +'<circle cx="'+(x+68)+'" cy="'+(fy+7)+'" r="4" fill="#201008"/></g>';
+  var st='';
+  for(var i=0;i<14;i++){var sx=x+i*7.5-6,sy=fy+13+i*1.5;
+    st+='<rect x="'+sx+'" y="'+sy+'" width="6" height="4" fill="#d0a050" rx="0.5"/>'
+      +'<line x1="'+(sx+3)+'" y1="'+(fy+6+i)+'" x2="'+(sx+3)+'" y2="'+(fy+40+i)+'" stroke="#e0d0a0" stroke-width="0.8" opacity="0.85"/>';
+  }
+  return '<g><path d="M'+(x-14)+','+(fy+43)+' L'+(x+w+16)+','+(fy+47)+' L'+(x+w+16)+','+(fy+53)+' L'+(x-14)+','+(fy+49)+' Z" fill="#4a2c10"/>'
+    +'<path d="M'+(x-12)+','+(fy+6)+' Q'+(x+w/2)+','+(fy+1)+' '+(x+w+12)+','+(fy+8)+' L'+(x+w+16)+','+(fy+47)+' L'+(x-14)+','+(fy+43)+' Z" fill="#c88848"/>'
+    +'<path d="M'+(x-12)+','+(fy+6)+' Q'+(x+w/2)+','+(fy+1)+' '+(x+w+12)+','+(fy+8)+'" fill="none" stroke="#7a4c1e" stroke-width="2.5"/>'+st
+    +'<rect x="'+(x+2)+'" y="'+(fy+43)+'" width="10" height="14" fill="#4a2c10" rx="2"/>'
+    +'<rect x="'+(x+w-2)+'" y="'+(fy+44)+'" width="10" height="12" fill="#4a2c10" rx="2"/></g>';
+}
+
+// ── Chibi ─────────────────────────────────────────────────
+function _svgMaster(cx,by){
+  return '<g><path d="M'+(cx-12)+','+by+' Q'+cx+','+(by+12)+' '+(cx+12)+','+by+' L'+(cx+10)+','+(by-38)+' L'+(cx-10)+','+(by-38)+' Z" fill="#28304c"/>'
+    +'<path d="M'+(cx-10)+','+(by-38)+' Q'+(cx-20)+','+(by-18)+' '+(cx-22)+','+(by+6)+'" fill="#28304c"/>'
+    +'<path d="M'+(cx+10)+','+(by-38)+' Q'+(cx+20)+','+(by-18)+' '+(cx+22)+','+(by+6)+'" fill="#28304c"/>'
+    +'<path d="M'+(cx-8)+','+(by-38)+' Q'+cx+','+(by-34)+' '+(cx+8)+','+(by-38)+'" fill="none" stroke="#c8a030" stroke-width="2"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-59)+'" rx="21" ry="22" fill="#f0d0a0"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-69)+'" rx="21" ry="13" fill="#181020"/>'
+    +'<path d="M'+(cx-21)+','+(by-64)+' Q'+(cx-27)+','+(by-54)+' '+(cx-21)+','+(by-42)+'" fill="#181020"/>'
+    +'<path d="M'+(cx+21)+','+(by-64)+' Q'+(cx+27)+','+(by-54)+' '+(cx+21)+','+(by-42)+'" fill="#181020"/>'
+    +'<circle cx="'+(cx-7)+'" cy="'+(by-58)+'" r="2.5" fill="#181020"/>'
+    +'<circle cx="'+(cx+7)+'" cy="'+(by-58)+'" r="2.5" fill="#181020"/>'
+    +'<path d="M'+(cx-5)+','+(by-50)+' Q'+cx+','+(by-48)+' '+(cx+5)+','+(by-50)+'" fill="none" stroke="#904040" stroke-width="1.5"/>'
+    +'<line x1="'+(cx-11)+'" y1="'+(by-63)+'" x2="'+(cx-4)+'" y2="'+(by-62)+'" stroke="#181020" stroke-width="1.5"/>'
+    +'<line x1="'+(cx+4)+'" y1="'+(by-62)+'" x2="'+(cx+11)+'" y2="'+(by-63)+'" stroke="#181020" stroke-width="1.5"/>'
+    +'<rect x="'+(cx-9)+'" y="'+by+'" width="8" height="18" fill="#181830" rx="2"/>'
+    +'<rect x="'+(cx+1)+'" y="'+by+'" width="8" height="18" fill="#181830" rx="2"/></g>';
+}
+function _svgSlave(cx,by,c){ return _isMale(c)?_svgSlaveMale(cx,by):_svgSlaveFemale(cx,by); }
+function _svgSlaveFemale(cx,by){
+  return '<g><path d="M'+(cx-10)+','+by+' Q'+(cx+11)+','+(by+10)+' '+(cx+10)+','+by+' L'+(cx+8)+','+(by-34)+' L'+(cx-8)+','+(by-34)+' Z" fill="#d8c0e8"/>'
+    +'<path d="M'+(cx-8)+','+(by-34)+' Q'+(cx-21)+','+(by+2)+' '+(cx-15)+','+(by+12)+' Q'+cx+','+(by+17)+' '+(cx+15)+','+(by+12)+' Q'+(cx+21)+','+(by+2)+' '+(cx+8)+','+(by-34)+'" fill="#c4a8d8"/>'
+    +'<ellipse cx="'+(cx-12)+'" cy="'+(by-27)+'" rx="6" ry="5" fill="#d8c0e8"/>'
+    +'<ellipse cx="'+(cx+12)+'" cy="'+(by-27)+'" rx="6" ry="5" fill="#d8c0e8"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-56)+'" rx="19" ry="20" fill="#f2d0a0"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-65)+'" rx="19" ry="11" fill="#d4a020"/>'
+    +'<line x1="'+(cx-19)+'" y1="'+(by-60)+'" x2="'+(cx-23)+'" y2="'+(by-22)+'" stroke="#d4a020" stroke-width="10" stroke-linecap="round"/>'
+    +'<line x1="'+(cx+19)+'" y1="'+(by-60)+'" x2="'+(cx+23)+'" y2="'+(by-22)+'" stroke="#d4a020" stroke-width="10" stroke-linecap="round"/>'
+    +'<path d="M'+(cx-5)+','+(by-71)+' Q'+cx+','+(by-73)+' '+(cx+5)+','+(by-71)+'" fill="none" stroke="#e8c040" stroke-width="2" opacity="0.7"/>'
+    +'<circle cx="'+(cx-6)+'" cy="'+(by-55)+'" r="2.5" fill="#4a3020"/>'
+    +'<circle cx="'+(cx+6)+'" cy="'+(by-55)+'" r="2.5" fill="#4a3020"/>'
+    +'<ellipse cx="'+(cx-9)+'" cy="'+(by-51)+'" rx="5" ry="3" fill="#e07880" opacity="0.35"/>'
+    +'<ellipse cx="'+(cx+9)+'" cy="'+(by-51)+'" rx="5" ry="3" fill="#e07880" opacity="0.35"/>'
+    +'<path d="M'+(cx-4)+','+(by-47)+' Q'+cx+','+(by-43)+' '+(cx+4)+','+(by-47)+'" fill="none" stroke="#c06050" stroke-width="1.5"/>'
+    +'<line x1="'+(cx-9)+'" y1="'+(by-60)+'" x2="'+(cx-3)+'" y2="'+(by-59)+'" stroke="#4a3020" stroke-width="1.5"/>'
+    +'<line x1="'+(cx+3)+'" y1="'+(by-59)+'" x2="'+(cx+9)+'" y2="'+(by-60)+'" stroke="#4a3020" stroke-width="1.5"/>'
+    +'<rect x="'+(cx-6)+'" y="'+by+'" width="5" height="16" fill="#d8c0e8" rx="2"/>'
+    +'<rect x="'+(cx+1)+'" y="'+by+'" width="5" height="16" fill="#d8c0e8" rx="2"/></g>';
+}
+function _svgSlaveMale(cx,by){
+  return '<g><rect x="'+(cx-9)+'" y="'+by+'" width="8" height="16" fill="#506070" rx="2"/>'
+    +'<rect x="'+(cx+1)+'" y="'+by+'" width="8" height="16" fill="#506070" rx="2"/>'
+    +'<path d="M'+(cx-11)+','+by+' L'+(cx-11)+','+(by-36)+' L'+(cx+11)+','+(by-36)+' L'+(cx+11)+','+by+' Z" fill="#8090a8"/>'
+    +'<rect x="'+(cx-5)+'" y="'+(by-38)+'" width="10" height="4" fill="#f0d4a8" rx="1"/>'
+    +'<ellipse cx="'+(cx-14)+'" cy="'+(by-25)+'" rx="6" ry="5" fill="#8090a8"/>'
+    +'<ellipse cx="'+(cx+14)+'" cy="'+(by-25)+'" rx="6" ry="5" fill="#8090a8"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-57)+'" rx="20" ry="21" fill="#f0d4a8"/>'
+    +'<ellipse cx="'+cx+'" cy="'+(by-67)+'" rx="20" ry="11" fill="#2a1e14"/>'
+    +'<rect x="'+(cx-14)+'" y="'+(by-75)+'" width="28" height="7" fill="#2a1e14" rx="3"/>'
+    +'<rect x="'+(cx-20)+'" y="'+(by-68)+'" width="7" height="16" fill="#2a1e14" rx="3"/>'
+    +'<rect x="'+(cx+13)+'" y="'+(by-68)+'" width="7" height="16" fill="#2a1e14" rx="3"/>'
+    +'<circle cx="'+(cx-7)+'" cy="'+(by-56)+'" r="2.5" fill="#281828"/>'
+    +'<circle cx="'+(cx+7)+'" cy="'+(by-56)+'" r="2.5" fill="#281828"/>'
+    +'<line x1="'+(cx-4)+'" y1="'+(by-48)+'" x2="'+(cx+4)+'" y2="'+(by-48)+'" stroke="#906050" stroke-width="1.5" stroke-linecap="round"/>'
+    +'<line x1="'+(cx-10)+'" y1="'+(by-62)+'" x2="'+(cx-3)+'" y2="'+(by-61)+'" stroke="#2a1e14" stroke-width="1.5"/>'
+    +'<line x1="'+(cx+3)+'" y1="'+(by-61)+'" x2="'+(cx+10)+'" y2="'+(by-62)+'" stroke="#2a1e14" stroke-width="1.5"/></g>';
+}
+
+})();

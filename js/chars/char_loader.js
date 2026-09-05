@@ -211,137 +211,8 @@ function _checkEventCondition(cond, sv) {
   return true;
 }
 
-// ── 指令专属剧情获取 ────────────────────────────────────────
-/**
- * 获取角色对某指令的专属剧情（供 game.js doAction 调用）
- *
- * 查找优先级：
- *   关系专属分支（relation_[type]）> 通用阶段分支（stage0~3）
- *
- * @param {number|string} charId       角色 id
- * @param {string}        commandName  指令名（如 "亲吻"、"抚摸兽耳"）
- * @param {Object}        saveData     当前存档（含 obedience/affection/lust 等）
- * @returns {{ stories: string[], effects?: Object } | null}
- *   stories 是随机抽取池，调用方自行 pick()
- */
-/**
- * firstTime 条件检测器
- * condition 格式：{ affection: [min, max], obedience: [min, Infinity], lust: 50 }
- * 数组格式 [min, max] 表示 min <= val < max；Infinity 表示无上限
- * 数字格式表示 val >= 该数字
- */
-function _checkFirstTimeCondition(condition, sv) {
-  if (!condition) return true; // 无条件 → 始终匹配（用作 default 分支）
-  var attrs = {
-    affection: sv.affection  || 0,
-    obedience: sv.obedience  || 0,
-    lust:      sv.lust       || 0,
-    stamina:   sv.stamina    || 0,
-    trust:     sv.trust      || 0,
-    loyalty:   sv.loyalty    || 0,
-    love:      sv.love       || 0,
-    purity:    sv.purity     || 0,
-    depravity: sv.depravity  || 0,
-  };
-  for (var key in condition) {
-    if (!Object.prototype.hasOwnProperty.call(condition, key)) continue;
-    var req = condition[key];
-    var val = (attrs[key] !== undefined) ? attrs[key] : 0;
-    if (Array.isArray(req)) {
-      var lo = (req[0] !== undefined && req[0] !== null) ? req[0] : -Infinity;
-      var hi = (req[1] !== undefined && req[1] !== null) ? req[1] : Infinity;
-      if (val < lo || val >= hi) return false;
-    } else if (typeof req === 'number') {
-      if (val < req) return false;
-    }
-  }
-  return true;
-}
 
 
-/**
- * 故事条件检测器（用于 stories 内条件分支）
- * condition 支持：
- *   { lust: [80, Infinity] }   数值范围
- *   { stamina: [-Inf, 10] }    低于阈值
- *   { equip: '口塞球' }         装备检测（检查 sv.equips 数组）
- *   { tag: '淫乱' }             标签检测（检查 sv.tags 数组）
- */
-function _checkStoryCondition(condition, sv) {
-  if (!condition) return true;
-  sv = sv || {};
-  var numericAttrs = {
-    lust:      sv.lust      || 0,
-    stamina:   sv.stamina   || 0,
-    affection: sv.affection || 0,
-    obedience: sv.obedience || 0,
-    love:      sv.love      || 0,
-  };
-  for (var key in condition) {
-    if (!Object.prototype.hasOwnProperty.call(condition, key)) continue;
-    var req = condition[key];
-    if (key === 'equip') {
-      // 检查装备：sv.equips 是字符串数组
-      var equips = sv.equips || sv.activeEquips || [];
-      var equipStr = JSON.stringify(equips);
-      if (equipStr.indexOf(req) < 0) return false;
-      continue;
-    }
-    if (key === 'tag') {
-      var tags = sv.tags || [];
-      if (tags.indexOf(req) < 0) return false;
-      continue;
-    }
-    if (numericAttrs[key] !== undefined) {
-      var val = numericAttrs[key];
-      if (Array.isArray(req)) {
-        var lo = (req[0] !== undefined && req[0] !== null) ? req[0] : -Infinity;
-        var hi = (req[1] !== undefined && req[1] !== null) ? req[1] : Infinity;
-        if (val < lo || val >= hi) return false;
-      } else if (typeof req === 'number') {
-        if (val < req) return false;
-      }
-    }
-  }
-  return true;
-}
-
-
-function getCharCommandStory(charId, commandName, saveData) {
-  var reg = CharRegistry.get(charId);
-  if (!reg || !reg.commandStories) return null;
-
-  var cmdEntry = reg.commandStories[commandName];
-  if (!cmdEntry) return null;
-
-  var sv    = saveData || {};
-  var stage = _getStage(sv);                        // 0~3
-  var rel   = (reg.relation && reg.relation.type) || 'stranger';
-
-  // 1. 关系专属分支：relation_friend / relation_family / relation_rival …
-  var relKey    = 'relation_' + rel;
-  var relBranch = cmdEntry[relKey];
-  if (relBranch) {
-    var relPool = relBranch['stage' + stage] || relBranch['stage0'];
-    if (relPool && relPool.length) {
-      return { stories: [pick(relPool)], effects: cmdEntry.effects && cmdEntry.effects[stage] };
-    }
-  }
-
-  // 2. 通用阶段分支
-  var stageKey  = 'stage' + stage;
-  var stagePool = cmdEntry[stageKey];
-  if (stagePool && stagePool.length) {
-    return { stories: [pick(stagePool)], effects: cmdEntry.effects && cmdEntry.effects[stage] };
-  }
-
-  // 3. 向下兼容：直接是数组
-  if (Array.isArray(cmdEntry)) {
-    return { stories: [pick(cmdEntry)] };
-  }
-
-  return null;
-}
 
 // ── pick helper 已在 state.js 中定义，此处无需重复声明 ──────
 
@@ -417,10 +288,19 @@ function _checkStoryCondition(condition, sv) {
     if (!Object.prototype.hasOwnProperty.call(condition, key)) continue;
     var req = condition[key];
     if (key === 'equip') {
-      // 检查装备：sv.equips 是字符串数组
+      // ★ 修复：检查装备 - 支持单道具名（字符串）和多道具名（数组）
+      // equip: '口塞球'           → 单道具，装备中有即满足
+      // equip: ['口塞球', '眼罩'] → 多道具，两者都必须已装备
       var equips = sv.equips || sv.activeEquips || [];
-      var equipStr = JSON.stringify(equips);
-      if (equipStr.indexOf(req) < 0) return false;
+      if (Array.isArray(req)) {
+        // 多道具条件：所有指定道具都必须已装备
+        for (var _eqi = 0; _eqi < req.length; _eqi++) {
+          if (equips.indexOf(req[_eqi]) < 0) return false;
+        }
+      } else {
+        // 单道具条件
+        if (equips.indexOf(req) < 0) return false;
+      }
       continue;
     }
     if (key === 'tag') {
@@ -455,13 +335,16 @@ function getCharCommandStory(charId, commandName, saveData) {
   var rel   = (reg.relation && reg.relation.type) || 'stranger';
 
   // ★ 首次触发检测：优先检查当前阶段是否有 firstTime 剧情且未曾触发
+  // ★ 修复：改为 per-stage 标记，每个阶段的 firstTime 各自独立触发一次
+  //    key 格式：'指令名_s0' / '指令名_s1' / '指令名_s2' / '指令名_s3'
   var cmdFlags = sv.cmdFirstTriggers || {};
-  if (!cmdFlags[commandName]) {
+  var _ftKey = commandName + '_s' + stage;  // ← per-stage key
+  if (!cmdFlags[_ftKey]) {
     var stageDataForFirst = (cmd.byStage && cmd.byStage[stage]);
     if (stageDataForFirst && stageDataForFirst.firstTime) {
       // 标记已触发（直接写入 sv 引用，writeSave 时自动持久化）
       sv.cmdFirstTriggers = cmdFlags;
-      sv.cmdFirstTriggers[commandName] = true;
+      sv.cmdFirstTriggers[_ftKey] = true;  // ← 用 per-stage key
       var ft = stageDataForFirst.firstTime;
 
       // ★ 新增：支持条件数组格式
@@ -516,9 +399,20 @@ function getCharCommandStory(charId, commandName, saveData) {
   }
 
   // 通用阶段分支
-  if (cmd.byStage && cmd.byStage[stage]) {
-    var result2 = _pickStoryBranch(cmd.byStage[stage], sv);
-    if (result2) return result2;
+  if (cmd.byStage) {
+    // 先尝试当前阶段
+    if (cmd.byStage[stage]) {
+      var result2 = _pickStoryBranch(cmd.byStage[stage], sv);
+      if (result2) return result2;
+    }
+    // ★ 阶段向下回退：当前阶段无剧情时，依次找更低阶段兜底
+    // 保证写了 Stage0 就不会因升阶后报错（无需把每个阶段都写满）
+    for (var _fbStage = stage - 1; _fbStage >= 0; _fbStage--) {
+      if (cmd.byStage[_fbStage]) {
+        var _fbResult = _pickStoryBranch(cmd.byStage[_fbStage], sv);
+        if (_fbResult) return _fbResult;
+      }
+    }
   }
 
   // 兜底：指令级默认
@@ -566,6 +460,22 @@ function getCharCommandStory(charId, commandName, saveData) {
  *
  * ★ 修复：返回值中补上 expChanges，保证 game.js 能读取经验变化
  */
+
+// ★ 计算条件的"特异性分数"：多道具条件分数高于单道具，用于多道具优先级排序
+function _conditionSpecificity(condition, sv) {
+  if (!condition) return 0;
+  var equips = sv ? (sv.equips || sv.activeEquips || []) : [];
+  var score = 0;
+  if (condition.equip) {
+    if (Array.isArray(condition.equip)) {
+      score += condition.equip.length * 2; // 多道具条件权重更高
+    } else {
+      score += 1;
+    }
+  }
+  return score;
+}
+
 function _pickStoryBranch(branch, sv) {
   if (!branch) return null;
   sv = sv || {};
@@ -584,7 +494,19 @@ function _pickStoryBranch(branch, sv) {
       // 若没有满足条件的，取无条件项作为兜底
       if (!matching.length) matching = branch.filter(function(item) { return !item.condition; });
       if (!matching.length) return null;
-      var chosen = matching[Math.floor(Math.random() * matching.length)];
+
+      // ★ 多道具优先：若装备了多个道具，先选特异性最高的（多道具条件优先于单道具）
+      var maxSpec = 0;
+      matching.forEach(function(item) {
+        var sp = _conditionSpecificity(item.condition, sv);
+        if (sp > maxSpec) maxSpec = sp;
+      });
+      var topTier = maxSpec > 0 ? matching.filter(function(item) {
+        return _conditionSpecificity(item.condition, sv) === maxSpec;
+      }) : matching;
+      if (!topTier.length) topTier = matching;
+
+      var chosen = topTier[Math.floor(Math.random() * topTier.length)];
       var finalSt = chosen.story || chosen.stories || [];
       return {
         stories:    Array.isArray(finalSt[0]) ? finalSt[Math.floor(Math.random() * finalSt.length)] : finalSt,
@@ -607,7 +529,12 @@ function _pickStoryBranch(branch, sv) {
     var matchSt = stories.filter(function(s) { return _checkStoryCondition(s.condition, sv); });
     if (!matchSt.length) matchSt = stories.filter(function(s) { return !s.condition; });
     if (!matchSt.length) return null;
-    var pickedSt = matchSt[Math.floor(Math.random() * matchSt.length)];
+    // ★ 多道具优先：选特异性最高的条件故事
+    var maxSpecSt = 0;
+    matchSt.forEach(function(s) { var sp = _conditionSpecificity(s.condition, sv); if (sp > maxSpecSt) maxSpecSt = sp; });
+    var topMatchSt = maxSpecSt > 0 ? matchSt.filter(function(s) { return _conditionSpecificity(s.condition, sv) === maxSpecSt; }) : matchSt;
+    if (!topMatchSt.length) topMatchSt = matchSt;
+    var pickedSt = topMatchSt[Math.floor(Math.random() * topMatchSt.length)];
     var finalArr = pickedSt.story || pickedSt.stories || [];
     return {
       stories:    Array.isArray(finalArr[0]) ? finalArr[Math.floor(Math.random() * finalArr.length)] : finalArr,
@@ -659,12 +586,11 @@ function _autoLoadCharImages() {
 
     var basePath = 'cg/char/' + id + '/';
 
-    // 1. 尝试加载 normal.jpg 作为默认头像
-    (function(cid, path) {
-      var img = new Image();
-      img.onload = function() {
+    // 1. 尝试加载头像：优先 avatar.jpg，回落 normal.jpg
+    // ★ 修复：avatar.jpg 存在时优先用作训练页/庄园头像
+    (function(cid, avatarPath, normalPath) {
+      function _applyPresetAva(path) {
         charData._presetAvaUrl = path;
-        // 写入现有存档（仅当用户未自定义时）
         try {
           var svRaw = localStorage.getItem('era_sv_' + cid);
           if (svRaw) {
@@ -676,14 +602,25 @@ function _autoLoadCharImages() {
             }
           }
         } catch(e) {}
-        // 如果庄园已打开，刷新
         if (typeof renderManor === 'function') {
           try { renderManor(); } catch(e) {}
         }
+        if (typeof renderPlay === 'function') {
+          try { renderPlay(); } catch(e) {}
+        }
+      }
+      // 先尝试 avatar.jpg
+      var imgA = new Image();
+      imgA.onload = function() { _applyPresetAva(avatarPath); };
+      imgA.onerror = function() {
+        // avatar.jpg 不存在，回落到 normal.jpg
+        var imgN = new Image();
+        imgN.onload = function() { _applyPresetAva(normalPath); };
+        imgN.onerror = function() {};
+        imgN.src = normalPath;
       };
-      img.onerror = function() {}; // 没有文件则静默忽略
-      img.src = path;
-    })(id, basePath + 'normal.jpg');
+      imgA.src = avatarPath;
+    })(id, basePath + 'avatar.jpg', basePath + 'normal.jpg');
 
     // 2. 优先从 charData.presetImages 直接读取（无需 fetch，file:// 协议也能用）
     if (charData.presetImages && charData.presetImages.length) {
